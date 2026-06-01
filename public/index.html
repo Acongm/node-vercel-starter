@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Node Vercel Starter</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #172033;
+        background: #f7f8fb;
+      }
+
+      main {
+        width: min(980px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 32px;
+      }
+
+      section {
+        margin-top: 20px;
+        padding: 18px;
+        border: 1px solid #d9deea;
+        border-radius: 8px;
+        background: white;
+      }
+
+      label {
+        display: block;
+        margin: 12px 0 6px;
+        font-weight: 600;
+      }
+
+      input,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #c7cfdd;
+        border-radius: 6px;
+        padding: 10px;
+      }
+
+      button {
+        margin-top: 12px;
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 14px;
+        color: white;
+        background: #265bdc;
+        cursor: pointer;
+      }
+
+      pre {
+        overflow: auto;
+        padding: 12px;
+        border-radius: 6px;
+        background: #101828;
+        color: #f3f6fc;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Node Vercel Starter</h1>
+      <p>NestJS backend template with controller, service, module, DTO, and adapter boundaries.</p>
+
+      <section>
+        <h2>Health</h2>
+        <button id="health-button">Check health</button>
+        <pre id="health-output">Not loaded yet.</pre>
+      </section>
+
+      <section>
+        <h2>AI Chat</h2>
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" rows="3">hello</textarea>
+        <button id="ai-button">Send</button>
+        <pre id="ai-output">Not sent yet.</pre>
+      </section>
+
+      <section>
+        <h2>Comments</h2>
+        <label for="comment">Comment</label>
+        <input id="comment" value="This starter is ready." />
+        <button id="comment-button">Add comment</button>
+        <pre id="comments-output">No comments loaded.</pre>
+      </section>
+
+      <section>
+        <h2>Browser Local History</h2>
+        <button id="history-button">Save local event</button>
+        <pre id="history-output">IndexedDB events appear here.</pre>
+      </section>
+    </main>
+
+    <script type="module">
+      import { addLocalEvent, listLocalEvents } from './client-db.js';
+
+      const show = (id, value) => {
+        document.getElementById(id).textContent = JSON.stringify(value, null, 2);
+      };
+
+      async function jsonFetch(url, options) {
+        const response = await fetch(url, {
+          headers: { 'content-type': 'application/json' },
+          ...options,
+        });
+        return response.json();
+      }
+
+      document.getElementById('health-button').onclick = async () => {
+        show('health-output', await jsonFetch('/api/health'));
+      };
+
+      document.getElementById('ai-button').onclick = async () => {
+        const prompt = document.getElementById('prompt').value;
+        show(
+          'ai-output',
+          await jsonFetch('/api/ai/chat', {
+            method: 'POST',
+            body: JSON.stringify({ prompt }),
+          }),
+        );
+      };
+
+      document.getElementById('comment-button').onclick = async () => {
+        const content = document.getElementById('comment').value;
+        await jsonFetch('/api/comments', {
+          method: 'POST',
+          body: JSON.stringify({ author: 'Browser Demo', content }),
+        });
+        show('comments-output', await jsonFetch('/api/comments'));
+      };
+
+      document.getElementById('history-button').onclick = async () => {
+        await addLocalEvent('click', { source: 'demo' });
+        show('history-output', await listLocalEvents());
+      };
+    </script>
+  </body>
+</html>
