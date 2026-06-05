@@ -1,5 +1,12 @@
 export type RuntimeTarget = 'node' | 'vercel';
-export type DataMode = 'none' | 'memory' | 'file' | 'mongo' | 'postgres' | 'redis';
+export type DataMode =
+  | 'none'
+  | 'memory'
+  | 'file'
+  | 'mongo'
+  | 'postgres'
+  | 'redis'
+  | 'supabase';
 export type FileMode = 'memory' | 'local' | 'vercel-blob' | 's3';
 export type AuthMode = 'none' | 'jwt' | 'external';
 export type AiProvider = 'mock' | 'openai' | 'custom';
@@ -23,11 +30,26 @@ export interface AppConfig {
     baseUrl: string;
     model: string;
   };
+  corsOrigins: string[];
   proxyAllowlist: Record<string, string>;
+  supabase: {
+    url?: string;
+    apiKey?: string;
+    requestSecret?: string;
+    commentsTable: string;
+  };
 }
 
 const runtimeTargets: RuntimeTarget[] = ['node', 'vercel'];
-const dataModes: DataMode[] = ['none', 'memory', 'file', 'mongo', 'postgres', 'redis'];
+const dataModes: DataMode[] = [
+  'none',
+  'memory',
+  'file',
+  'mongo',
+  'postgres',
+  'redis',
+  'supabase',
+];
 const fileModes: FileMode[] = ['memory', 'local', 'vercel-blob', 's3'];
 const authModes: AuthMode[] = ['none', 'jwt', 'external'];
 const aiProviders: AiProvider[] = ['mock', 'openai', 'custom'];
@@ -56,6 +78,17 @@ function parseAllowlist(raw: string | undefined): Record<string, string> {
   }, {});
 }
 
+function parseList(raw: string | undefined): string[] {
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     appName: env.APP_NAME || 'node-vercel-starter',
@@ -76,6 +109,13 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       baseUrl: (env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
       model: env.AI_MODEL || 'gpt-4.1-mini',
     },
+    corsOrigins: parseList(env.CORS_ORIGINS || 'https://acongm.com,https://*.acongm.com'),
     proxyAllowlist: parseAllowlist(env.PROXY_ALLOWLIST),
+    supabase: {
+      url: env.SUPABASE_URL,
+      apiKey: env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_API_KEY,
+      requestSecret: env.SUPABASE_REQUEST_SECRET,
+      commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
+    },
   };
 }
