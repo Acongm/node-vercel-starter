@@ -12,6 +12,10 @@
       "dest": "api/index.ts"
     },
     {
+      "src": "/v1/(.*)",
+      "dest": "api/index.ts"
+    },
+    {
       "src": "/",
       "dest": "/public/index.html"
     },
