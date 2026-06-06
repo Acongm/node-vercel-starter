@@ -1,6 +1,9 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { AI_CLIENT } from '../../common/tokens';
-import { AiClient } from '../../adapters/ai/ai-client.interface';
+import {
+  AiClient,
+  OpenAiChatCompletionRequest,
+} from '../../adapters/ai/ai-client.interface';
 import { ChatDto } from './dto/chat.dto';
 
 @Injectable()
@@ -12,5 +15,13 @@ export class AiService {
       throw new BadRequestException('Provide prompt or messages.');
     }
     return this.aiClient.chat(dto);
+  }
+
+  createChatCompletion(dto: OpenAiChatCompletionRequest) {
+    if (!Array.isArray(dto.messages) || dto.messages.length === 0) {
+      throw new BadRequestException('OpenAI-compatible requests require messages.');
+    }
+
+    return this.aiClient.createChatCompletion(dto);
   }
 }

@@ -9,7 +9,10 @@ RUNTIME_TARGET=vercel
 DATA_MODE=supabase
 FILE_MODE=memory
 AUTH_MODE=none
-AI_PROVIDER=mock
+AI_PROVIDER=custom
+AI_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-v4-pro
+AI_API_KEY=as-xxx
 CORS_ORIGINS=https://acongm.com,https://*.acongm.com
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
@@ -56,6 +59,19 @@ the internal `x-api-secret` header.
 Assign `api.acongm.com` to the Vercel project. Keep `CORS_ORIGINS` scoped to
 `https://acongm.com,https://*.acongm.com` so frontends under `acongm.com` can call
 the API without exposing Supabase credentials.
+
+## OpenAI-Compatible AI
+
+Set `AI_PROVIDER=custom`, `AI_BASE_URL=https://api.deepseek.com`,
+`AI_MODEL=deepseek-v4-pro`, and `AI_API_KEY` to the DeepSeek key. The placeholder
+`as-xxx` is useful for deployment plumbing tests: the public endpoint should call
+the upstream provider and return its authentication error, proving the request is
+not served by the local mock provider.
+
+Public routes:
+
+- `POST /v1/chat/completions`
+- `POST /api/openai/v1/chat/completions`
 
 ## Long-Running Work
 

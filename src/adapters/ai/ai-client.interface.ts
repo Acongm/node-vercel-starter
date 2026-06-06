@@ -14,6 +14,22 @@ export interface AiChatResult {
   message: string;
 }
 
+export type OpenAiMessage = {
+  role: string;
+  content?: unknown;
+};
+
+export interface OpenAiChatCompletionRequest {
+  model?: string;
+  messages: OpenAiMessage[];
+  [key: string]: unknown;
+}
+
+export type OpenAiChatCompletionResponse = Record<string, unknown>;
+
 export interface AiClient {
   chat(input: AiChatInput): Promise<AiChatResult>;
+  createChatCompletion(
+    input: OpenAiChatCompletionRequest,
+  ): Promise<OpenAiChatCompletionResponse>;
 }

@@ -12,6 +12,9 @@ const TEST_ENV_KEYS = [
   'FILE_MODE',
   'AUTH_MODE',
   'AI_PROVIDER',
+  'AI_BASE_URL',
+  'AI_API_KEY',
+  'AI_MODEL',
   'PROXY_ALLOWLIST',
   'CORS_ORIGINS',
   'SUPABASE_URL',
@@ -33,6 +36,9 @@ async function createTestApp(env: NodeJS.ProcessEnv = {}): Promise<INestApplicat
   process.env.FILE_MODE = env.FILE_MODE || 'memory';
   process.env.AUTH_MODE = env.AUTH_MODE || 'none';
   process.env.AI_PROVIDER = env.AI_PROVIDER || 'mock';
+  process.env.AI_BASE_URL = env.AI_BASE_URL || '';
+  process.env.AI_API_KEY = env.AI_API_KEY || '';
+  process.env.AI_MODEL = env.AI_MODEL || '';
   process.env.PROXY_ALLOWLIST = env.PROXY_ALLOWLIST || '';
   process.env.CORS_ORIGINS = env.CORS_ORIGINS || '';
   process.env.SUPABASE_URL = env.SUPABASE_URL || '';
@@ -181,6 +187,58 @@ describe('Node Vercel Starter', () => {
       provider: 'mock',
       model: 'mock-local',
       message: 'Mock response: hello',
+    });
+  });
+
+  it('serves OpenAI-compatible chat completions from /v1/chat/completions', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/chat/completions')
+      .send({
+        model: 'deepseek-v4-pro',
+        messages: [{ role: 'user', content: 'hello' }],
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      object: 'chat.completion',
+      model: 'deepseek-v4-pro',
+      choices: [
+        {
+          index: 0,
+          finish_reason: 'stop',
+          message: {
+            role: 'assistant',
+            content: 'Mock response: hello',
+          },
+        },
+      ],
+    });
+    expect(response.body.id).toEqual(expect.stringMatching(/^chatcmpl-/));
+  });
+
+  it('serves OpenAI-compatible chat completions from /api/openai/v1/chat/completions', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/openai/v1/chat/completions')
+      .send({
+        messages: [{ role: 'user', content: 'hello from api prefix' }],
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      object: 'chat.completion',
+      model: 'mock-local',
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: 'Mock response: hello from api prefix',
+          },
+        },
+      ],
     });
   });
 

@@ -3,11 +3,11 @@ import { AppConfig } from '../../config/app-config';
 import { AI_CLIENT, APP_CONFIG } from '../../common/tokens';
 import { MockAiClient } from '../../adapters/ai/mock-ai.client';
 import { OpenAiCompatibleClient } from '../../adapters/ai/openai-compatible.client';
-import { AiController } from './ai.controller';
+import { AiController, OpenAiCompatibleController } from './ai.controller';
 import { AiService } from './ai.service';
 
 @Module({
-  controllers: [AiController],
+  controllers: [AiController, OpenAiCompatibleController],
   providers: [
     AiService,
     {

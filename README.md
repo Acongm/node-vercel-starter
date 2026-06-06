@@ -106,10 +106,28 @@ AI_BASE_URL=https://api.openai.com/v1
 AI_MODEL=gpt-4.1-mini
 ```
 
+For DeepSeek's OpenAI-compatible API:
+
+```env
+AI_PROVIDER=custom
+AI_API_KEY=as-xxx
+AI_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-v4-pro
+```
+
+The app exposes both a simple project endpoint and OpenAI-compatible chat
+completion routes:
+
+- `POST /api/ai/chat`: returns `{ provider, model, message }`
+- `POST /v1/chat/completions`: OpenAI-style request/response
+- `POST /api/openai/v1/chat/completions`: same OpenAI-style route under the API prefix
+
 ## Endpoints
 
 - `GET /api/health`
 - `POST /api/ai/chat`
+- `POST /v1/chat/completions`
+- `POST /api/openai/v1/chat/completions`
 - `POST /api/proxy/:provider`
 - `POST /api/upload`
 - `GET /api/upload/:key`
@@ -140,6 +158,19 @@ curl -X PATCH "https://api.acongm.com/api/comments/$created_id" \
   -d '{"content":"Updated through the public API."}'
 
 curl -X DELETE "https://api.acongm.com/api/comments/$created_id"
+```
+
+OpenAI-compatible chat completion example:
+
+```bash
+curl -X POST https://api.acongm.com/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "messages": [
+      { "role": "user", "content": "Hello" }
+    ]
+  }'
 ```
 
 ## Proxy Allowlist
