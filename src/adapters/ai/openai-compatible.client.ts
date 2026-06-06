@@ -1,3 +1,4 @@
+import { HttpException } from '@nestjs/common';
 import { AppConfig } from '../../config/app-config';
 import {
   AiChatInput,
@@ -55,7 +56,10 @@ export class OpenAiCompatibleClient implements AiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`AI provider failed with ${response.status}: ${text.slice(0, 300)}`);
+      throw new HttpException(
+        `AI provider failed with ${response.status}: ${text.slice(0, 300)}`,
+        response.status,
+      );
     }
 
     return (await response.json()) as OpenAiChatCompletionResponse;

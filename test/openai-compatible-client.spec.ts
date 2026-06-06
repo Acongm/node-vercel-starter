@@ -66,4 +66,32 @@ describe('OpenAiCompatibleClient', () => {
       max_tokens: 64,
     });
   });
+
+  it('preserves upstream HTTP status when the provider rejects a request', async () => {
+    global.fetch = jest.fn(async () => {
+      return {
+        ok: false,
+        status: 401,
+        text: async () =>
+          '{"error":{"message":"Authentication Fails, Your api key: ****-xxx is invalid"}}',
+      } as Response;
+    });
+
+    const client = new OpenAiCompatibleClient({
+      provider: 'custom',
+      apiKey: 'as-xxx',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-v4-pro',
+    });
+
+    await expect(
+      client.createChatCompletion({
+        model: 'deepseek-v4-pro',
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    ).rejects.toMatchObject({
+      status: 401,
+      message: expect.stringContaining('Authentication Fails'),
+    });
+  });
 });
