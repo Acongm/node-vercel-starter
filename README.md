@@ -24,6 +24,18 @@ npm run start
 
 Open `http://localhost:3000`.
 
+## API Debug Console
+
+Open the deployment root (`https://api.acongm.com/`) to use the built-in API console.
+
+It covers every public route:
+
+- Health, AI chat, OpenAI-compatible chat
+- Comments full CRUD (backed by Supabase when `DATA_MODE=supabase`)
+- Auth, upload, proxy
+
+For production CRUD tests, set `DATA_MODE=supabase` and apply the Supabase migration.
+
 ## Environment Modes
 
 ```env

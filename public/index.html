@@ -1,153 +1,139 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Node Vercel Starter</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #172033;
-        background: #f7f8fb;
-      }
-
-      main {
-        width: min(980px, calc(100vw - 32px));
-        margin: 0 auto;
-        padding: 32px 0;
-      }
-
-      h1 {
-        margin: 0 0 8px;
-        font-size: 32px;
-      }
-
-      section {
-        margin-top: 20px;
-        padding: 18px;
-        border: 1px solid #d9deea;
-        border-radius: 8px;
-        background: white;
-      }
-
-      label {
-        display: block;
-        margin: 12px 0 6px;
-        font-weight: 600;
-      }
-
-      input,
-      textarea,
-      button {
-        font: inherit;
-      }
-
-      input,
-      textarea {
-        width: 100%;
-        box-sizing: border-box;
-        border: 1px solid #c7cfdd;
-        border-radius: 6px;
-        padding: 10px;
-      }
-
-      button {
-        margin-top: 12px;
-        border: 0;
-        border-radius: 6px;
-        padding: 10px 14px;
-        color: white;
-        background: #265bdc;
-        cursor: pointer;
-      }
-
-      pre {
-        overflow: auto;
-        padding: 12px;
-        border-radius: 6px;
-        background: #101828;
-        color: #f3f6fc;
-      }
-    </style>
+    <title>API Debug Console · api.acongm.com</title>
+    <link rel="stylesheet" href="./api-demo.css" />
   </head>
   <body>
-    <main>
-      <h1>Node Vercel Starter</h1>
-      <p>NestJS backend template with controller, service, module, DTO, and adapter boundaries.</p>
+    <div class="layout">
+      <nav>
+        <strong>Endpoints</strong>
+        <a href="#health">Health</a>
+        <a href="#ai-chat">AI Chat</a>
+        <a href="#openai">OpenAI Compatible</a>
+        <a href="#comments">Comments CRUD</a>
+        <a href="#auth">Auth</a>
+        <a href="#upload">Upload</a>
+        <a href="#proxy">Proxy</a>
+      </nav>
 
-      <section>
-        <h2>Health</h2>
-        <button id="health-button">Check health</button>
-        <pre id="health-output">Not loaded yet.</pre>
-      </section>
+      <main>
+        <h1>API Debug Console</h1>
+        <p class="hint">
+          Vercel + Supabase 后端接口调试页。所有请求走同源
+          <code>/api/*</code> 与 <code>/v1/*</code> 路由。
+        </p>
 
-      <section>
-        <h2>AI Chat</h2>
-        <label for="prompt">Prompt</label>
-        <textarea id="prompt" rows="3">hello</textarea>
-        <button id="ai-button">Send</button>
-        <pre id="ai-output">Not sent yet.</pre>
-      </section>
+        <section id="health">
+          <h2>Health</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/health</div>
+          <p class="hint">查看运行时配置（dataMode、aiProvider 等）。</p>
+          <div class="actions">
+            <button id="health-btn" type="button">发送请求</button>
+          </div>
+          <pre id="health-output">尚未请求。</pre>
+        </section>
 
-      <section>
-        <h2>Comments</h2>
-        <label for="comment">Comment</label>
-        <input id="comment" value="This starter is ready." />
-        <button id="comment-button">Add comment</button>
-        <pre id="comments-output">No comments loaded.</pre>
-      </section>
+        <section id="ai-chat">
+          <h2>AI Chat</h2>
+          <div class="path"><span class="method method-post">POST</span>/api/ai/chat</div>
+          <label for="ai-prompt">Prompt</label>
+          <textarea id="ai-prompt" rows="3">hello</textarea>
+          <div class="actions">
+            <button id="ai-chat-btn" type="button">发送请求</button>
+          </div>
+          <pre id="ai-chat-output">尚未请求。</pre>
+        </section>
 
-      <section>
-        <h2>Browser Local History</h2>
-        <button id="history-button">Save local event</button>
-        <pre id="history-output">IndexedDB events appear here.</pre>
-      </section>
-    </main>
+        <section id="openai">
+          <h2>OpenAI Compatible</h2>
+          <div class="path"><span class="method method-post">POST</span>/v1/chat/completions</div>
+          <div class="path"><span class="method method-post">POST</span>/api/openai/v1/chat/completions</div>
+          <label for="openai-model">Model（可选，留空则用服务端 AI_MODEL）</label>
+          <input id="openai-model" type="text" placeholder="deepseek-v4-pro" />
+          <label for="openai-messages">Messages（JSON）</label>
+          <textarea id="openai-messages" rows="5">[{"role":"user","content":"Hello"}]</textarea>
+          <div class="actions">
+            <button id="openai-btn" type="button">POST /v1/chat/completions</button>
+            <button id="openai-alias-btn" type="button" class="secondary">POST /api/openai/v1/chat/completions</button>
+          </div>
+          <pre id="openai-output">尚未请求。</pre>
+        </section>
 
-    <script type="module">
-      import { addLocalEvent, listLocalEvents } from './client-db.js';
+        <section id="comments">
+          <h2>Comments CRUD</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/comments</div>
+          <div class="path"><span class="method method-post">POST</span>/api/comments</div>
+          <div class="path"><span class="method method-get">GET</span>/api/comments/:id</div>
+          <div class="path"><span class="method method-patch">PATCH</span>/api/comments/:id</div>
+          <div class="path"><span class="method method-delete">DELETE</span>/api/comments/:id</div>
+          <p class="hint">生产环境需 <code>DATA_MODE=supabase</code>，数据持久化到 Supabase。</p>
+          <label for="comment-author">Author</label>
+          <input id="comment-author" type="text" value="API Demo" />
+          <label for="comment-content">Content（创建用）</label>
+          <textarea id="comment-content" rows="2">Supabase CRUD test comment.</textarea>
+          <label for="comment-id">Comment ID（创建/列表后自动填入）</label>
+          <input id="comment-id" type="text" placeholder="uuid" />
+          <label for="comment-update-content">Update Content（更新用）</label>
+          <textarea id="comment-update-content" rows="2">Updated through API debug console.</textarea>
+          <div class="actions">
+            <button id="comments-list-btn" type="button" class="secondary">列表 GET</button>
+            <button id="comments-create-btn" type="button">创建 POST</button>
+            <button id="comments-get-btn" type="button" class="secondary">查询 GET :id</button>
+            <button id="comments-update-btn" type="button">更新 PATCH :id</button>
+            <button id="comments-delete-btn" type="button" class="danger">删除 DELETE :id</button>
+          </div>
+          <pre id="comments-output">尚未请求。</pre>
+        </section>
 
-      const show = (id, value) => {
-        document.getElementById(id).textContent = JSON.stringify(value, null, 2);
-      };
+        <section id="auth">
+          <h2>Auth</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/auth/mode</div>
+          <div class="path"><span class="method method-post">POST</span>/api/auth/login</div>
+          <label for="auth-username">Username</label>
+          <input id="auth-username" type="text" value="demo" />
+          <label for="auth-password">Password</label>
+          <input id="auth-password" type="password" value="demo" />
+          <div class="actions">
+            <button id="auth-mode-btn" type="button" class="secondary">查询 Mode</button>
+            <button id="auth-login-btn" type="button">登录 Login</button>
+          </div>
+          <pre id="auth-output">尚未请求。</pre>
+        </section>
 
-      async function jsonFetch(url, options) {
-        const response = await fetch(url, {
-          headers: { 'content-type': 'application/json' },
-          ...options,
-        });
-        return response.json();
-      }
+        <section id="upload">
+          <h2>Upload</h2>
+          <div class="path"><span class="method method-post">POST</span>/api/upload</div>
+          <div class="path"><span class="method method-get">GET</span>/api/upload/:key</div>
+          <p class="hint">Vercel 上 <code>FILE_MODE=memory</code> 为临时存储，仅适合演示。</p>
+          <label for="upload-file">File（multipart field: file）</label>
+          <input id="upload-file" type="file" name="file" />
+          <label for="upload-key">Upload Key（上传后自动填入）</label>
+          <input id="upload-key" type="text" placeholder="upload key" />
+          <div class="actions">
+            <button id="upload-post-btn" type="button">上传 POST</button>
+            <button id="upload-get-btn" type="button" class="secondary">下载 GET :key</button>
+          </div>
+          <pre id="upload-output">尚未请求。</pre>
+        </section>
 
-      document.getElementById('health-button').onclick = async () => {
-        show('health-output', await jsonFetch('/api/health'));
-      };
-
-      document.getElementById('ai-button').onclick = async () => {
-        const prompt = document.getElementById('prompt').value;
-        show(
-          'ai-output',
-          await jsonFetch('/api/ai/chat', {
-            method: 'POST',
-            body: JSON.stringify({ prompt }),
-          }),
-        );
-      };
-
-      document.getElementById('comment-button').onclick = async () => {
-        const content = document.getElementById('comment').value;
-        await jsonFetch('/api/comments', {
-          method: 'POST',
-          body: JSON.stringify({ author: 'Browser Demo', content }),
-        });
-        show('comments-output', await jsonFetch('/api/comments'));
-      };
-
-      document.getElementById('history-button').onclick = async () => {
-        await addLocalEvent('click', { source: 'demo' });
-        show('history-output', await listLocalEvents());
-      };
-    </script>
+        <section id="proxy">
+          <h2>Proxy</h2>
+          <div class="path"><span class="method method-post">POST</span>/api/proxy/:provider</div>
+          <p class="hint">需在服务端配置 <code>PROXY_ALLOWLIST</code>，例如 <code>github=https://api.github.com</code>。</p>
+          <label for="proxy-provider">Provider</label>
+          <input id="proxy-provider" type="text" placeholder="github" />
+          <label for="proxy-body">Request Body（JSON）</label>
+          <textarea id="proxy-body" rows="5">{"path":"/","method":"GET"}</textarea>
+          <div class="actions">
+            <button id="proxy-btn" type="button">转发 Proxy</button>
+          </div>
+          <pre id="proxy-output">尚未请求。</pre>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./api-demo.js"></script>
   </body>
 </html>
