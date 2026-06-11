@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -15,6 +16,7 @@ export async function createVercelHandler() {
       logger: ['error', 'warn', 'log'],
     });
     configureApp(app);
+    app.useStaticAssets(join(process.cwd(), 'public'));
     await app.init();
     cachedServer = app.getHttpAdapter().getInstance();
   }
