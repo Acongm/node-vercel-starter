@@ -105,6 +105,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 button.secondary { background: #475467; }
 button.danger { background: var(--danger); }
 

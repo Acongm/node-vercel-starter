@@ -18,8 +18,16 @@ describe('API debug console assets', () => {
     }
   });
 
-  it('loads api-demo.js module', () => {
+  it('loads api-demo.js script', () => {
     const html = readFileSync(join(process.cwd(), 'public/index.html'), 'utf8');
     expect(html).toContain('./api-demo.js');
+    expect(html).not.toContain('type="module"');
+  });
+
+  it('ships browser-safe api-demo.js without module exports', () => {
+    const script = readFileSync(join(process.cwd(), 'public/api-demo.js'), 'utf8');
+    expect(script).toContain('function boot()');
+    expect(script).not.toMatch(/^\s*export\s/m);
+    expect(script).not.toContain('exports.');
   });
 });
