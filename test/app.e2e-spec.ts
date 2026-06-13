@@ -242,6 +242,39 @@ describe('Node Vercel Starter', () => {
     });
   });
 
+  it('creates structured document summaries from /api/ai/summary', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/summary')
+      .send({
+        path: '/react/react16.md',
+        title: 'React 16',
+        content: 'React 16 introduced Fiber architecture and improved scheduling.',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      source: 'live',
+      summary: expect.stringContaining('Mock 摘要'),
+      keyPoints: expect.any(Array),
+      keywords: expect.any(Array),
+      techStack: expect.any(Array),
+      difficulty: expect.any(String),
+      contentType: expect.any(String),
+      generatedAt: expect.any(String),
+    });
+  });
+
+  it('requires content for /api/ai/summary', async () => {
+    app = await createTestApp();
+
+    await request(app.getHttpServer())
+      .post('/api/ai/summary')
+      .send({ path: '/react/react16.md' })
+      .expect(400);
+  });
+
   it('rejects proxy providers outside the allowlist', async () => {
     app = await createTestApp();
 

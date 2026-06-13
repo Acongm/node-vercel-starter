@@ -2,6 +2,7 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { OpenAiChatCompletionRequest } from '../../adapters/ai/ai-client.interface';
 import { AiService } from './ai.service';
 import { ChatDto } from './dto/chat.dto';
+import { SummaryDto } from './dto/summary.dto';
 
 @Controller('api/ai')
 export class AiController {
@@ -10,6 +11,11 @@ export class AiController {
   @Post('chat')
   chat(@Body() dto: ChatDto) {
     return this.aiService.chat(dto);
+  }
+
+  @Post('summary')
+  createSummary(@Body() dto: SummaryDto) {
+    return this.aiService.createSummary(dto);
   }
 }
 
