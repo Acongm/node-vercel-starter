@@ -190,6 +190,34 @@ describe('Node Vercel Starter', () => {
     });
   });
 
+  it('accepts vuepress chat payload with context and enableWebSearch', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/chat')
+      .send({
+        messages: [
+          { role: 'system', content: '你是文档助手' },
+          { role: 'user', content: '这篇文章讲什么？' },
+        ],
+        context: {
+          scope: 'article',
+          pagePath: '/daily-news/2026-06-13.md',
+          moduleKey: 'daily-news',
+          title: '每日科技动态',
+          tags: ['前端', 'AI'],
+        },
+        enableWebSearch: true,
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      provider: 'mock',
+      message: expect.stringContaining('Mock response'),
+      sources: [{ title: 'Mock source', url: 'https://example.com/mock' }],
+    });
+  });
+
   it('serves OpenAI-compatible chat completions from /v1/chat/completions', async () => {
     app = await createTestApp();
 

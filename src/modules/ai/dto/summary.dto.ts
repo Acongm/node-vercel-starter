@@ -8,10 +8,10 @@ export class SummaryDto {
 
   @IsOptional()
   @IsString()
-  @Length(1, 200)
+  @Length(1, 256)
   title?: string;
 
   @IsString()
-  @Length(1, 8000)
+  @Length(1, 12000)
   content!: string;
 }

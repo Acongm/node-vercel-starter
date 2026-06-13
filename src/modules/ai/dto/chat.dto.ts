@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -8,6 +9,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ChatContextDto } from './chat-context.dto';
 
 class ChatMessageDto {
   @IsIn(['system', 'user', 'assistant'])
@@ -30,4 +32,13 @@ export class ChatDto {
   @ValidateNested({ each: true })
   @Type(() => ChatMessageDto)
   messages?: ChatMessageDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ChatContextDto)
+  context?: ChatContextDto;
+
+  @IsOptional()
+  @IsBoolean()
+  enableWebSearch?: boolean;
 }

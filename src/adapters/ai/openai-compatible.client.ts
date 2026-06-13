@@ -6,7 +6,13 @@ import {
   AiClient,
   OpenAiChatCompletionRequest,
   OpenAiChatCompletionResponse,
+  SummaryInput,
+  SummaryResult,
 } from './ai-client.interface';
+import { parseSummaryResponse } from './summary.parser';
+import { SUMMARY_SYSTEM_PROMPT } from './summary.prompt';
+
+const MAX_SUMMARY_CONTENT_LENGTH = 3000;
 
 export class OpenAiCompatibleClient implements AiClient {
   constructor(private readonly config: AppConfig['ai']) {}
@@ -33,6 +39,29 @@ export class OpenAiCompatibleClient implements AiClient {
       model: this.config.model,
       message: json.choices?.[0]?.message?.content || '',
     };
+  }
+
+  async generateSummary(input: SummaryInput): Promise<SummaryResult> {
+    if (!this.config.apiKey) {
+      throw new Error('AI_API_KEY is required for AI_PROVIDER=openai or custom.');
+    }
+
+    const content = input.content.slice(0, MAX_SUMMARY_CONTENT_LENGTH);
+    const json = (await this.createChatCompletion({
+      model: this.config.model,
+      messages: [
+        { role: 'system', content: SUMMARY_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `文档标题：${input.title}\n文档路径：${input.path}\n\n${content}`,
+        },
+      ],
+    })) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const raw = json.choices?.[0]?.message?.content || '';
+    return parseSummaryResponse(raw);
   }
 
   async createChatCompletion(

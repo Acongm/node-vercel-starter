@@ -4,6 +4,8 @@ import {
   AiClient,
   OpenAiChatCompletionRequest,
   OpenAiChatCompletionResponse,
+  SummaryInput,
+  SummaryResult,
 } from './ai-client.interface';
 
 export class MockAiClient implements AiClient {
@@ -17,6 +19,20 @@ export class MockAiClient implements AiClient {
       provider: 'mock',
       model: 'mock-local',
       message: prompt ? `Mock response: ${prompt}` : 'Mock response ready.',
+      sources: input.enableWebSearch
+        ? [{ title: 'Mock source', url: 'https://example.com/mock' }]
+        : undefined,
+    };
+  }
+
+  async generateSummary(input: SummaryInput): Promise<SummaryResult> {
+    return {
+      summary: `Mock summary for ${input.title}`,
+      keyPoints: ['Mock point 1', 'Mock point 2'],
+      keywords: ['mock', input.title.split(/\s+/)[0] || 'doc'],
+      techStack: [],
+      difficulty: '未分级',
+      contentType: '综合',
     };
   }
 

@@ -3,15 +3,46 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ChatContext {
+  scope?: 'article' | 'module';
+  pagePath?: string;
+  moduleKey?: string;
+  title?: string;
+  tags?: string[];
+}
+
+export interface ChatSource {
+  title: string;
+  url: string;
+}
+
 export interface AiChatInput {
   prompt?: string;
   messages?: ChatMessage[];
+  context?: ChatContext;
+  enableWebSearch?: boolean;
 }
 
 export interface AiChatResult {
   provider: string;
   model: string;
   message: string;
+  sources?: ChatSource[];
+}
+
+export interface SummaryInput {
+  path: string;
+  title: string;
+  content: string;
+}
+
+export interface SummaryResult {
+  summary: string;
+  keyPoints: string[];
+  keywords: string[];
+  techStack: string[];
+  difficulty: string;
+  contentType: string;
 }
 
 export type OpenAiMessage = {
@@ -29,6 +60,7 @@ export type OpenAiChatCompletionResponse = Record<string, unknown>;
 
 export interface AiClient {
   chat(input: AiChatInput): Promise<AiChatResult>;
+  generateSummary(input: SummaryInput): Promise<SummaryResult>;
   createChatCompletion(
     input: OpenAiChatCompletionRequest,
   ): Promise<OpenAiChatCompletionResponse>;
