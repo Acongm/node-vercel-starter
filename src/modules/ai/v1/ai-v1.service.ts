@@ -1,5 +1,10 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { AiClient } from '../../../adapters/ai/ai-client.interface';
+import {
+  AiClient,
+  ChatMessage,
+  ChatSource,
+} from '../../../adapters/ai/ai-client.interface';
+import { searchWithTavily } from '../../../adapters/web-search/tavily.client';
 import { AI_CLIENT, APP_CONFIG } from '../../../common/tokens';
 import { AppConfig } from '../../../config/app-config';
 import { ChatV1Dto } from './chat-v1.dto';
@@ -13,16 +18,17 @@ export class AiV1Service {
   ) {}
 
   async chat(dto: ChatV1Dto) {
-    const messages = this.prepare(dto);
-    return this.aiClient.chat({
+    const { messages, sources } = await this.prepare(dto);
+    const result = await this.aiClient.chat({
       messages,
       context: dto.context,
       enableWebSearch: dto.enableWebSearch,
     });
+    return { ...result, sources: sources.length ? sources : result.sources };
   }
 
   async *stream(dto: ChatV1Dto) {
-    const messages = this.prepare(dto);
+    const { messages, sources } = await this.prepare(dto);
     yield {
       type: 'meta' as const,
       provider: this.appConfig.ai.provider,
@@ -31,6 +37,7 @@ export class AiV1Service {
           ? 'mock-local'
           : this.appConfig.ai.model,
     };
+    if (sources.length) yield { type: 'sources' as const, sources };
     yield* this.aiClient.streamChat({
       messages,
       context: dto.context,
@@ -38,11 +45,33 @@ export class AiV1Service {
     });
   }
 
-  private prepare(dto: ChatV1Dto) {
+  private async prepare(dto: ChatV1Dto) {
     const messages = prepareChatV1Messages(dto);
     if (!messages.some((message) => message.role === 'user')) {
       throw new BadRequestException('Provide prompt or messages.');
     }
-    return messages;
+    const sources = await this.search(dto, messages);
+    if (sources.length) {
+      messages[0] = {
+        ...messages[0],
+        content: `${messages[0].content}\n\n【联网检索结果】\n${sources
+          .map((source, index) => `${index + 1}. ${source.title} - ${source.url}`)
+          .join('\n')}`,
+      };
+    }
+    return { messages, sources };
+  }
+
+  private async search(
+    dto: ChatV1Dto,
+    messages: ChatMessage[],
+  ): Promise<ChatSource[]> {
+    const apiKey = this.appConfig.ai.webSearchApiKey;
+    if (!dto.enableWebSearch || !apiKey) return [];
+    const query = [...messages]
+      .reverse()
+      .find((message) => message.role === 'user')
+      ?.content.trim();
+    return query ? searchWithTavily(query, apiKey) : [];
   }
 }
