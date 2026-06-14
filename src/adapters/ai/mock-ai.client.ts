@@ -2,6 +2,7 @@ import {
   AiChatInput,
   AiChatResult,
   AiClient,
+  AiStreamEvent,
   OpenAiChatCompletionRequest,
   OpenAiChatCompletionResponse,
   SummaryInput,
@@ -23,6 +24,18 @@ export class MockAiClient implements AiClient {
         ? [{ title: 'Mock source', url: 'https://example.com/mock' }]
         : undefined,
     };
+  }
+
+  async *streamChat(input: AiChatInput): AsyncIterable<AiStreamEvent> {
+    const result = await this.chat(input);
+    yield { type: 'delta', content: result.message };
+    yield {
+      type: 'usage',
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    };
+    yield { type: 'done' };
   }
 
   async generateSummary(input: SummaryInput): Promise<SummaryResult> {

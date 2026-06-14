@@ -218,6 +218,45 @@ describe('Node Vercel Starter', () => {
     });
   });
 
+  it('serves bounded reading-assistant chat from /api/ai/v1/chat', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/v1/chat')
+      .send({
+        prompt: '概括本文',
+        context: {
+          scope: 'article',
+          title: 'React 16',
+          content: 'React 16 introduced Fiber.',
+        },
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      provider: 'mock',
+      model: 'mock-local',
+      message: expect.stringContaining('概括本文'),
+    });
+  });
+
+  it('streams reading-assistant events from /api/ai/v1/chat/stream', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/v1/chat/stream')
+      .send({ prompt: '解释 Fiber' })
+      .expect(201)
+      .expect('content-type', /text\/event-stream/);
+
+    expect(response.text).toContain('event: meta');
+    expect(response.text).toContain('"provider":"mock"');
+    expect(response.text).toContain('event: delta');
+    expect(response.text).toContain('Mock response:');
+    expect(response.text).toContain('event: usage');
+    expect(response.text.match(/event: done/g)).toHaveLength(1);
+  });
+
   it('serves OpenAI-compatible chat completions from /v1/chat/completions', async () => {
     app = await createTestApp();
 

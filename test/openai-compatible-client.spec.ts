@@ -94,4 +94,91 @@ describe('OpenAiCompatibleClient', () => {
       message: expect.stringContaining('Authentication Fails'),
     });
   });
+
+  it('parses arbitrarily chunked OpenAI-compatible SSE streams', async () => {
+    const encoder = new TextEncoder();
+    const chunks = [
+      'data: {"choices":[{"delta":{"content":"你',
+      '好"}}]}\n\ndata: {"choices":[{"delta":{"content":"，世界"}}]}\r\n\r\n',
+      'data: {"usage":{"prompt_tokens":12,"completion_tokens":3,"total_tokens":15}}\n\n',
+      'data: [DONE]\n\n',
+    ];
+    let requestBody: Record<string, unknown> = {};
+    global.fetch = jest.fn(async (_url: URL | RequestInfo, init?: RequestInit) => {
+      requestBody = JSON.parse(String(init?.body));
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      );
+    });
+
+    const client = new OpenAiCompatibleClient({
+      provider: 'custom',
+      apiKey: 'as-xxx',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-v4-pro',
+    });
+    const events = [];
+    for await (const event of client.streamChat({
+      messages: [{ role: 'user', content: 'hello' }],
+    })) {
+      events.push(event);
+    }
+
+    expect(requestBody).toMatchObject({
+      model: 'deepseek-v4-pro',
+      stream: true,
+      stream_options: { include_usage: true },
+      max_tokens: 1024,
+    });
+    expect(events).toEqual([
+      { type: 'delta', content: '你好' },
+      { type: 'delta', content: '，世界' },
+      {
+        type: 'usage',
+        promptTokens: 12,
+        completionTokens: 3,
+        totalTokens: 15,
+      },
+      { type: 'done' },
+    ]);
+  });
+
+  it('emits exactly one done event when an upstream stream ends without DONE', async () => {
+    const encoder = new TextEncoder();
+    global.fetch = jest.fn(async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'),
+            );
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new OpenAiCompatibleClient({
+      provider: 'custom',
+      apiKey: 'as-xxx',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-v4-pro',
+    });
+    const events = [];
+    for await (const event of client.streamChat({ prompt: 'hello' })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      { type: 'delta', content: 'partial' },
+      { type: 'done' },
+    ]);
+  });
 });

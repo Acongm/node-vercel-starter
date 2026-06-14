@@ -30,6 +30,16 @@ export interface AiChatResult {
   sources?: ChatSource[];
 }
 
+export type AiStreamEvent =
+  | { type: 'delta'; content: string }
+  | {
+      type: 'usage';
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    }
+  | { type: 'done' };
+
 export interface SummaryInput {
   path: string;
   title: string;
@@ -60,6 +70,7 @@ export type OpenAiChatCompletionResponse = Record<string, unknown>;
 
 export interface AiClient {
   chat(input: AiChatInput): Promise<AiChatResult>;
+  streamChat(input: AiChatInput): AsyncIterable<AiStreamEvent>;
   generateSummary(input: SummaryInput): Promise<SummaryResult>;
   createChatCompletion(
     input: OpenAiChatCompletionRequest,
