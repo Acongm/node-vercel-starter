@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Request } from 'express';
 import {
   AiClient,
   ChatMessage,
@@ -7,6 +8,7 @@ import {
 import { searchWithTavily } from '../../../adapters/web-search/tavily.client';
 import { AI_CLIENT, APP_CONFIG } from '../../../common/tokens';
 import { AppConfig } from '../../../config/app-config';
+import { ChatLogWriterService } from '../../chat-logs/chat-log-writer.service';
 import { ChatV1Dto } from './chat-v1.dto';
 import { prepareChatV1Messages } from './chat-v1.policy';
 
@@ -15,16 +17,31 @@ export class AiV1Service {
   constructor(
     @Inject(AI_CLIENT) private readonly aiClient: AiClient,
     @Inject(APP_CONFIG) private readonly appConfig: AppConfig,
+    private readonly chatLogWriter: ChatLogWriterService,
   ) {}
 
-  async chat(dto: ChatV1Dto) {
+  async chat(dto: ChatV1Dto, req: Request) {
     const { messages, sources } = await this.prepare(dto);
     const result = await this.aiClient.chat({
       messages,
       context: dto.context,
       enableWebSearch: dto.enableWebSearch,
     });
-    return { ...result, sources: sources.length ? sources : result.sources };
+    const response = {
+      ...result,
+      sources: sources.length ? sources : result.sources,
+    };
+
+    this.chatLogWriter.logFromRequest(req, {
+      endpoint: '/api/ai/v1/chat',
+      dto,
+      assistantMessage: response.message,
+      provider: response.provider,
+      model: response.model,
+      sources: response.sources,
+    });
+
+    return response;
   }
 
   async *stream(dto: ChatV1Dto) {

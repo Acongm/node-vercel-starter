@@ -1,5 +1,6 @@
-import { Body, Controller, Post, Res } from '@nestjs/common';
-import { Response } from 'express';
+import { Body, Controller, Post, Req, Res } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { ChatLogWriterService } from '../../chat-logs/chat-log-writer.service';
 import { AiV1Service } from './ai-v1.service';
 import { ChatV1Dto } from './chat-v1.dto';
 
@@ -10,15 +11,22 @@ function writeEvent(response: Response, event: Record<string, unknown>) {
 
 @Controller('api/ai/v1')
 export class AiV1Controller {
-  constructor(private readonly aiV1Service: AiV1Service) {}
+  constructor(
+    private readonly aiV1Service: AiV1Service,
+    private readonly chatLogWriter: ChatLogWriterService,
+  ) {}
 
   @Post('chat')
-  chat(@Body() dto: ChatV1Dto) {
-    return this.aiV1Service.chat(dto);
+  chat(@Body() dto: ChatV1Dto, @Req() req: Request) {
+    return this.aiV1Service.chat(dto, req);
   }
 
   @Post('chat/stream')
-  async stream(@Body() dto: ChatV1Dto, @Res() response: Response) {
+  async stream(
+    @Body() dto: ChatV1Dto,
+    @Req() req: Request,
+    @Res() response: Response,
+  ) {
     response.status(201);
     response.set({
       'content-type': 'text/event-stream; charset=utf-8',
@@ -28,8 +36,21 @@ export class AiV1Controller {
     });
     response.flushHeaders();
 
+    let provider = '';
+    let model = '';
+    let assistantMessage = '';
+
     try {
       for await (const event of this.aiV1Service.stream(dto)) {
+        if (event.type === 'meta') {
+          provider = event.provider;
+          model = event.model;
+        }
+
+        if (event.type === 'delta' && event.content) {
+          assistantMessage += event.content;
+        }
+
         writeEvent(response, event);
       }
     } catch (error) {
@@ -38,6 +59,16 @@ export class AiV1Controller {
         message: error instanceof Error ? error.message : 'AI stream failed.',
       });
     } finally {
+      if (assistantMessage.trim()) {
+        this.chatLogWriter.logFromRequest(req, {
+          endpoint: '/api/ai/v1/chat/stream',
+          dto,
+          assistantMessage,
+          provider: provider || undefined,
+          model: model || undefined,
+        });
+      }
+
       response.end();
     }
   }

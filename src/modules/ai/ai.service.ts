@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Request } from 'express';
 import { searchWithTavily } from '../../adapters/web-search/tavily.client';
 import { AI_CLIENT, APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
@@ -7,6 +8,7 @@ import {
   ChatMessage,
   OpenAiChatCompletionRequest,
 } from '../../adapters/ai/ai-client.interface';
+import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
 import { ChatDto } from './dto/chat.dto';
 import { SummaryDto } from './dto/summary.dto';
 import {
@@ -22,9 +24,10 @@ export class AiService {
   constructor(
     @Inject(AI_CLIENT) private readonly aiClient: AiClient,
     @Inject(APP_CONFIG) private readonly appConfig: AppConfig,
+    private readonly chatLogWriter: ChatLogWriterService,
   ) {}
 
-  async chat(dto: ChatDto) {
+  async chat(dto: ChatDto, req: Request) {
     if (!dto.prompt && (!dto.messages || dto.messages.length === 0)) {
       throw new BadRequestException('Provide prompt or messages.');
     }
@@ -46,12 +49,23 @@ export class AiService {
       enableWebSearch: dto.enableWebSearch,
     });
 
-    return {
+    const response = {
       provider: result.provider,
       model: result.model,
       message: result.message,
       sources: sources?.length ? sources : result.sources,
     };
+
+    this.chatLogWriter.logFromRequest(req, {
+      endpoint: '/api/ai/chat',
+      dto,
+      assistantMessage: response.message,
+      provider: response.provider,
+      model: response.model,
+      sources: response.sources,
+    });
+
+    return response;
   }
 
   async createSummary(dto: SummaryDto): Promise<LiveSummaryResult> {

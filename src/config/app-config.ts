@@ -18,6 +18,7 @@ export interface AppConfig {
   runtimeTarget: RuntimeTarget;
   dataMode: DataMode;
   dataFilePath: string;
+  chatLogsFilePath: string;
   fileMode: FileMode;
   uploadDir: string;
   auth: {
@@ -38,6 +39,7 @@ export interface AppConfig {
     apiKey?: string;
     requestSecret?: string;
     commentsTable: string;
+    chatLogsTable: string;
   };
 }
 
@@ -98,6 +100,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     runtimeTarget: enumValue(env.RUNTIME_TARGET, runtimeTargets, 'node'),
     dataMode: enumValue(env.DATA_MODE, dataModes, 'memory'),
     dataFilePath: env.DATA_FILE_PATH || '.data/comments.json',
+    chatLogsFilePath: env.CHAT_LOGS_FILE_PATH || '.data/chat-logs.json',
     fileMode: enumValue(env.FILE_MODE, fileModes, 'memory'),
     uploadDir: env.UPLOAD_DIR || 'uploads',
     auth: {
@@ -118,6 +121,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       apiKey: env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_API_KEY,
       requestSecret: env.SUPABASE_REQUEST_SECRET,
       commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
+      chatLogsTable: env.SUPABASE_CHAT_LOGS_TABLE || 'chat_logs',
     },
   };
 }

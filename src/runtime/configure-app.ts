@@ -18,7 +18,15 @@ export function configureApp(app: INestApplication) {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['content-type', 'authorization', 'x-request-id'],
+    allowedHeaders: [
+      'content-type',
+      'authorization',
+      'x-request-id',
+      'x-client-id',
+      'x-call-source',
+      'x-conversation-id',
+      'x-api-secret',
+    ],
   });
 
   app.use(requestIdMiddleware);

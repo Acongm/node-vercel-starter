@@ -22,6 +22,8 @@ const TEST_ENV_KEYS = [
   'SUPABASE_API_KEY',
   'SUPABASE_REQUEST_SECRET',
   'SUPABASE_COMMENTS_TABLE',
+  'SUPABASE_CHAT_LOGS_TABLE',
+  'CHAT_LOGS_FILE_PATH',
 ];
 
 async function createTestApp(env: NodeJS.ProcessEnv = {}): Promise<INestApplication> {
@@ -46,6 +48,8 @@ async function createTestApp(env: NodeJS.ProcessEnv = {}): Promise<INestApplicat
   process.env.SUPABASE_API_KEY = env.SUPABASE_API_KEY || '';
   process.env.SUPABASE_REQUEST_SECRET = env.SUPABASE_REQUEST_SECRET || '';
   process.env.SUPABASE_COMMENTS_TABLE = env.SUPABASE_COMMENTS_TABLE || '';
+  process.env.SUPABASE_CHAT_LOGS_TABLE = env.SUPABASE_CHAT_LOGS_TABLE || '';
+  process.env.CHAT_LOGS_FILE_PATH = env.CHAT_LOGS_FILE_PATH || '';
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -255,6 +259,78 @@ describe('Node Vercel Starter', () => {
     expect(response.text).toContain('Mock response:');
     expect(response.text).toContain('event: usage');
     expect(response.text.match(/event: done/g)).toHaveLength(1);
+  });
+
+  it('records chat logs and requires admin secret to list them', async () => {
+    app = await createTestApp({
+      SUPABASE_REQUEST_SECRET: 'test-admin-secret',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/ai/chat')
+      .set('x-client-id', 'client-e2e-1')
+      .set('x-call-source', 'vuepress:article-sidebar')
+      .set('x-conversation-id', 'conv-e2e-1')
+      .send({
+        prompt: 'hello log',
+        context: {
+          scope: 'article',
+          pagePath: '/docs/example.md',
+          title: 'Example',
+        },
+      })
+      .expect(201);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await request(app.getHttpServer())
+      .get('/api/ai/chat/logs')
+      .expect(403);
+
+    const listResponse = await request(app.getHttpServer())
+      .get('/api/ai/chat/logs?clientId=client-e2e-1')
+      .set('x-api-secret', 'test-admin-secret')
+      .expect(200);
+
+    expect(listResponse.body.total).toBeGreaterThanOrEqual(1);
+    expect(listResponse.body.items[0]).toMatchObject({
+      clientId: 'client-e2e-1',
+      callSource: 'vuepress:article-sidebar',
+      conversationId: 'conv-e2e-1',
+      endpoint: '/api/ai/chat',
+      userMessage: 'hello log',
+      assistantMessage: 'Mock response: hello log',
+      context: {
+        scope: 'article',
+        pagePath: '/docs/example.md',
+        title: 'Example',
+      },
+    });
+  });
+
+  it('records stream chat logs after completion', async () => {
+    app = await createTestApp({
+      SUPABASE_REQUEST_SECRET: 'test-admin-secret',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/ai/v1/chat/stream')
+      .set('x-client-id', 'client-stream-1')
+      .set('x-call-source', 'vuepress:reading-assistant')
+      .send({ prompt: 'stream log test' })
+      .expect(201)
+      .expect('content-type', /text\/event-stream/);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const listResponse = await request(app.getHttpServer())
+      .get('/api/ai/chat/logs?callSource=vuepress:reading-assistant')
+      .set('x-api-secret', 'test-admin-secret')
+      .expect(200);
+
+    expect(listResponse.body.items.some((item: { endpoint: string }) =>
+      item.endpoint === '/api/ai/v1/chat/stream',
+    )).toBe(true);
   });
 
   it('serves OpenAI-compatible chat completions from /v1/chat/completions', async () => {

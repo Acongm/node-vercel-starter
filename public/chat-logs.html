@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat Logs · api.acongm.com</title>
+    <link rel="stylesheet" href="./api-demo.css" />
+    <style>
+      .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      .log-table th,
+      .log-table td {
+        border-bottom: 1px solid var(--border);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .log-table tbody tr {
+        cursor: pointer;
+      }
+
+      .log-table tbody tr:hover {
+        background: #f3f6fc;
+      }
+
+      .log-table tbody tr.selected {
+        background: #e8eefc;
+      }
+
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .detail-panel {
+        margin-top: 16px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fafbfd;
+      }
+
+      .detail-panel pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #e8eefc;
+        color: var(--primary);
+        font-size: 12px;
+      }
+
+      .summary {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav>
+        <strong>Navigation</strong>
+        <a href="./index.html">API Debug Console</a>
+        <a href="#filters">Filters</a>
+        <a href="#logs">Logs</a>
+      </nav>
+
+      <main>
+        <h1>Chat Logs</h1>
+        <p class="hint">
+          管理员查看 Chat 对话记录。请求需携带
+          <code>x-api-secret</code>（与 <code>SUPABASE_REQUEST_SECRET</code> 一致）。
+        </p>
+
+        <section id="filters">
+          <h2>Access & Filters</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/ai/chat/logs</div>
+          <label for="api-secret">x-api-secret</label>
+          <input id="api-secret" type="password" placeholder="SUPABASE_REQUEST_SECRET" />
+          <div class="filters">
+            <div>
+              <label for="filter-client-id">clientId</label>
+              <input id="filter-client-id" type="text" placeholder="x-client-id" />
+            </div>
+            <div>
+              <label for="filter-call-source">callSource</label>
+              <input id="filter-call-source" type="text" placeholder="vuepress:article-sidebar" />
+            </div>
+            <div>
+              <label for="filter-page-path">pagePath</label>
+              <input id="filter-page-path" type="text" placeholder="/daily-news/..." />
+            </div>
+            <div>
+              <label for="filter-from">from (ISO)</label>
+              <input id="filter-from" type="text" placeholder="2026-06-01T00:00:00.000Z" />
+            </div>
+            <div>
+              <label for="filter-to">to (ISO)</label>
+              <input id="filter-to" type="text" placeholder="2026-06-30T23:59:59.999Z" />
+            </div>
+            <div>
+              <label for="filter-limit">limit</label>
+              <input id="filter-limit" type="number" value="50" min="1" max="200" />
+            </div>
+          </div>
+          <div class="actions">
+            <button id="load-logs-btn" type="button">加载记录</button>
+            <button id="clear-secret-btn" type="button" class="secondary">清除 Secret</button>
+          </div>
+          <p id="status-line" class="summary">尚未加载。</p>
+        </section>
+
+        <section id="logs">
+          <h2>Records</h2>
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>clientId</th>
+                <th>callSource</th>
+                <th>endpoint</th>
+                <th>标题</th>
+                <th>用户消息</th>
+              </tr>
+            </thead>
+            <tbody id="logs-body">
+              <tr>
+                <td colspan="6">暂无数据。</td>
+              </tr>
+            </tbody>
+          </table>
+          <div id="detail-panel" class="detail-panel" hidden>
+            <h3>详情</h3>
+            <pre id="detail-output"></pre>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script defer src="./chat-logs.js"></script>
+  </body>
+</html>
