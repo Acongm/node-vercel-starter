@@ -24,17 +24,17 @@ const TEST_ENV_KEYS = [
   'SUPABASE_COMMENTS_TABLE',
   'SUPABASE_CHAT_LOGS_TABLE',
   'CHAT_LOGS_FILE_PATH',
-  'CHAT_LOGS_ADMIN_USERNAME',
-  'CHAT_LOGS_ADMIN_PASSWORD',
-  'CHAT_LOGS_SESSION_SECRET',
-  'CHAT_LOGS_SESSION_TTL',
+  'AUTH_ADMIN_USERNAME',
+  'AUTH_ADMIN_PASSWORD',
+  'AUTH_JWT_SECRET',
+  'AUTH_SESSION_TTL',
 ];
 
-async function loginChatLogsAdmin(
+async function loginAdmin(
   server: Parameters<typeof request>[0],
 ): Promise<string> {
   const response = await request(server)
-    .post('/api/ai/chat/logs/session/login')
+    .post('/api/auth/login')
     .send({ username: 'admin', password: 'admin123' })
     .expect(201);
 
@@ -65,10 +65,10 @@ async function createTestApp(env: NodeJS.ProcessEnv = {}): Promise<INestApplicat
   process.env.SUPABASE_COMMENTS_TABLE = env.SUPABASE_COMMENTS_TABLE || '';
   process.env.SUPABASE_CHAT_LOGS_TABLE = env.SUPABASE_CHAT_LOGS_TABLE || '';
   process.env.CHAT_LOGS_FILE_PATH = env.CHAT_LOGS_FILE_PATH || '';
-  process.env.CHAT_LOGS_ADMIN_USERNAME = env.CHAT_LOGS_ADMIN_USERNAME || '';
-  process.env.CHAT_LOGS_ADMIN_PASSWORD = env.CHAT_LOGS_ADMIN_PASSWORD || '';
-  process.env.CHAT_LOGS_SESSION_SECRET = env.CHAT_LOGS_SESSION_SECRET || '';
-  process.env.CHAT_LOGS_SESSION_TTL = env.CHAT_LOGS_SESSION_TTL || '';
+  process.env.AUTH_ADMIN_USERNAME = env.AUTH_ADMIN_USERNAME || '';
+  process.env.AUTH_ADMIN_PASSWORD = env.AUTH_ADMIN_PASSWORD || '';
+  process.env.AUTH_JWT_SECRET = env.AUTH_JWT_SECRET || '';
+  process.env.AUTH_SESSION_TTL = env.AUTH_SESSION_TTL || '';
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -282,9 +282,9 @@ describe('Node Vercel Starter', () => {
 
   it('records chat logs and requires admin session to list them', async () => {
     app = await createTestApp({
-      CHAT_LOGS_ADMIN_USERNAME: 'admin',
-      CHAT_LOGS_ADMIN_PASSWORD: 'admin123',
-      CHAT_LOGS_SESSION_SECRET: 'test-session-secret',
+      AUTH_ADMIN_USERNAME: 'admin',
+      AUTH_ADMIN_PASSWORD: 'admin123',
+      AUTH_JWT_SECRET: 'test-session-secret',
     });
 
     await request(app.getHttpServer())
@@ -306,7 +306,7 @@ describe('Node Vercel Starter', () => {
 
     await request(app.getHttpServer()).get('/api/ai/chat/logs').expect(401);
 
-    const token = await loginChatLogsAdmin(app.getHttpServer());
+    const token = await loginAdmin(app.getHttpServer());
 
     const allResponse = await request(app.getHttpServer())
       .get('/api/ai/chat/logs')
@@ -338,9 +338,9 @@ describe('Node Vercel Starter', () => {
 
   it('records stream chat logs after completion', async () => {
     app = await createTestApp({
-      CHAT_LOGS_ADMIN_USERNAME: 'admin',
-      CHAT_LOGS_ADMIN_PASSWORD: 'admin123',
-      CHAT_LOGS_SESSION_SECRET: 'test-session-secret',
+      AUTH_ADMIN_USERNAME: 'admin',
+      AUTH_ADMIN_PASSWORD: 'admin123',
+      AUTH_JWT_SECRET: 'test-session-secret',
     });
 
     await request(app.getHttpServer())
@@ -353,7 +353,7 @@ describe('Node Vercel Starter', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    const token = await loginChatLogsAdmin(app.getHttpServer());
+    const token = await loginAdmin(app.getHttpServer());
 
     const listResponse = await request(app.getHttpServer())
       .get('/api/ai/chat/logs?callSource=vuepress:reading-assistant')

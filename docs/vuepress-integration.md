@@ -60,4 +60,4 @@ rg "api\\.acongm\\.com|/api/ai/chat|/api/ai/v1/chat" .
 
 ## 查看记录
 
-管理员访问 [https://api.acongm.com/chat-logs.html](https://api.acongm.com/chat-logs.html)，使用环境变量 `CHAT_LOGS_ADMIN_USERNAME` / `CHAT_LOGS_ADMIN_PASSWORD` 登录后即可全量查看（筛选均为可选）。
+管理员访问 [https://api.acongm.com/chat-logs.html](https://api.acongm.com/chat-logs.html)，使用项目统一账号（`AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD`）登录后即可全量查看。

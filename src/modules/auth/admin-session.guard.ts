@@ -5,9 +5,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { ChatLogsSessionService } from './chat-logs-session.service';
+import { AdminSessionService } from './admin-session.service';
 
-function extractBearerToken(request: Request): string | undefined {
+export function extractBearerToken(request: Request): string | undefined {
   const authorization = request.header('authorization');
   if (!authorization?.startsWith('Bearer ')) {
     return undefined;
@@ -16,8 +16,8 @@ function extractBearerToken(request: Request): string | undefined {
 }
 
 @Injectable()
-export class ChatLogsSessionGuard implements CanActivate {
-  constructor(private readonly sessionService: ChatLogsSessionService) {}
+export class AdminSessionGuard implements CanActivate {
+  constructor(private readonly adminSession: AdminSessionService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -27,7 +27,7 @@ export class ChatLogsSessionGuard implements CanActivate {
       throw new UnauthorizedException('Missing Bearer session token.');
     }
 
-    await this.sessionService.verifyToken(token);
+    await this.adminSession.verifyToken(token);
     return true;
   }
 }

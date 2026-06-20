@@ -166,7 +166,7 @@
     }
 
     setStatus('登录中…');
-    const response = await apiFetch('/api/ai/chat/logs/session/login', {
+    const response = await apiFetch('/api/auth/login', {
       method: 'POST',
       body: { username, password },
     });
@@ -224,7 +224,7 @@
       return;
     }
 
-    const response = await apiFetch('/api/ai/chat/logs/session/me');
+    const response = await apiFetch('/api/auth/me');
     const body = await response.json().catch(() => ({}));
 
     if (!response.ok || !body.authenticated) {

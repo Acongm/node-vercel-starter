@@ -24,6 +24,9 @@ export interface AppConfig {
   auth: {
     mode: AuthMode;
     jwtSecret: string;
+    adminUsername?: string;
+    adminPassword?: string;
+    sessionTtl: string;
   };
   ai: {
     provider: AiProvider;
@@ -40,12 +43,6 @@ export interface AppConfig {
     requestSecret?: string;
     commentsTable: string;
     chatLogsTable: string;
-  };
-  chatLogs: {
-    adminUsername?: string;
-    adminPassword?: string;
-    sessionSecret?: string;
-    sessionTtl: string;
   };
 }
 
@@ -112,6 +109,9 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     auth: {
       mode: enumValue(env.AUTH_MODE, authModes, 'none'),
       jwtSecret: env.AUTH_JWT_SECRET || 'change-me',
+      adminUsername: env.AUTH_ADMIN_USERNAME,
+      adminPassword: env.AUTH_ADMIN_PASSWORD,
+      sessionTtl: env.AUTH_SESSION_TTL || '7d',
     },
     ai: {
       provider: enumValue(env.AI_PROVIDER, aiProviders, 'mock'),
@@ -128,13 +128,6 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       requestSecret: env.SUPABASE_REQUEST_SECRET,
       commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
       chatLogsTable: env.SUPABASE_CHAT_LOGS_TABLE || 'chat_logs',
-    },
-    chatLogs: {
-      adminUsername: env.CHAT_LOGS_ADMIN_USERNAME,
-      adminPassword: env.CHAT_LOGS_ADMIN_PASSWORD,
-      sessionSecret:
-        env.CHAT_LOGS_SESSION_SECRET || env.AUTH_JWT_SECRET || 'change-me',
-      sessionTtl: env.CHAT_LOGS_SESSION_TTL || '7d',
     },
   };
 }

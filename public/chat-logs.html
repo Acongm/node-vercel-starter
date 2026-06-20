@@ -79,14 +79,14 @@
       <main>
         <h1>Chat Logs</h1>
         <p class="hint">
-          管理员登录后可查看全部对话记录。筛选条件均为可选；留空即全量查询。
+          使用项目统一管理员账号登录（<code>POST /api/auth/login</code>）。登录后可查看全部对话记录，筛选均为可选。
         </p>
         <p id="auth-user-line" class="summary">未登录</p>
 
         <section id="login">
           <div id="login-panel">
             <h2>Login</h2>
-            <div class="path"><span class="method method-post">POST</span>/api/ai/chat/logs/session/login</div>
+            <div class="path"><span class="method method-post">POST</span>/api/auth/login</div>
             <div class="login-grid">
               <div>
                 <label for="login-username">账号</label>

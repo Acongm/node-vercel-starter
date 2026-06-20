@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { JwtModule } from '@nestjs/jwt';
 import { AppConfig } from '../../config/app-config';
 import { APP_CONFIG, CHAT_LOG_STORE } from '../../common/tokens';
 import { MemoryDataStore } from '../../adapters/data-store/memory-data-store';
@@ -10,22 +9,18 @@ import {
   SupabaseRow,
 } from '../../adapters/data-store/supabase-data-store';
 import { CreateEntityInput } from '../../adapters/data-store/data-store.interface';
+import { AuthModule } from '../auth/auth.module';
 import { ChatLogRecord } from './chat-log-record';
 import { ChatLogWriterService } from './chat-log-writer.service';
 import { ChatLogsController } from './chat-logs.controller';
 import { ChatLogsService } from './chat-logs.service';
-import { ChatLogsSessionController } from './chat-logs-session.controller';
-import { ChatLogsSessionGuard } from './chat-logs-session.guard';
-import { ChatLogsSessionService } from './chat-logs-session.service';
 
 @Module({
-  imports: [JwtModule.register({})],
-  controllers: [ChatLogsSessionController, ChatLogsController],
+  imports: [AuthModule],
+  controllers: [ChatLogsController],
   providers: [
     ChatLogsService,
     ChatLogWriterService,
-    ChatLogsSessionService,
-    ChatLogsSessionGuard,
     {
       provide: CHAT_LOG_STORE,
       inject: [APP_CONFIG],

@@ -1,22 +1,25 @@
 import { Inject, Injectable, NotImplementedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
+import { AdminSessionService } from './admin-session.service';
 import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly jwtService: JwtService,
+    private readonly adminSession: AdminSessionService,
   ) {}
 
   mode() {
+    const configured = this.adminSession.isConfigured();
     return {
-      authMode: this.config.auth.mode,
-      note:
-        this.config.auth.mode === 'none'
-          ? 'Anonymous mode is enabled. Add a guard when you need protected routes.'
+      authMode: configured ? 'jwt' : this.config.auth.mode,
+      adminLoginConfigured: configured,
+      note: configured
+        ? 'Use POST /api/auth/login with AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD.'
+        : this.config.auth.mode === 'none'
+          ? 'Anonymous mode is enabled. Set AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD for admin login.'
           : 'Auth mode is configured by AUTH_MODE.',
     };
   }
@@ -25,6 +28,13 @@ export class AuthService {
     if (this.config.auth.mode === 'external') {
       throw new NotImplementedException(
         'AUTH_MODE=external should be connected to Clerk, Auth.js, OAuth, or your identity provider.',
+      );
+    }
+
+    if (this.adminSession.isConfigured()) {
+      return this.adminSession.login(
+        dto.username || '',
+        dto.password || '',
       );
     }
 
@@ -38,16 +48,20 @@ export class AuthService {
       return { authMode: 'none', user };
     }
 
-    const accessToken = await this.jwtService.signAsync(user, {
-      secret: this.config.auth.jwtSecret,
-      expiresIn: '7d',
-    });
+    throw new NotImplementedException(
+      'JWT login requires AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD.',
+    );
+  }
 
-    return {
-      authMode: 'jwt',
-      user,
-      accessToken,
-      tokenType: 'Bearer',
-    };
+  me(token: string) {
+    return this.adminSession.verifyToken(token).then((payload) => ({
+      authenticated: true,
+      user: {
+        id: payload.sub,
+        name: payload.name,
+        username: payload.sub,
+        roles: ['admin'],
+      },
+    }));
   }
 }
