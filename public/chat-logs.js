@@ -39,6 +39,27 @@
     return date.toISOString();
   }
 
+  function toDatetimeLocalValue(date) {
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function applyDefaultDateFilters() {
+    const now = new Date();
+    const from = new Date(now);
+    from.setDate(from.getDate() - 7);
+    from.setHours(0, 0, 0, 0);
+
+    const fromEl = document.getElementById('filter-from');
+    const toEl = document.getElementById('filter-to');
+    if (fromEl instanceof HTMLInputElement) {
+      fromEl.value = toDatetimeLocalValue(from);
+    }
+    if (toEl instanceof HTMLInputElement) {
+      toEl.value = toDatetimeLocalValue(now);
+    }
+  }
+
   function buildPageUrl(record) {
     const path = record.context?.pagePath;
     if (!path) return null;
@@ -268,6 +289,7 @@
     setToken(body.accessToken);
     setAuthState(true, body.user?.username);
     currentPage = 1;
+    applyDefaultDateFilters();
     setStatus('登录成功，正在加载记录…');
     await Promise.all([loadLogs(1), loadClientLabels()]);
   }
@@ -515,6 +537,7 @@
     }
 
     setAuthState(true, body.user?.username);
+    applyDefaultDateFilters();
     await Promise.all([loadLogs(1), loadClientLabels()]);
   }
 
@@ -542,17 +565,14 @@
       void loadLogs(1);
     });
     document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
-      for (const id of [
-        'filter-client-id',
-        'filter-page-path',
-        'filter-from',
-        'filter-to',
-      ]) {
+      for (const id of ['filter-client-id', 'filter-page-path']) {
         const element = document.getElementById(id);
         if (element instanceof HTMLInputElement) element.value = '';
       }
+      applyDefaultDateFilters();
       currentPage = 1;
-      setStatus('筛选已清空。');
+      setStatus('筛选已重置为最近 7 天。');
+      void loadLogs(1);
     });
     document.getElementById('prev-page-btn')?.addEventListener('click', () => {
       if (currentPage > 1) {
