@@ -5,12 +5,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { AdminSecretGuard } from './admin-secret.guard';
+import { ChatLogsSessionGuard } from './chat-logs-session.guard';
 import { ChatLogsService } from './chat-logs.service';
 import { ListChatLogsDto } from './dto/list-chat-logs.dto';
 
 @Controller('api/ai/chat/logs')
-@UseGuards(AdminSecretGuard)
+@UseGuards(ChatLogsSessionGuard)
 export class ChatLogsController {
   constructor(private readonly chatLogsService: ChatLogsService) {}
 

@@ -29,9 +29,9 @@ describe('API debug console assets', () => {
     const html = readFileSync(join(process.cwd(), 'public/chat-logs.html'), 'utf8');
     const script = readFileSync(join(process.cwd(), 'public/chat-logs.js'), 'utf8');
 
-    expect(html).toContain('/api/ai/chat/logs');
+    expect(html).toContain('/api/ai/chat/logs/session/login');
     expect(html).toContain('./chat-logs.js');
-    expect(script).toContain('x-api-secret');
+    expect(script).toContain('chat_logs_access_token');
     expect(script).not.toMatch(/^\s*export\s/m);
   });
 

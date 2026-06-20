@@ -52,19 +52,17 @@
         word-break: break-word;
       }
 
-      .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 999px;
-        background: #e8eefc;
-        color: var(--primary);
-        font-size: 12px;
-      }
-
       .summary {
         color: var(--muted);
         font-size: 13px;
         margin-bottom: 12px;
+      }
+
+      .login-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        max-width: 640px;
       }
     </style>
   </head>
@@ -73,6 +71,7 @@
       <nav>
         <strong>Navigation</strong>
         <a href="./index.html">API Debug Console</a>
+        <a href="#login">Login</a>
         <a href="#filters">Filters</a>
         <a href="#logs">Logs</a>
       </nav>
@@ -80,47 +79,69 @@
       <main>
         <h1>Chat Logs</h1>
         <p class="hint">
-          管理员查看 Chat 对话记录。请求需携带
-          <code>x-api-secret</code>（与 <code>SUPABASE_REQUEST_SECRET</code> 一致）。
+          管理员登录后可查看全部对话记录。筛选条件均为可选；留空即全量查询。
         </p>
+        <p id="auth-user-line" class="summary">未登录</p>
+
+        <section id="login">
+          <div id="login-panel">
+            <h2>Login</h2>
+            <div class="path"><span class="method method-post">POST</span>/api/ai/chat/logs/session/login</div>
+            <div class="login-grid">
+              <div>
+                <label for="login-username">账号</label>
+                <input id="login-username" type="text" autocomplete="username" />
+              </div>
+              <div>
+                <label for="login-password">密码</label>
+                <input id="login-password" type="password" autocomplete="current-password" />
+              </div>
+            </div>
+            <div class="actions">
+              <button id="login-btn" type="button">登录</button>
+            </div>
+          </div>
+        </section>
 
         <section id="filters">
-          <h2>Access & Filters</h2>
-          <div class="path"><span class="method method-get">GET</span>/api/ai/chat/logs</div>
-          <label for="api-secret">x-api-secret</label>
-          <input id="api-secret" type="password" placeholder="SUPABASE_REQUEST_SECRET" />
-          <div class="filters">
-            <div>
-              <label for="filter-client-id">clientId</label>
-              <input id="filter-client-id" type="text" placeholder="x-client-id" />
+          <div id="filters-panel" hidden>
+            <h2>Filters（均可选）</h2>
+            <div class="path"><span class="method method-get">GET</span>/api/ai/chat/logs</div>
+            <div class="filters">
+              <div>
+                <label for="filter-client-id">clientId（可选）</label>
+                <input id="filter-client-id" type="text" placeholder="留空查全部" />
+              </div>
+              <div>
+                <label for="filter-call-source">callSource（可选）</label>
+                <input id="filter-call-source" type="text" placeholder="vuepress:article-panel" />
+              </div>
+              <div>
+                <label for="filter-page-path">pagePath（可选）</label>
+                <input id="filter-page-path" type="text" placeholder="/daily-news/..." />
+              </div>
+              <div>
+                <label for="filter-from">from（可选）</label>
+                <input id="filter-from" type="text" placeholder="2026-06-01T00:00:00.000Z" />
+              </div>
+              <div>
+                <label for="filter-to">to（可选）</label>
+                <input id="filter-to" type="text" placeholder="2026-06-30T23:59:59.999Z" />
+              </div>
+              <div>
+                <label for="filter-limit">limit</label>
+                <input id="filter-limit" type="number" value="200" min="1" max="500" />
+              </div>
             </div>
-            <div>
-              <label for="filter-call-source">callSource</label>
-              <input id="filter-call-source" type="text" placeholder="vuepress:article-sidebar" />
+            <div class="actions">
+              <button id="load-logs-btn" type="button">加载全部记录</button>
+              <button id="clear-filters-btn" type="button" class="secondary">清空筛选</button>
+              <button id="prev-page-btn" type="button" class="secondary">上一页</button>
+              <button id="next-page-btn" type="button" class="secondary">下一页</button>
+              <button id="logout-btn" type="button" class="secondary">退出登录</button>
             </div>
-            <div>
-              <label for="filter-page-path">pagePath</label>
-              <input id="filter-page-path" type="text" placeholder="/daily-news/..." />
-            </div>
-            <div>
-              <label for="filter-from">from (ISO)</label>
-              <input id="filter-from" type="text" placeholder="2026-06-01T00:00:00.000Z" />
-            </div>
-            <div>
-              <label for="filter-to">to (ISO)</label>
-              <input id="filter-to" type="text" placeholder="2026-06-30T23:59:59.999Z" />
-            </div>
-            <div>
-              <label for="filter-limit">limit</label>
-              <input id="filter-limit" type="number" value="200" min="1" max="200" />
-            </div>
+            <p id="status-line" class="summary">尚未加载。</p>
           </div>
-          <div class="actions">
-            <button id="load-logs-btn" type="button">加载记录</button>
-            <button id="clear-filters-btn" type="button" class="secondary">清空筛选</button>
-            <button id="clear-secret-btn" type="button" class="secondary">清除 Secret</button>
-          </div>
-          <p id="status-line" class="summary">尚未加载。</p>
         </section>
 
         <section id="logs">
@@ -138,7 +159,7 @@
             </thead>
             <tbody id="logs-body">
               <tr>
-                <td colspan="6">暂无数据。</td>
+                <td colspan="6">请先登录。</td>
               </tr>
             </tbody>
           </table>

@@ -29,7 +29,7 @@ export class ChatLogsService {
     const all = await this.chatLogs.list();
     const filtered = all.filter((record) => matchesFilters(record, filters));
     const offset = filters.offset ?? 0;
-    const limit = filters.limit ?? 50;
+    const limit = filters.limit ?? 200;
 
     return {
       total: filtered.length,

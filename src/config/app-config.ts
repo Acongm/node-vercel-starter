@@ -41,6 +41,12 @@ export interface AppConfig {
     commentsTable: string;
     chatLogsTable: string;
   };
+  chatLogs: {
+    adminUsername?: string;
+    adminPassword?: string;
+    sessionSecret?: string;
+    sessionTtl: string;
+  };
 }
 
 const runtimeTargets: RuntimeTarget[] = ['node', 'vercel'];
@@ -122,6 +128,13 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       requestSecret: env.SUPABASE_REQUEST_SECRET,
       commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
       chatLogsTable: env.SUPABASE_CHAT_LOGS_TABLE || 'chat_logs',
+    },
+    chatLogs: {
+      adminUsername: env.CHAT_LOGS_ADMIN_USERNAME,
+      adminPassword: env.CHAT_LOGS_ADMIN_PASSWORD,
+      sessionSecret:
+        env.CHAT_LOGS_SESSION_SECRET || env.AUTH_JWT_SECRET || 'change-me',
+      sessionTtl: env.CHAT_LOGS_SESSION_TTL || '7d',
     },
   };
 }
