@@ -364,6 +364,15 @@
     fillLabelForm({ clientId: '', label: '', note: '' });
   }
 
+  function selectLabelRow(row) {
+    const body = document.getElementById('labels-body');
+    if (!(body instanceof HTMLElement)) return;
+    for (const selected of body.querySelectorAll('tr.selected')) {
+      selected.classList.remove('selected');
+    }
+    row.classList.add('selected');
+  }
+
   function renderLabelRows(items) {
     const body = document.getElementById('labels-body');
     if (!(body instanceof HTMLElement)) return;
@@ -372,7 +381,7 @@
     if (!items.length) {
       const row = document.createElement('tr');
       const cell = document.createElement('td');
-      cell.colSpan = 4;
+      cell.colSpan = 5;
       cell.textContent = '暂无标记。';
       row.appendChild(cell);
       body.appendChild(row);
@@ -393,13 +402,39 @@
         cell.textContent = value;
         row.appendChild(cell);
       }
-      row.addEventListener('click', () => {
-        for (const selected of body.querySelectorAll('tr.selected')) {
-          selected.classList.remove('selected');
-        }
-        row.classList.add('selected');
+
+      const actionsCell = document.createElement('td');
+      const actions = document.createElement('div');
+      actions.className = 'label-row-actions';
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'secondary';
+      editBtn.textContent = '编辑';
+      editBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        selectLabelRow(row);
         fillLabelForm(item);
+        document.getElementById('client-labels')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+        setLabelStatus(`正在编辑 ${item.clientId}`);
       });
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'danger';
+      deleteBtn.textContent = '删除';
+      deleteBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        void deleteClientLabel(item.clientId);
+      });
+
+      actions.appendChild(editBtn);
+      actions.appendChild(deleteBtn);
+      actionsCell.appendChild(actions);
+      row.appendChild(actionsCell);
       body.appendChild(row);
     }
   }
@@ -489,13 +524,21 @@
 
     setLabelStatus('保存成功。');
     await loadClientLabels();
+    await loadLogs(currentPage);
   }
 
-  async function deleteClientLabel() {
+  async function deleteClientLabel(clientIdOverride) {
     const values = getLabelFormValues();
-    const clientId = editingClientId || values.clientId;
+    const clientId = clientIdOverride || editingClientId || values.clientId;
     if (!clientId) {
-      setLabelStatus('请选择或填写要删除的 clientId。');
+      setLabelStatus('请选择要删除的 clientId。');
+      return;
+    }
+
+    if (
+      clientIdOverride &&
+      !window.confirm(`确定删除 clientId「${clientId}」的标记吗？`)
+    ) {
       return;
     }
 
@@ -519,6 +562,7 @@
     clearLabelForm();
     setLabelStatus('删除成功。');
     await loadClientLabels();
+    await loadLogs(currentPage);
   }
 
   async function restoreSession() {
@@ -589,9 +633,6 @@
     });
     document.getElementById('label-save-btn')?.addEventListener('click', () => {
       void saveClientLabel();
-    });
-    document.getElementById('label-delete-btn')?.addEventListener('click', () => {
-      void deleteClientLabel();
     });
     document.getElementById('label-refresh-btn')?.addEventListener('click', () => {
       void loadClientLabels();

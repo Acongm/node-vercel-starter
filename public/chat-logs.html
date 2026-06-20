@@ -128,6 +128,17 @@
       .labels-table tbody tr.selected {
         background: #e8eefc;
       }
+
+      .label-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .label-row-actions button {
+        padding: 4px 10px;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
@@ -223,7 +234,6 @@
             <div class="actions">
               <button id="label-create-btn" type="button">新增</button>
               <button id="label-save-btn" type="button" class="secondary">保存编辑</button>
-              <button id="label-delete-btn" type="button" class="secondary">删除</button>
               <button id="label-refresh-btn" type="button" class="secondary">刷新列表</button>
               <button id="label-clear-btn" type="button" class="secondary">清空表单</button>
             </div>
@@ -235,11 +245,12 @@
                   <th>标记</th>
                   <th>备注</th>
                   <th>更新时间</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody id="labels-body">
                 <tr>
-                  <td colspan="4">请先登录。</td>
+                  <td colspan="5">请先登录。</td>
                 </tr>
               </tbody>
             </table>
