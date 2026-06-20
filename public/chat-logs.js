@@ -181,6 +181,29 @@
       void loadLogs();
     });
 
+    document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
+      for (const id of [
+        'filter-client-id',
+        'filter-call-source',
+        'filter-page-path',
+        'filter-from',
+        'filter-to',
+      ]) {
+        const element = document.getElementById(id);
+        if (element instanceof HTMLInputElement) {
+          element.value = '';
+        }
+      }
+      const limit = document.getElementById('filter-limit');
+      if (limit instanceof HTMLInputElement) {
+        limit.value = '200';
+      }
+      const statusLine = document.getElementById('status-line');
+      if (statusLine) {
+        statusLine.textContent = '筛选已清空，请点击加载记录。';
+      }
+    });
+
     document.getElementById('clear-secret-btn')?.addEventListener('click', () => {
       persistSecret('');
       if (secretInput instanceof HTMLInputElement) {

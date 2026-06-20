@@ -56,7 +56,7 @@ export class AiService {
       sources: sources?.length ? sources : result.sources,
     };
 
-    this.chatLogWriter.logFromRequest(req, {
+    await this.chatLogWriter.logFromRequest(req, {
       endpoint: '/api/ai/chat',
       dto,
       assistantMessage: response.message,

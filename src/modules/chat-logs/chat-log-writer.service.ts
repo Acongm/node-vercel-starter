@@ -29,9 +29,8 @@ export class ChatLogWriterService {
 
   constructor(private readonly chatLogsService: ChatLogsService) {}
 
-  logFromRequest(req: Request, payload: ChatLogPayload): void {
-    const meta = extractChatRequestMeta(req);
-    void this.writeLog(meta, payload).catch((error) => {
+  logFromRequest(req: Request, payload: ChatLogPayload): Promise<void> {
+    return this.writeLog(extractChatRequestMeta(req), payload).catch((error) => {
       const message =
         error instanceof Error ? error.message : 'Unknown chat log write error.';
       this.logger.error(`Failed to write chat log: ${message}`);

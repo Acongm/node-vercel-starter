@@ -60,7 +60,7 @@ export class AiV1Controller {
       });
     } finally {
       if (assistantMessage.trim()) {
-        this.chatLogWriter.logFromRequest(req, {
+        await this.chatLogWriter.logFromRequest(req, {
           endpoint: '/api/ai/v1/chat/stream',
           dto,
           assistantMessage,

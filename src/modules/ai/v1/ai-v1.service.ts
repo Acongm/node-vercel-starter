@@ -32,7 +32,7 @@ export class AiV1Service {
       sources: sources.length ? sources : result.sources,
     };
 
-    this.chatLogWriter.logFromRequest(req, {
+    await this.chatLogWriter.logFromRequest(req, {
       endpoint: '/api/ai/v1/chat',
       dto,
       assistantMessage: response.message,
