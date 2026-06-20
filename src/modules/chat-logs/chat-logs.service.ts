@@ -1,14 +1,22 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CHAT_LOG_STORE } from '../../common/tokens';
 import { DataStore } from '../../adapters/data-store/data-store.interface';
-import { ChatLogRecord, CreateChatLogInput } from './chat-log-record';
+import { ClientLabelsService } from '../client-labels/client-labels.service';
+import {
+  ChatLogListItem,
+  ChatLogRecord,
+  CreateChatLogInput,
+} from './chat-log-record';
 import { ListChatLogsDto } from './dto/list-chat-logs.dto';
+
+export const CHAT_LOGS_PAGE_SIZE = 50;
 
 @Injectable()
 export class ChatLogsService {
   constructor(
     @Inject(CHAT_LOG_STORE)
     private readonly chatLogs: DataStore<ChatLogRecord>,
+    private readonly clientLabelsService: ClientLabelsService,
   ) {}
 
   create(input: CreateChatLogInput): Promise<ChatLogRecord> {
@@ -23,17 +31,38 @@ export class ChatLogsService {
     return record;
   }
 
-  async list(
-    filters: ListChatLogsDto,
-  ): Promise<{ items: ChatLogRecord[]; total: number }> {
+  async list(filters: ListChatLogsDto): Promise<{
+    items: ChatLogListItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
     const all = await this.chatLogs.list();
     const filtered = all.filter((record) => matchesFilters(record, filters));
-    const offset = filters.offset ?? 0;
-    const limit = filters.limit ?? 200;
+    const page = filters.page ?? 1;
+    const pageSize = CHAT_LOGS_PAGE_SIZE;
+    const total = filtered.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    const start = (page - 1) * pageSize;
+    const pageItems = filtered.slice(start, start + pageSize);
+    const labelMap = await this.clientLabelsService.mapByClientIds(
+      pageItems.map((record) => record.clientId ?? ''),
+    );
+
+    const items = pageItems.map((record) => {
+      const clientLabel = record.clientId
+        ? labelMap.get(record.clientId)
+        : undefined;
+      return clientLabel ? { ...record, clientLabel } : record;
+    });
 
     return {
-      total: filtered.length,
-      items: filtered.slice(offset, offset + limit),
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages,
     };
   }
 }
@@ -43,10 +72,6 @@ function matchesFilters(
   filters: ListChatLogsDto,
 ): boolean {
   if (filters.clientId && record.clientId !== filters.clientId) {
-    return false;
-  }
-
-  if (filters.callSource && record.callSource !== filters.callSource) {
     return false;
   }
 

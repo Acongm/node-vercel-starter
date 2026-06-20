@@ -5,7 +5,6 @@ import {
   IsOptional,
   IsString,
   Length,
-  Max,
   Min,
 } from 'class-validator';
 
@@ -14,11 +13,6 @@ export class ListChatLogsDto {
   @IsString()
   @Length(1, 128)
   clientId?: string;
-
-  @IsOptional()
-  @IsString()
-  @Length(1, 128)
-  callSource?: string;
 
   @IsOptional()
   @IsString()
@@ -42,12 +36,5 @@ export class ListChatLogsDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(500)
-  limit?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  offset?: number;
+  page?: number;
 }

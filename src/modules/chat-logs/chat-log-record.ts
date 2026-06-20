@@ -35,3 +35,12 @@ export type CreateChatLogInput = Omit<
   ChatLogRecord,
   'id' | 'createdAt' | 'updatedAt'
 >;
+
+export interface ChatLogClientLabel {
+  label: string;
+  note?: string;
+}
+
+export type ChatLogListItem = ChatLogRecord & {
+  clientLabel?: ChatLogClientLabel;
+};

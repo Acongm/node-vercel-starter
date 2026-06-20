@@ -10,13 +10,14 @@ import {
 } from '../../adapters/data-store/supabase-data-store';
 import { CreateEntityInput } from '../../adapters/data-store/data-store.interface';
 import { AuthModule } from '../auth/auth.module';
+import { ClientLabelsModule } from '../client-labels/client-labels.module';
 import { ChatLogRecord } from './chat-log-record';
 import { ChatLogWriterService } from './chat-log-writer.service';
 import { ChatLogsController } from './chat-logs.controller';
 import { ChatLogsService } from './chat-logs.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, ClientLabelsModule],
   controllers: [ChatLogsController],
   providers: [
     ChatLogsService,

@@ -314,6 +314,11 @@ describe('Node Vercel Starter', () => {
       .expect(200);
 
     expect(allResponse.body.total).toBeGreaterThanOrEqual(1);
+    expect(allResponse.body).toMatchObject({
+      page: 1,
+      pageSize: 50,
+    });
+    expect(allResponse.body.totalPages).toBeGreaterThanOrEqual(1);
 
     const listResponse = await request(app.getHttpServer())
       .get('/api/ai/chat/logs?clientId=client-e2e-1')
@@ -323,7 +328,6 @@ describe('Node Vercel Starter', () => {
     expect(listResponse.body.total).toBeGreaterThanOrEqual(1);
     expect(listResponse.body.items[0]).toMatchObject({
       clientId: 'client-e2e-1',
-      callSource: 'vuepress:article-sidebar',
       conversationId: 'conv-e2e-1',
       endpoint: '/api/ai/chat',
       userMessage: 'hello log',
@@ -334,6 +338,85 @@ describe('Node Vercel Starter', () => {
         title: 'Example',
       },
     });
+  });
+
+  it('manages client labels and enriches chat log list items', async () => {
+    app = await createTestApp({
+      AUTH_ADMIN_USERNAME: 'admin',
+      AUTH_ADMIN_PASSWORD: 'admin123',
+      AUTH_JWT_SECRET: 'test-session-secret',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/ai/chat')
+      .set('x-client-id', 'client-label-e2e')
+      .send({ prompt: 'label test' })
+      .expect(201);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const token = await loginAdmin(app.getHttpServer());
+
+    await request(app.getHttpServer())
+      .get('/api/ai/chat/client-labels')
+      .expect(401);
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/ai/chat/client-labels')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        clientId: 'client-label-e2e',
+        label: 'E2E 测试',
+        note: '自动化测试账号',
+      })
+      .expect(201);
+
+    expect(createResponse.body).toMatchObject({
+      clientId: 'client-label-e2e',
+      label: 'E2E 测试',
+      note: '自动化测试账号',
+    });
+
+    const listLabelsResponse = await request(app.getHttpServer())
+      .get('/api/ai/chat/client-labels')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(listLabelsResponse.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          clientId: 'client-label-e2e',
+          label: 'E2E 测试',
+        }),
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .patch('/api/ai/chat/client-labels/client-label-e2e')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ label: 'E2E 更新' })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.label).toBe('E2E 更新');
+      });
+
+    const logsResponse = await request(app.getHttpServer())
+      .get('/api/ai/chat/logs?clientId=client-label-e2e')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(logsResponse.body.items[0]).toMatchObject({
+      clientId: 'client-label-e2e',
+      clientLabel: {
+        label: 'E2E 更新',
+        note: '自动化测试账号',
+      },
+    });
+
+    await request(app.getHttpServer())
+      .delete('/api/ai/chat/client-labels/client-label-e2e')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
   });
 
   it('records stream chat logs after completion', async () => {
@@ -356,7 +439,7 @@ describe('Node Vercel Starter', () => {
     const token = await loginAdmin(app.getHttpServer());
 
     const listResponse = await request(app.getHttpServer())
-      .get('/api/ai/chat/logs?callSource=vuepress:reading-assistant')
+      .get('/api/ai/chat/logs?clientId=client-stream-1')
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 

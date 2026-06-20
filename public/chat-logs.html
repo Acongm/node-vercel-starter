@@ -6,10 +6,15 @@
     <title>Chat Logs · api.acongm.com</title>
     <link rel="stylesheet" href="./api-demo.css" />
     <style>
+      .layout {
+        width: min(1680px, calc(100vw - 32px));
+      }
+
       .log-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        table-layout: fixed;
       }
 
       .log-table th,
@@ -18,7 +23,15 @@
         padding: 8px 10px;
         text-align: left;
         vertical-align: top;
+        word-break: break-word;
       }
+
+      .log-table col.col-time { width: 140px; }
+      .log-table col.col-client { width: 220px; }
+      .log-table col.col-page { width: 200px; }
+      .log-table col.col-endpoint { width: 140px; }
+      .log-table col.col-title { width: 160px; }
+      .log-table col.col-message { width: auto; }
 
       .log-table tbody tr {
         cursor: pointer;
@@ -32,9 +45,29 @@
         background: #e8eefc;
       }
 
+      .client-label-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: #e8eefc;
+        color: var(--primary);
+        font-size: 11px;
+        vertical-align: middle;
+      }
+
+      .page-link {
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      .page-link:hover {
+        text-decoration: underline;
+      }
+
       .filters {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 12px;
         margin-bottom: 16px;
       }
@@ -58,11 +91,42 @@
         margin-bottom: 12px;
       }
 
-      .login-grid {
+      .login-grid,
+      .label-form-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 12px;
-        max-width: 640px;
+      }
+
+      .label-form-grid .full-width {
+        grid-column: 1 / -1;
+      }
+
+      .labels-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        margin-top: 12px;
+      }
+
+      .labels-table th,
+      .labels-table td {
+        border-bottom: 1px solid var(--border);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .labels-table tbody tr {
+        cursor: pointer;
+      }
+
+      .labels-table tbody tr:hover {
+        background: #f3f6fc;
+      }
+
+      .labels-table tbody tr.selected {
+        background: #e8eefc;
       }
     </style>
   </head>
@@ -73,6 +137,7 @@
         <a href="./index.html">API Debug Console</a>
         <a href="#login">Login</a>
         <a href="#filters">Filters</a>
+        <a href="#client-labels">Client Labels</a>
         <a href="#logs">Logs</a>
       </nav>
 
@@ -113,28 +178,20 @@
                 <input id="filter-client-id" type="text" placeholder="留空查全部" />
               </div>
               <div>
-                <label for="filter-call-source">callSource（可选）</label>
-                <input id="filter-call-source" type="text" placeholder="vuepress:article-panel" />
-              </div>
-              <div>
                 <label for="filter-page-path">pagePath（可选）</label>
                 <input id="filter-page-path" type="text" placeholder="/daily-news/..." />
               </div>
               <div>
-                <label for="filter-from">from（可选）</label>
-                <input id="filter-from" type="text" placeholder="2026-06-01T00:00:00.000Z" />
+                <label for="filter-from">开始时间（可选）</label>
+                <input id="filter-from" type="datetime-local" />
               </div>
               <div>
-                <label for="filter-to">to（可选）</label>
-                <input id="filter-to" type="text" placeholder="2026-06-30T23:59:59.999Z" />
-              </div>
-              <div>
-                <label for="filter-limit">limit</label>
-                <input id="filter-limit" type="number" value="200" min="1" max="500" />
+                <label for="filter-to">结束时间（可选）</label>
+                <input id="filter-to" type="datetime-local" />
               </div>
             </div>
             <div class="actions">
-              <button id="load-logs-btn" type="button">加载全部记录</button>
+              <button id="load-logs-btn" type="button">查询</button>
               <button id="clear-filters-btn" type="button" class="secondary">清空筛选</button>
               <button id="prev-page-btn" type="button" class="secondary">上一页</button>
               <button id="next-page-btn" type="button" class="secondary">下一页</button>
@@ -144,14 +201,67 @@
           </div>
         </section>
 
+        <section id="client-labels">
+          <div id="client-labels-panel" hidden>
+            <h2>Client Labels</h2>
+            <div class="path"><span class="method method-get">GET</span>/api/ai/chat/client-labels</div>
+            <p class="hint">为已知 clientId 添加标记与备注，便于在日志列表中识别。</p>
+            <div class="label-form-grid">
+              <div>
+                <label for="label-client-id">clientId</label>
+                <input id="label-client-id" type="text" placeholder="UUID" />
+              </div>
+              <div>
+                <label for="label-text">标记</label>
+                <input id="label-text" type="text" placeholder="例如：测试账号" />
+              </div>
+              <div class="full-width">
+                <label for="label-note">备注（可选）</label>
+                <input id="label-note" type="text" placeholder="补充说明" />
+              </div>
+            </div>
+            <div class="actions">
+              <button id="label-create-btn" type="button">新增</button>
+              <button id="label-save-btn" type="button" class="secondary">保存编辑</button>
+              <button id="label-delete-btn" type="button" class="secondary">删除</button>
+              <button id="label-refresh-btn" type="button" class="secondary">刷新列表</button>
+              <button id="label-clear-btn" type="button" class="secondary">清空表单</button>
+            </div>
+            <p id="label-status-line" class="summary">尚未加载。</p>
+            <table class="labels-table">
+              <thead>
+                <tr>
+                  <th>clientId</th>
+                  <th>标记</th>
+                  <th>备注</th>
+                  <th>更新时间</th>
+                </tr>
+              </thead>
+              <tbody id="labels-body">
+                <tr>
+                  <td colspan="4">请先登录。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section id="logs">
           <h2>Records</h2>
           <table class="log-table">
+            <colgroup>
+              <col class="col-time" />
+              <col class="col-client" />
+              <col class="col-page" />
+              <col class="col-endpoint" />
+              <col class="col-title" />
+              <col class="col-message" />
+            </colgroup>
             <thead>
               <tr>
                 <th>时间</th>
                 <th>clientId</th>
-                <th>callSource</th>
+                <th>pagePath</th>
                 <th>endpoint</th>
                 <th>标题</th>
                 <th>用户消息</th>
