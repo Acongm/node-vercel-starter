@@ -152,6 +152,58 @@ describe('SupabaseDataStore', () => {
     });
   });
 
+  it('retries transient GET transport failures before returning Supabase results', async () => {
+    const originalFetch = global.fetch;
+    const transportFailure = new TypeError('fetch failed');
+    (transportFailure as Error & { cause: { code: string } }).cause = {
+      code: 'ECONNRESET',
+    };
+    let attempts = 0;
+    let capturedFetch: typeof fetch | undefined;
+
+    global.fetch = jest.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw transportFailure;
+      }
+      return new Response('[]', { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const store = new SupabaseDataStore<CommentRecord>({
+        table: 'comments',
+        url: 'https://example.supabase.co',
+        apiKey: 'test-api-key',
+        clientFactory: (_url, _apiKey, options) => {
+          capturedFetch = options.global?.fetch;
+          return {
+            from: () => new FakeSupabaseTable([]),
+          };
+        },
+        fromRow: (row) => ({
+          id: String(row.id),
+          author: String(row.author),
+          content: String(row.content),
+          createdAt: String(row.created_at),
+          updatedAt: String(row.updated_at),
+        }),
+        toRow: (input) => ({
+          author: input.author,
+          content: input.content,
+        }),
+      });
+
+      expect(store).toBeInstanceOf(SupabaseDataStore);
+      expect(capturedFetch).toBeDefined();
+      await expect(capturedFetch?.('https://example.supabase.co/rest/v1/comments')).resolves.toMatchObject({
+        status: 200,
+      });
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it('maps Supabase rows into comment records and performs CRUD', async () => {
     const rows: CommentRow[] = [
       {

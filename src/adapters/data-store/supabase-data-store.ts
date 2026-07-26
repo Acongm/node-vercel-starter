@@ -22,6 +22,8 @@ type SupabaseListResult<T> = {
   error: SupabaseError | null;
 };
 
+type FetchLike = typeof fetch;
+
 export interface SupabaseTableQuery {
   select(columns?: string): SupabaseTableQuery;
   order(
@@ -47,6 +49,7 @@ export interface SupabaseClientOptions {
   };
   global?: {
     headers?: Record<string, string>;
+    fetch?: FetchLike;
   };
 }
 
@@ -62,6 +65,7 @@ export interface SupabaseDataStoreOptions<T extends EntityRecord> {
   apiKey?: string;
   serviceRoleKey?: string;
   requestSecret?: string;
+  fetch?: FetchLike;
   client?: SupabaseClientLike;
   clientFactory?: SupabaseClientFactory;
   fromRow: (row: SupabaseRow) => T;
@@ -89,13 +93,16 @@ export class SupabaseDataStore<T extends EntityRecord> implements DataStore<T> {
         autoRefreshToken: false,
         persistSession: false,
       },
-      global: options.requestSecret
-        ? {
-            headers: {
-              'x-api-secret': options.requestSecret,
-            },
-          }
-        : undefined,
+      global: {
+        fetch: createSupabaseFetch(options.fetch),
+        ...(options.requestSecret
+          ? {
+              headers: {
+                'x-api-secret': options.requestSecret,
+              },
+            }
+          : {}),
+      },
     };
 
     const clientFactory =
@@ -181,5 +188,180 @@ export class SupabaseDataStore<T extends EntityRecord> implements DataStore<T> {
 function stripUndefined(row: SupabaseRow): SupabaseRow {
   return Object.fromEntries(
     Object.entries(row).filter(([, value]) => value !== undefined),
+  );
+}
+
+const SUPABASE_FETCH_TIMEOUT_MS = 4_000;
+const SUPABASE_READ_RETRIES = 1;
+const SUPABASE_RETRY_DELAY_MS = 100;
+
+function createSupabaseFetch(baseFetch = globalThis.fetch.bind(globalThis)): FetchLike {
+  return async (input, init) => {
+    const method = getRequestMethod(input, init);
+    const maxAttempts = isRetryableMethod(method) ? SUPABASE_READ_RETRIES + 1 : 1;
+    let lastFailure: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await fetchWithTimeout(baseFetch, input, init);
+        if (
+          attempt < maxAttempts &&
+          isRetryableResponse(response.status)
+        ) {
+          await discardResponseBody(response);
+          logRetry(input, method, attempt, maxAttempts, `HTTP ${response.status}`);
+          await delay(SUPABASE_RETRY_DELAY_MS);
+          continue;
+        }
+
+        return response;
+      } catch (error) {
+        lastFailure = error;
+        if (attempt >= maxAttempts) {
+          break;
+        }
+
+        logRetry(input, method, attempt, maxAttempts, describeFailure(error));
+        await delay(SUPABASE_RETRY_DELAY_MS);
+      }
+    }
+
+    throw new Error(
+      `Supabase ${method} ${targetForLog(input)} failed after ${maxAttempts} attempt(s): ${describeFailure(lastFailure)}`,
+    );
+  };
+}
+
+async function fetchWithTimeout(
+  baseFetch: FetchLike,
+  input: Parameters<FetchLike>[0],
+  init: Parameters<FetchLike>[1],
+): Promise<Response> {
+  const timeoutController = new AbortController();
+  const timeout = setTimeout(
+    () => timeoutController.abort(),
+    SUPABASE_FETCH_TIMEOUT_MS,
+  );
+
+  try {
+    return await baseFetch(input, {
+      ...init,
+      signal: mergeSignals(init?.signal, timeoutController.signal),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function mergeSignals(
+  requestSignal: AbortSignal | null | undefined,
+  timeoutSignal: AbortSignal,
+): AbortSignal {
+  if (!requestSignal) {
+    return timeoutSignal;
+  }
+
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+
+  requestSignal.addEventListener('abort', abort, { once: true });
+  timeoutSignal.addEventListener('abort', abort, { once: true });
+
+  if (requestSignal.aborted || timeoutSignal.aborted) {
+    abort();
+  }
+
+  return controller.signal;
+}
+
+function getRequestMethod(
+  input: Parameters<FetchLike>[0],
+  init: Parameters<FetchLike>[1],
+): string {
+  if (init?.method) {
+    return init.method.toUpperCase();
+  }
+
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    return input.method.toUpperCase();
+  }
+
+  return 'GET';
+}
+
+function isRetryableMethod(method: string): boolean {
+  return ['GET', 'HEAD', 'OPTIONS'].includes(method);
+}
+
+function isRetryableResponse(status: number): boolean {
+  return [408, 429, 500, 502, 503, 504, 520].includes(status);
+}
+
+async function discardResponseBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Best effort: freeing the response body must not mask the real retry path.
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function describeFailure(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  const cause = (error as Error & { cause?: unknown }).cause;
+  const causeText = describeCause(cause);
+  return causeText ? `${error.message} (${causeText})` : error.message;
+}
+
+function describeCause(cause: unknown): string {
+  if (!cause || typeof cause !== 'object') {
+    return '';
+  }
+
+  const parts = ['code', 'errno', 'syscall', 'hostname', 'message']
+    .map((key) => {
+      const value = (cause as Record<string, unknown>)[key];
+      return value === undefined ? '' : `${key}=${String(value)}`;
+    })
+    .filter(Boolean);
+
+  return parts.join(', ');
+}
+
+function targetForLog(input: Parameters<FetchLike>[0]): string {
+  const rawUrl =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+
+  try {
+    const url = new URL(rawUrl);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return rawUrl;
+  }
+}
+
+function logRetry(
+  input: Parameters<FetchLike>[0],
+  method: string,
+  attempt: number,
+  maxAttempts: number,
+  reason: string,
+): void {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+
+  console.warn(
+    `Supabase ${method} ${targetForLog(input)} failed on attempt ${attempt}/${maxAttempts}; retrying: ${reason}`,
   );
 }
