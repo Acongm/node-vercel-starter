@@ -7,6 +7,7 @@ import {
   AiClient,
   ChatMessage,
   OpenAiChatCompletionRequest,
+  OpenAiChatCompletionResponse,
 } from '../../adapters/ai/ai-client.interface';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
 import { ChatDto } from './dto/chat.dto';
@@ -97,14 +98,29 @@ export class AiService {
     }
   }
 
-  createChatCompletion(dto: OpenAiChatCompletionRequest) {
+  async createChatCompletion(dto: OpenAiChatCompletionRequest, req: Request) {
     if (!Array.isArray(dto.messages) || dto.messages.length === 0) {
       throw new BadRequestException(
         'OpenAI-compatible requests require messages.',
       );
     }
 
-    return this.aiClient.createChatCompletion(dto);
+    const response = await this.aiClient.createChatCompletion(dto);
+
+    await this.chatLogWriter.logFromRequest(req, {
+      endpoint: requestPath(req),
+      dto: {
+        messages: dto.messages.map((message) => ({
+          role: String(message.role),
+          content: textFromOpenAiContent(message.content),
+        })),
+      },
+      assistantMessage: assistantMessageFromCompletion(response),
+      provider: this.appConfig.ai.provider,
+      model: modelFromCompletion(response, dto, this.appConfig),
+    });
+
+    return response;
   }
 
   private buildChatMessages(dto: ChatDto): ChatMessage[] | undefined {
@@ -186,4 +202,67 @@ export class AiService {
 
     return [{ role: 'system' as const, content: searchBlock }, ...cloned];
   }
+}
+
+function requestPath(req: Request): string {
+  return req.path || req.originalUrl.split('?')[0] || '/v1/chat/completions';
+}
+
+function assistantMessageFromCompletion(
+  response: OpenAiChatCompletionResponse,
+): string {
+  const choices = response.choices;
+  if (!Array.isArray(choices)) {
+    return '';
+  }
+
+  const firstChoice = choices[0];
+  if (!firstChoice || typeof firstChoice !== 'object') {
+    return '';
+  }
+
+  const message = (firstChoice as { message?: { content?: unknown } }).message;
+  return textFromOpenAiContent(message?.content);
+}
+
+function modelFromCompletion(
+  response: OpenAiChatCompletionResponse,
+  dto: OpenAiChatCompletionRequest,
+  config: AppConfig,
+): string | undefined {
+  if (typeof response.model === 'string') {
+    return response.model;
+  }
+
+  if (typeof dto.model === 'string') {
+    return dto.model;
+  }
+
+  return config.ai.provider === 'mock' ? 'mock-local' : config.ai.model;
+}
+
+function textFromOpenAiContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return content === undefined || content === null ? '' : String(content);
+  }
+
+  return content
+    .map((part) => {
+      if (typeof part === 'string') {
+        return part;
+      }
+
+      if (!part || typeof part !== 'object') {
+        return '';
+      }
+
+      const text = (part as { text?: unknown }).text;
+      return typeof text === 'string' ? text : '';
+    })
+    .filter(Boolean)
+    .join('\n');
 }

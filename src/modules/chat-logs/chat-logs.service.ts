@@ -82,6 +82,10 @@ function matchesFilters(
     return false;
   }
 
+  if (filters.endpoint && record.endpoint !== filters.endpoint) {
+    return false;
+  }
+
   if (
     filters.pagePath &&
     record.context?.pagePath !== filters.pagePath

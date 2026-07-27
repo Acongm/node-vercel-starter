@@ -25,6 +25,11 @@ export class ListChatLogsDto {
   conversationId?: string;
 
   @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  endpoint?: string;
+
+  @IsOptional()
   @IsISO8601()
   from?: string;
 

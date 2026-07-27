@@ -33,11 +33,13 @@ describe('API debug console assets', () => {
     expect(html).toContain('./chat-logs.js');
     expect(html).toContain('datetime-local');
     expect(html).toContain('client-labels');
+    expect(html).toContain('filter-endpoint');
     expect(html).not.toContain('filter-call-source');
     expect(html).not.toContain('filter-limit');
     expect(script).toContain('chat_logs_access_token');
     expect(script).toContain('buildPageUrl');
     expect(script).toContain('/api/ai/chat/client-labels');
+    expect(script).toContain("'filter-endpoint', 'endpoint'");
     expect(script).not.toMatch(/^\s*export\s/m);
   });
 

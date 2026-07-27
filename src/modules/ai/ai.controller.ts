@@ -25,7 +25,10 @@ export class OpenAiCompatibleController {
   constructor(private readonly aiService: AiService) {}
 
   @Post(['v1/chat/completions', 'api/openai/v1/chat/completions'])
-  createChatCompletion(@Body() dto: OpenAiChatCompletionRequest) {
-    return this.aiService.createChatCompletion(dto);
+  createChatCompletion(
+    @Body() dto: OpenAiChatCompletionRequest,
+    @Req() req: Request,
+  ) {
+    return this.aiService.createChatCompletion(dto, req);
   }
 }

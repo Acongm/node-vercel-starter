@@ -439,20 +439,30 @@ describe('Node Vercel Starter', () => {
     const token = await loginAdmin(app.getHttpServer());
 
     const listResponse = await request(app.getHttpServer())
-      .get('/api/ai/chat/logs?clientId=client-stream-1')
+      .get('/api/ai/chat/logs?endpoint=/api/ai/v1/chat/stream')
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
-    expect(listResponse.body.items.some((item: { endpoint: string }) =>
-      item.endpoint === '/api/ai/v1/chat/stream',
-    )).toBe(true);
+    expect(listResponse.body.items).toEqual([
+      expect.objectContaining({
+        clientId: 'client-stream-1',
+        endpoint: '/api/ai/v1/chat/stream',
+        userMessage: 'stream log test',
+      }),
+    ]);
   });
 
-  it('serves OpenAI-compatible chat completions from /v1/chat/completions', async () => {
-    app = await createTestApp();
+  it('records OpenAI-compatible chat completions in chat logs', async () => {
+    app = await createTestApp({
+      AUTH_ADMIN_USERNAME: 'admin',
+      AUTH_ADMIN_PASSWORD: 'admin123',
+      AUTH_JWT_SECRET: 'test-session-secret',
+    });
 
     const response = await request(app.getHttpServer())
       .post('/v1/chat/completions')
+      .set('x-client-id', 'client-openai-e2e')
+      .set('x-call-source', 'pipeline-ai')
       .send({
         model: 'deepseek-v4-pro',
         messages: [{ role: 'user', content: 'hello' }],
@@ -474,6 +484,25 @@ describe('Node Vercel Starter', () => {
       ],
     });
     expect(response.body.id).toEqual(expect.stringMatching(/^chatcmpl-/));
+
+    const token = await loginAdmin(app.getHttpServer());
+
+    const listResponse = await request(app.getHttpServer())
+      .get('/api/ai/chat/logs?endpoint=/v1/chat/completions')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(listResponse.body.items).toEqual([
+      expect.objectContaining({
+        clientId: 'client-openai-e2e',
+        callSource: 'pipeline-ai',
+        endpoint: '/v1/chat/completions',
+        userMessage: 'hello',
+        assistantMessage: 'Mock response: hello',
+        provider: 'mock',
+        model: 'deepseek-v4-pro',
+      }),
+    ]);
   });
 
   it('serves OpenAI-compatible chat completions from /api/openai/v1/chat/completions', async () => {

@@ -103,6 +103,7 @@
     const fields = [
       ['filter-client-id', 'clientId'],
       ['filter-page-path', 'pagePath'],
+      ['filter-endpoint', 'endpoint'],
     ];
 
     for (const [elementId, paramName] of fields) {
@@ -609,7 +610,7 @@
       void loadLogs(1);
     });
     document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
-      for (const id of ['filter-client-id', 'filter-page-path']) {
+      for (const id of ['filter-client-id', 'filter-page-path', 'filter-endpoint']) {
         const element = document.getElementById(id);
         if (element instanceof HTMLInputElement) element.value = '';
       }
