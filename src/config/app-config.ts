@@ -22,9 +22,12 @@ export interface AppConfig {
   clientLabelsFilePath: string;
   fileMode: FileMode;
   uploadDir: string;
+  siteConfigPath: string;
   auth: {
     mode: AuthMode;
     jwtSecret: string;
+    /** HS256 secret for Supabase access tokens (legacy JWT secret). */
+    supabaseJwtSecret?: string;
     adminUsername?: string;
     adminPassword?: string;
     sessionTtl: string;
@@ -110,9 +113,12 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       env.CLIENT_LABELS_FILE_PATH || '.data/chat-client-labels.json',
     fileMode: enumValue(env.FILE_MODE, fileModes, 'memory'),
     uploadDir: env.UPLOAD_DIR || 'uploads',
+    siteConfigPath: env.SITE_CONFIG_PATH || 'site.config.yaml',
     auth: {
       mode: enumValue(env.AUTH_MODE, authModes, 'none'),
       jwtSecret: env.AUTH_JWT_SECRET || 'change-me',
+      supabaseJwtSecret:
+        env.SUPABASE_JWT_SECRET || env.AUTH_SUPABASE_JWT_SECRET,
       adminUsername: env.AUTH_ADMIN_USERNAME,
       adminPassword: env.AUTH_ADMIN_PASSWORD,
       sessionTtl: env.AUTH_SESSION_TTL || '7d',

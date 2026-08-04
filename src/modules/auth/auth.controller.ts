@@ -1,8 +1,19 @@
-import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
-import { AdminSessionGuard, extractBearerToken } from './admin-session.guard';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RequireRoles } from './roles.decorator';
+import {
+  AuthenticatedRequest,
+  OptionalAuthGuard,
+  RolesGuard,
+} from './roles.guard';
 
 @Controller('api/auth')
 export class AuthController {
@@ -18,13 +29,36 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  /** Public principal probe: anonymous tier when no/invalid token is absent. */
   @Get('me')
-  @UseGuards(AdminSessionGuard)
-  me(@Req() request: Request) {
-    const token = extractBearerToken(request);
-    if (!token) {
-      return { authenticated: false };
-    }
-    return this.authService.me(token);
+  @UseGuards(OptionalAuthGuard)
+  me(@Req() request: AuthenticatedRequest) {
+    return this.authService.principalResponse(request.auth!);
+  }
+
+  /**
+   * Example protected probe for dochub write ACL (editor+).
+   * Real dochub routes will reuse RequireRoles + RolesGuard in P3.
+   */
+  @Get('roles/editor-check')
+  @UseGuards(RolesGuard)
+  @RequireRoles('editor')
+  editorCheck(@Req() request: AuthenticatedRequest) {
+    return {
+      ok: true,
+      role: request.auth?.role,
+      tier: request.auth?.tier,
+    };
+  }
+
+  @Get('roles/admin-check')
+  @UseGuards(RolesGuard)
+  @RequireRoles('admin')
+  adminCheck(@Req() request: AuthenticatedRequest) {
+    return {
+      ok: true,
+      role: request.auth?.role,
+      tier: request.auth?.tier,
+    };
   }
 }
