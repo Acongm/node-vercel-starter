@@ -95,11 +95,29 @@ On Vercel, durable uploads should use Blob, S3, R2, or another object store. Ser
 
 ### Auth
 
-`AUTH_MODE` controls login behavior:
+`AUTH_MODE` controls password-login behavior:
 
-- `none`: anonymous identity
-- `jwt`: issue a demo JWT with `AUTH_JWT_SECRET`
-- `external`: extension point for Clerk, Auth.js, OAuth, or another identity provider
+- `none`: anonymous identity when no credentials are configured
+- `jwt`: local/admin password login + OAuth (recommended)
+- `external`: password login disabled; use OAuth routes or Supabase JWT instead
+
+Supported login paths:
+
+1. **Admin env** — `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD` → admin session JWT
+2. **Local account** — seeded users only (registration closed):
+
+```bash
+npm run seed:auth-user -- --email you@acongm.com --password 'secret' --role viewer
+```
+
+3. **OAuth (GitHub / Google)** — set client id/secret; callback:
+
+`https://api.acongm.com/api/auth/oauth/{github|google}/callback`
+
+4. **Supabase JWT** — verify with `SUPABASE_JWT_SECRET` (`app_metadata.role`)
+
+When OAuth secrets are unset, `GET /api/auth/oauth/providers` falls back to
+`https://auth.acongm.com/login?provider=...`.
 
 ### AI
 
@@ -136,20 +154,35 @@ completion routes:
 
 ## Endpoints
 
+### Core
+
 - `GET /api/health`
-- `POST /api/ai/chat`
-- `POST /v1/chat/completions`
-- `POST /api/openai/v1/chat/completions`
+- `GET /api/config/site`
 - `POST /api/proxy/:provider`
-- `POST /api/upload`
-- `GET /api/upload/:key`
+- `POST /api/upload` / `GET /api/upload/:key`
+
+### Auth
+
 - `GET /api/auth/mode`
 - `POST /api/auth/login`
-- `GET /api/comments`
-- `POST /api/comments`
-- `GET /api/comments/:id`
-- `PATCH /api/comments/:id`
-- `DELETE /api/comments/:id`
+- `GET /api/auth/me`
+- `GET /api/auth/oauth/providers`
+- `GET /api/auth/oauth/:provider/start`
+- `GET /api/auth/oauth/:provider/callback`
+- `POST /api/auth/oauth/:provider/exchange`
+- `POST /api/auth/oauth/claim`
+
+### AI / Chat
+
+- `POST /api/ai/chat`
+- `POST /api/ai/v1/chat` / `POST /api/ai/v1/chat/stream`
+- `POST /v1/chat/completions` / `POST /api/openai/v1/chat/completions`
+- `GET|POST /api/chat/threads` (+ messages / stream)
+
+### Comments
+
+- `GET|POST /api/comments`
+- `GET|PATCH|DELETE /api/comments/:id`
 
 Comment CRUD example:
 

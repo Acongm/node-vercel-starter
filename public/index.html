@@ -15,6 +15,8 @@
         <a href="#openai">OpenAI Compatible</a>
         <a href="#comments">Comments CRUD</a>
         <a href="#auth">Auth</a>
+        <a href="#oauth">OAuth</a>
+        <a href="#site-config">Site Config</a>
         <a href="#upload">Upload</a>
         <a href="#proxy">Proxy</a>
         <a href="./chat-logs.html">Chat Logs</a>
@@ -93,15 +95,46 @@
           <h2>Auth</h2>
           <div class="path"><span class="method method-get">GET</span>/api/auth/mode</div>
           <div class="path"><span class="method method-post">POST</span>/api/auth/login</div>
-          <label for="auth-username">Username</label>
+          <div class="path"><span class="method method-get">GET</span>/api/auth/me</div>
+          <p class="hint">
+            本地账号需先用 <code>npm run seed:auth-user</code> 注入（注册未开放）。也可用
+            <code>AUTH_ADMIN_*</code> 管理员账号。
+          </p>
+          <label for="auth-username">Username / Email</label>
           <input id="auth-username" type="text" value="demo" />
           <label for="auth-password">Password</label>
           <input id="auth-password" type="password" value="demo" />
+          <label for="auth-token">Access Token（登录后自动填入，用于 /me）</label>
+          <input id="auth-token" type="text" placeholder="Bearer access token" />
           <div class="actions">
             <button id="auth-mode-btn" type="button" class="secondary">查询 Mode</button>
             <button id="auth-login-btn" type="button">登录 Login</button>
+            <button id="auth-me-btn" type="button" class="secondary">查询 Me</button>
           </div>
           <pre id="auth-output">尚未请求。</pre>
+        </section>
+
+        <section id="oauth">
+          <h2>OAuth</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/auth/oauth/providers</div>
+          <div class="path"><span class="method method-get">GET</span>/api/auth/oauth/:provider/start</div>
+          <p class="hint">
+            配置 <code>AUTH_GITHUB_*</code> / <code>AUTH_GOOGLE_*</code> 后由本 API 托管；未配置则回退
+            <code>auth.acongm.com</code>。
+          </p>
+          <div class="actions">
+            <button id="oauth-providers-btn" type="button">列出 Providers</button>
+          </div>
+          <pre id="oauth-output">尚未请求。</pre>
+        </section>
+
+        <section id="site-config">
+          <h2>Site Config</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/config/site</div>
+          <div class="actions">
+            <button id="site-config-btn" type="button">读取 site.config</button>
+          </div>
+          <pre id="site-config-output">尚未请求。</pre>
         </section>
 
         <section id="upload">

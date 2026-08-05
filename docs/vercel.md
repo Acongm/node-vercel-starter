@@ -8,7 +8,16 @@ This starter includes `api/index.ts` and `vercel.json` so Vercel can deploy the 
 RUNTIME_TARGET=vercel
 DATA_MODE=supabase
 FILE_MODE=memory
-AUTH_MODE=none
+AUTH_MODE=jwt
+AUTH_JWT_SECRET=replace-me
+AUTH_ADMIN_USERNAME=admin
+AUTH_ADMIN_PASSWORD=
+AUTH_SESSION_TTL=7d
+# AUTH_GITHUB_CLIENT_ID=
+# AUTH_GITHUB_CLIENT_SECRET=
+# AUTH_GOOGLE_CLIENT_ID=
+# AUTH_GOOGLE_CLIENT_SECRET=
+# AUTH_OAUTH_REDIRECT_BASE=https://api.acongm.com
 AI_PROVIDER=custom
 AI_BASE_URL=https://api.deepseek.com
 AI_MODEL=deepseek-v4-pro
@@ -18,6 +27,7 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
 SUPABASE_API_KEY=
 SUPABASE_REQUEST_SECRET=
+SUPABASE_JWT_SECRET=
 SUPABASE_COMMENTS_TABLE=comments
 ```
 
@@ -48,11 +58,20 @@ Good candidates:
 
 The template keeps these details behind `DataStore` so feature services do not import database libraries directly.
 
-Run `supabase/migrations/20260606000000_create_comments.sql` before deploying with `DATA_MODE=supabase`.
-Use `SUPABASE_SERVICE_ROLE_KEY` when available. If it is not available through
-the current automation, set `SUPABASE_API_KEY` to a publishable or anon key and
-set `SUPABASE_REQUEST_SECRET`; the migration includes an RLS policy that checks
-the internal `x-api-secret` header.
+Apply migrations under `supabase/migrations/` before deploying with
+`DATA_MODE=supabase` (comments, chat logs/threads, platform v2 tables,
+`auth_users`). Prefer `SUPABASE_SERVICE_ROLE_KEY`. If unavailable, set
+`SUPABASE_API_KEY` + `SUPABASE_REQUEST_SECRET`; RLS checks the internal
+`x-api-secret` header.
+
+OAuth callback URLs (API-hosted):
+
+- `https://api.acongm.com/api/auth/oauth/github/callback`
+- `https://api.acongm.com/api/auth/oauth/google/callback`
+
+Seed local users (registration closed) from a trusted environment:
+
+`npm run seed:auth-user -- --email you@acongm.com --password '...' --role viewer`
 
 ## Domain
 

@@ -4,7 +4,12 @@ import {
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createHash, randomBytes } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto';
 import { APP_CONFIG, SITE_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { SiteConfig } from '../../config/site-config';
@@ -22,8 +27,6 @@ interface OAuthStatePayload {
 
 @Injectable()
 export class OAuthService {
-  private readonly pendingStates = new Map<string, OAuthStatePayload>();
-
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     @Inject(SITE_CONFIG) private readonly siteConfig: SiteConfig,
@@ -167,6 +170,11 @@ export class OAuthService {
     return url.toString();
   }
 
+  /** @internal Exported for unit tests. */
+  signStateForTests(payload: OAuthStatePayload): string {
+    return this.encodeState(payload);
+  }
+
   private oauthCallbackBase(): string {
     return (
       this.config.auth.oauth.redirectBase ||
@@ -181,25 +189,68 @@ export class OAuthService {
   private createState(provider: OAuthProviderName, next?: string): string {
     const fallback = this.siteConfig.domains.portal;
     const safeNext = this.sanitizeNext(next, fallback);
-    const nonce = randomBytes(16).toString('hex');
-    const payload: OAuthStatePayload = {
+    return this.encodeState({
       provider,
       next: safeNext,
-      nonce,
+      nonce: randomBytes(16).toString('hex'),
       exp: Date.now() + 10 * 60 * 1000,
-    };
-    const state = randomBytes(24).toString('hex');
-    this.pendingStates.set(state, payload);
-    return state;
+    });
+  }
+
+  /**
+   * Stateless HMAC state so start/callback work across Vercel instances.
+   * Format: base64url(json).base64url(hmac-sha256)
+   */
+  private encodeState(payload: OAuthStatePayload): string {
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const sig = createHmac('sha256', this.stateSecret())
+      .update(body)
+      .digest('base64url');
+    return `${body}.${sig}`;
   }
 
   private consumeState(state: string): OAuthStatePayload {
-    const payload = this.pendingStates.get(state);
-    this.pendingStates.delete(state);
-    if (!payload || payload.exp < Date.now()) {
+    const [body, sig] = state.split('.');
+    if (!body || !sig) {
       throw new BadRequestException('Invalid or expired OAuth state.');
     }
+
+    const expected = createHmac('sha256', this.stateSecret())
+      .update(body)
+      .digest('base64url');
+    const sigBuf = Buffer.from(sig);
+    const expectedBuf = Buffer.from(expected);
+    if (
+      sigBuf.length !== expectedBuf.length ||
+      !timingSafeEqual(sigBuf, expectedBuf)
+    ) {
+      throw new BadRequestException('Invalid or expired OAuth state.');
+    }
+
+    let payload: OAuthStatePayload;
+    try {
+      payload = JSON.parse(
+        Buffer.from(body, 'base64url').toString('utf8'),
+      ) as OAuthStatePayload;
+    } catch {
+      throw new BadRequestException('Invalid or expired OAuth state.');
+    }
+
+    if (
+      !payload ||
+      typeof payload.exp !== 'number' ||
+      payload.exp < Date.now() ||
+      (payload.provider !== 'github' && payload.provider !== 'google') ||
+      typeof payload.next !== 'string'
+    ) {
+      throw new BadRequestException('Invalid or expired OAuth state.');
+    }
+
     return payload;
+  }
+
+  private stateSecret(): string {
+    return this.config.auth.jwtSecret || 'change-me';
   }
 
   private sanitizeNext(next: string | undefined, fallback: string): string {
