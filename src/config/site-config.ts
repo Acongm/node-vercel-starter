@@ -27,6 +27,13 @@ export interface SiteLimitsConfig {
   user: SiteLimitBucket;
 }
 
+export type OAuthProviderId = 'github' | 'google';
+
+export interface SiteOAuthConfig {
+  providers: OAuthProviderId[];
+  claimThreads: boolean;
+}
+
 /**
  * Shared site config schema with auth packages/config (@acongm/config).
  * Keep field names stable across auth and api.
@@ -35,6 +42,7 @@ export interface SiteConfig {
   domains: SiteDomainsConfig;
   git: SiteGitConfig;
   limits: SiteLimitsConfig;
+  oauth: SiteOAuthConfig;
 }
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
@@ -56,6 +64,10 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
     anon: { chatPerDay: 20 },
     user: { chatPerDay: 200 },
   },
+  oauth: {
+    providers: ['github', 'google'],
+    claimThreads: true,
+  },
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -73,6 +85,17 @@ function positiveInt(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
+function normalizeProviders(value: unknown): OAuthProviderId[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    return [...DEFAULT_SITE_CONFIG.oauth.providers];
+  }
+  const allowed: OAuthProviderId[] = [];
+  for (const item of value) {
+    if (item === 'github' || item === 'google') allowed.push(item);
+  }
+  return allowed.length ? allowed : [...DEFAULT_SITE_CONFIG.oauth.providers];
+}
+
 function normalizeSiteConfig(raw: unknown): SiteConfig {
   const root = asRecord(raw);
   const domains = asRecord(root.domains);
@@ -80,6 +103,7 @@ function normalizeSiteConfig(raw: unknown): SiteConfig {
   const limits = asRecord(root.limits);
   const anon = asRecord(limits.anon);
   const user = asRecord(limits.user);
+  const oauth = asRecord(root.oauth);
 
   return {
     domains: {
@@ -116,6 +140,13 @@ function normalizeSiteConfig(raw: unknown): SiteConfig {
         ),
       },
     },
+    oauth: {
+      providers: normalizeProviders(oauth.providers),
+      claimThreads:
+        typeof oauth.claimThreads === 'boolean'
+          ? oauth.claimThreads
+          : DEFAULT_SITE_CONFIG.oauth.claimThreads,
+    },
   };
 }
 
@@ -123,6 +154,7 @@ function applyEnvOverrides(
   config: SiteConfig,
   env: NodeJS.ProcessEnv,
 ): SiteConfig {
+  const providersRaw = env.SITE_OAUTH_PROVIDERS;
   return {
     domains: {
       portal: stringValue(env.SITE_DOMAIN_PORTAL, config.domains.portal),
@@ -157,6 +189,16 @@ function applyEnvOverrides(
           config.limits.user.chatPerDay,
         ),
       },
+    },
+    oauth: {
+      providers: providersRaw
+        ? normalizeProviders(providersRaw.split(',').map((item) => item.trim()))
+        : config.oauth.providers,
+      claimThreads:
+        env.SITE_OAUTH_CLAIM_THREADS === undefined
+          ? config.oauth.claimThreads
+          : env.SITE_OAUTH_CLAIM_THREADS !== '0' &&
+            env.SITE_OAUTH_CLAIM_THREADS !== 'false',
     },
   };
 }

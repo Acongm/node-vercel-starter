@@ -174,13 +174,34 @@
     });
 
     bindClick('auth-login-btn', async () => {
-      renderResponse('auth-output', await apiFetch('/api/auth/login', {
+      const username = readValue('auth-username');
+      const password = readValue('auth-password');
+      const body = username.includes('@')
+        ? { email: username, password }
+        : { username, password };
+      const result = await apiFetch('/api/auth/login', {
         method: 'POST',
-        body: {
-          username: readValue('auth-username'),
-          password: readValue('auth-password'),
-        },
-      }));
+        body,
+      });
+      renderResponse('auth-output', result);
+      if (result.body?.accessToken) {
+        const tokenInput = document.getElementById('auth-token');
+        if (tokenInput) tokenInput.value = result.body.accessToken;
+      }
+    });
+
+    bindClick('auth-me-btn', async () => {
+      const token = readValue('auth-token');
+      const headers = token ? { authorization: `Bearer ${token}` } : {};
+      renderResponse('auth-output', await apiFetch('/api/auth/me', { headers }));
+    });
+
+    bindClick('oauth-providers-btn', async () => {
+      renderResponse('oauth-output', await apiFetch('/api/auth/oauth/providers'));
+    });
+
+    bindClick('site-config-btn', async () => {
+      renderResponse('site-config-output', await apiFetch('/api/config/site'));
     });
 
     bindClick('upload-post-btn', async () => {

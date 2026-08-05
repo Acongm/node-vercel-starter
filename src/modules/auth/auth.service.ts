@@ -1,7 +1,14 @@
-import { Inject, Injectable, NotImplementedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotImplementedException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
+import { AccessTokenService } from './access-token.service';
 import { AdminSessionService } from './admin-session.service';
+import { AuthUsersService } from './auth-users.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthPrincipal } from './roles';
 
@@ -10,36 +17,56 @@ export class AuthService {
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly adminSession: AdminSessionService,
+    private readonly users: AuthUsersService,
+    private readonly accessTokens: AccessTokenService,
   ) {}
 
   mode() {
-    const configured = this.adminSession.isConfigured();
+    const adminConfigured = this.adminSession.isConfigured();
+    const oauth = this.config.auth.oauth;
     return {
-      authMode: configured ? 'jwt' : this.config.auth.mode,
-      adminLoginConfigured: configured,
+      authMode: adminConfigured ? 'jwt' : this.config.auth.mode,
+      adminLoginConfigured: adminConfigured,
+      localLoginEnabled: true,
+      registrationOpen: false,
       supabaseJwtConfigured: Boolean(this.config.auth.supabaseJwtSecret),
+      oauthConfigured: {
+        github: Boolean(oauth.githubClientId && oauth.githubClientSecret),
+        google: Boolean(oauth.googleClientId && oauth.googleClientSecret),
+      },
       roles: ['anonymous', 'viewer', 'editor', 'admin'],
       tiers: ['anon', 'user'],
-      note: configured
-        ? 'Use POST /api/auth/login with AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD. Supabase JWT uses SUPABASE_JWT_SECRET + app_metadata.role.'
-        : this.config.auth.mode === 'none'
-          ? 'Anonymous mode is enabled. Set AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD for admin login, or SUPABASE_JWT_SECRET for user JWTs.'
-          : 'Auth mode is configured by AUTH_MODE.',
+      note:
+        'Password login: admin env credentials or seeded local users (registration is closed). OAuth: GET /api/auth/oauth/providers. Supabase JWT uses SUPABASE_JWT_SECRET + app_metadata.role.',
     };
   }
 
   async login(dto: LoginDto) {
     if (this.config.auth.mode === 'external') {
       throw new NotImplementedException(
-        'AUTH_MODE=external should be connected to Clerk, Auth.js, OAuth, or your identity provider.',
+        'AUTH_MODE=external should use OAuth (/api/auth/oauth/...) or your identity provider.',
       );
     }
 
-    if (this.adminSession.isConfigured()) {
-      return this.adminSession.login(
-        dto.username || '',
-        dto.password || '',
-      );
+    const identifier = (dto.email || dto.username || '').trim();
+    const password = dto.password || '';
+
+    if (
+      this.adminSession.isConfigured() &&
+      this.adminSession.validateCredentials(identifier, password)
+    ) {
+      return this.adminSession.login(identifier, password);
+    }
+
+    if (identifier && password) {
+      const user = await this.users.authenticateLocal(identifier, password);
+      if (user) {
+        return this.accessTokens.issueForUser(user);
+      }
+    }
+
+    if (this.adminSession.isConfigured() || identifier) {
+      throw new UnauthorizedException('Invalid username or password.');
     }
 
     const user = {
@@ -54,8 +81,8 @@ export class AuthService {
       return { authMode: 'none', user };
     }
 
-    throw new NotImplementedException(
-      'JWT login requires AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD, or a Supabase session from auth.acongm.com.',
+    throw new UnauthorizedException(
+      'Login requires a seeded local account, AUTH_ADMIN_* credentials, or OAuth.',
     );
   }
 

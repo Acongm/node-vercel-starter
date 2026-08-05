@@ -10,6 +10,8 @@ describe('API debug console assets', () => {
       '/v1/chat/completions',
       '/api/comments',
       '/api/auth',
+      '/api/auth/oauth/providers',
+      '/api/config/site',
       '/api/upload',
       '/api/proxy',
     ];

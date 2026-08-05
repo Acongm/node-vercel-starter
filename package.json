@@ -10,7 +10,8 @@
     "start:dev": "nest start --watch",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "seed:auth-user": "ts-node scripts/seed-auth-user.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

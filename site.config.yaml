@@ -22,3 +22,9 @@ limits:
     chatPerDay: 20
   user:
     chatPerDay: 200
+
+oauth:
+  providers:
+    - github
+    - google
+  claimThreads: true

@@ -22,6 +22,7 @@ export interface AppConfig {
   chatThreadsFilePath: string;
   chatMessagesFilePath: string;
   clientLabelsFilePath: string;
+  authUsersFilePath: string;
   fileMode: FileMode;
   uploadDir: string;
   siteConfigPath: string;
@@ -33,6 +34,14 @@ export interface AppConfig {
     adminUsername?: string;
     adminPassword?: string;
     sessionTtl: string;
+    oauth: {
+      githubClientId?: string;
+      githubClientSecret?: string;
+      googleClientId?: string;
+      googleClientSecret?: string;
+      /** Public API origin used to build OAuth callback URLs. */
+      redirectBase?: string;
+    };
   };
   ai: {
     provider: AiProvider;
@@ -50,6 +59,7 @@ export interface AppConfig {
     commentsTable: string;
     chatLogsTable: string;
     chatClientLabelsTable: string;
+    authUsersTable: string;
   };
 }
 
@@ -117,6 +127,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       env.CHAT_MESSAGES_FILE_PATH || '.data/chat-messages.json',
     clientLabelsFilePath:
       env.CLIENT_LABELS_FILE_PATH || '.data/chat-client-labels.json',
+    authUsersFilePath: env.AUTH_USERS_FILE_PATH || '.data/auth-users.json',
     fileMode: enumValue(env.FILE_MODE, fileModes, 'memory'),
     uploadDir: env.UPLOAD_DIR || 'uploads',
     siteConfigPath: env.SITE_CONFIG_PATH || 'site.config.yaml',
@@ -128,6 +139,13 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       adminUsername: env.AUTH_ADMIN_USERNAME,
       adminPassword: env.AUTH_ADMIN_PASSWORD,
       sessionTtl: env.AUTH_SESSION_TTL || '7d',
+      oauth: {
+        githubClientId: env.AUTH_GITHUB_CLIENT_ID,
+        githubClientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+        googleClientId: env.AUTH_GOOGLE_CLIENT_ID,
+        googleClientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
+        redirectBase: env.AUTH_OAUTH_REDIRECT_BASE || env.PUBLIC_API_BASE,
+      },
     },
     ai: {
       provider: enumValue(env.AI_PROVIDER, aiProviders, 'mock'),
@@ -146,6 +164,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       chatLogsTable: env.SUPABASE_CHAT_LOGS_TABLE || 'chat_logs',
       chatClientLabelsTable:
         env.SUPABASE_CHAT_CLIENT_LABELS_TABLE || 'chat_client_labels',
+      authUsersTable: env.SUPABASE_AUTH_USERS_TABLE || 'auth_users',
     },
   };
 }
