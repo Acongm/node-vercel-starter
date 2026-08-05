@@ -5,5 +5,6 @@ export const CHAT_LOG_STORE = 'CHAT_LOG_STORE';
 export const CHAT_THREAD_STORE = 'CHAT_THREAD_STORE';
 export const CHAT_MESSAGE_STORE = 'CHAT_MESSAGE_STORE';
 export const CLIENT_LABEL_STORE = 'CLIENT_LABEL_STORE';
+export const AUTH_USER_STORE = 'AUTH_USER_STORE';
 export const FILE_STORE = 'FILE_STORE';
 export const AI_CLIENT = 'AI_CLIENT';

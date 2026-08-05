@@ -31,7 +31,7 @@ describe('OAuth providers + anonymous thread claim', () => {
     delete process.env.SUPABASE_JWT_SECRET;
   });
 
-  it('lists GitHub login URL from auth.acongm.com', async () => {
+  it('lists GitHub and Google login URLs from auth.acongm.com when OAuth secrets are unset', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/auth/oauth/providers')
       .expect(200);
@@ -39,13 +39,19 @@ describe('OAuth providers + anonymous thread claim', () => {
     expect(response.body).toMatchObject({
       authBase: 'https://auth.acongm.com',
       claimThreads: true,
-      providers: [
-        {
+    });
+    expect(response.body.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
           id: 'github',
           loginUrl: 'https://auth.acongm.com/login?provider=github',
-        },
-      ],
-    });
+        }),
+        expect.objectContaining({
+          id: 'google',
+          loginUrl: 'https://auth.acongm.com/login?provider=google',
+        }),
+      ]),
+    );
   });
 
   it('claims anonymous threads after OAuth login', async () => {

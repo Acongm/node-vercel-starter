@@ -1,6 +1,10 @@
 export type PlatformRole = 'anonymous' | 'viewer' | 'editor' | 'admin';
 export type AuthTier = 'anon' | 'user';
-export type AuthTokenSource = 'none' | 'admin-session' | 'supabase';
+export type AuthTokenSource =
+  | 'none'
+  | 'admin-session'
+  | 'local'
+  | 'supabase';
 
 export interface AuthPrincipal {
   userId: string | null;

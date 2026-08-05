@@ -16,6 +16,8 @@ interface JwtClaims {
   role?: string;
   name?: string;
   email?: string;
+  typ?: string;
+  provider?: string;
   app_metadata?: {
     role?: string;
     roles?: string[];
@@ -42,6 +44,11 @@ export class JwtAuthService {
   }
 
   async verifyAccessToken(token: string): Promise<AuthPrincipal> {
+    const localPrincipal = await this.tryVerifyLocalAccessToken(token);
+    if (localPrincipal) {
+      return localPrincipal;
+    }
+
     const adminPrincipal = await this.tryVerifyAdminSession(token);
     if (adminPrincipal) {
       return adminPrincipal;
@@ -58,6 +65,36 @@ export class JwtAuthService {
     });
   }
 
+  private async tryVerifyLocalAccessToken(
+    token: string,
+  ): Promise<AuthPrincipal | null> {
+    const secret = this.config.auth.jwtSecret;
+    if (!secret) return null;
+
+    try {
+      const payload = await this.jwtService.verifyAsync<JwtClaims>(token, {
+        secret,
+      });
+      if (payload.typ !== 'access' || !payload.sub) {
+        return null;
+      }
+      if (!isPlatformRole(payload.role) || payload.role === 'anonymous') {
+        return null;
+      }
+
+      return {
+        userId: payload.sub,
+        role: payload.role,
+        tier: 'user',
+        email: payload.email,
+        name: payload.name || payload.email,
+        source: 'local',
+      };
+    } catch {
+      return null;
+    }
+  }
+
   private async tryVerifyAdminSession(
     token: string,
   ): Promise<AuthPrincipal | null> {
@@ -71,7 +108,7 @@ export class JwtAuthService {
         secret: jwtSecret,
       });
 
-      if (payload.role !== 'admin') {
+      if (payload.typ === 'access' || payload.role !== 'admin') {
         return null;
       }
 

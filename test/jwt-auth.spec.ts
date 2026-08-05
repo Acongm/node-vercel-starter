@@ -92,6 +92,30 @@ describe('roles + JwtAuthService', () => {
     expect(principal.role).toBe('viewer');
   });
 
+  it('verifies local access token (typ=access) as source=local', async () => {
+    const service = createService();
+    const token = await jwtService.signAsync(
+      {
+        sub: 'user-local-1',
+        email: 'local@acongm.com',
+        name: 'Local',
+        role: 'viewer',
+        provider: 'local',
+        typ: 'access',
+      },
+      { secret: 'admin-secret', expiresIn: '1h' },
+    );
+
+    const principal = await service.verifyAccessToken(token);
+    expect(principal).toMatchObject({
+      userId: 'user-local-1',
+      role: 'viewer',
+      tier: 'user',
+      source: 'local',
+      email: 'local@acongm.com',
+    });
+  });
+
   it('rejects invalid tokens', async () => {
     const service = createService();
     await expect(service.verifyAccessToken('not-a-jwt')).rejects.toBeInstanceOf(

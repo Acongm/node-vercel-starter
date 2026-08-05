@@ -26,4 +26,5 @@ limits:
 oauth:
   providers:
     - github
+    - google
   claimThreads: true
