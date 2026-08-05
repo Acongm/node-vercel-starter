@@ -3,6 +3,7 @@ import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { AdminSessionService } from './admin-session.service';
 import { LoginDto } from './dto/login.dto';
+import { AuthPrincipal } from './roles';
 
 @Injectable()
 export class AuthService {
@@ -16,10 +17,13 @@ export class AuthService {
     return {
       authMode: configured ? 'jwt' : this.config.auth.mode,
       adminLoginConfigured: configured,
+      supabaseJwtConfigured: Boolean(this.config.auth.supabaseJwtSecret),
+      roles: ['anonymous', 'viewer', 'editor', 'admin'],
+      tiers: ['anon', 'user'],
       note: configured
-        ? 'Use POST /api/auth/login with AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD.'
+        ? 'Use POST /api/auth/login with AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD. Supabase JWT uses SUPABASE_JWT_SECRET + app_metadata.role.'
         : this.config.auth.mode === 'none'
-          ? 'Anonymous mode is enabled. Set AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD for admin login.'
+          ? 'Anonymous mode is enabled. Set AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD for admin login, or SUPABASE_JWT_SECRET for user JWTs.'
           : 'Auth mode is configured by AUTH_MODE.',
     };
   }
@@ -42,6 +46,8 @@ export class AuthService {
       id: dto.username || 'anonymous',
       name: dto.username || 'Anonymous',
       roles: this.config.auth.mode === 'none' ? ['anonymous'] : ['user'],
+      role: this.config.auth.mode === 'none' ? 'anonymous' : 'viewer',
+      tier: this.config.auth.mode === 'none' ? 'anon' : 'user',
     };
 
     if (this.config.auth.mode === 'none') {
@@ -49,19 +55,33 @@ export class AuthService {
     }
 
     throw new NotImplementedException(
-      'JWT login requires AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD.',
+      'JWT login requires AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD, or a Supabase session from auth.acongm.com.',
     );
   }
 
-  me(token: string) {
-    return this.adminSession.verifyToken(token).then((payload) => ({
-      authenticated: true,
-      user: {
-        id: payload.sub,
-        name: payload.name,
-        username: payload.sub,
-        roles: ['admin'],
-      },
-    }));
+  principalResponse(principal: AuthPrincipal) {
+    const authenticated = principal.tier === 'user';
+    return {
+      authenticated,
+      role: principal.role,
+      tier: principal.tier,
+      source: principal.source,
+      user: authenticated
+        ? {
+            id: principal.userId,
+            name: principal.name,
+            email: principal.email,
+            role: principal.role,
+            roles: [principal.role],
+            tier: principal.tier,
+          }
+        : {
+            id: null,
+            name: 'Anonymous',
+            role: 'anonymous',
+            roles: ['anonymous'],
+            tier: 'anon',
+          },
+    };
   }
 }

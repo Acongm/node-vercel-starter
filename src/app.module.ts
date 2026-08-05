@@ -8,6 +8,8 @@ import { AiModule } from './modules/ai/ai.module';
 import { ProxyModule } from './modules/proxy/proxy.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SiteConfigModule } from './modules/config/site-config.module';
+import { ChatThreadsModule } from './modules/chat-threads/chat-threads.module';
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { AuthModule } from './modules/auth/auth.module';
     ProxyModule,
     UploadModule,
     AuthModule,
+    SiteConfigModule,
+    ChatThreadsModule,
   ],
 })
 export class AppModule {}

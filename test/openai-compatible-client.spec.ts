@@ -149,6 +149,56 @@ describe('OpenAiCompatibleClient', () => {
     ]);
   });
 
+  it('emits thinking events from reasoning_content deltas', async () => {
+    const encoder = new TextEncoder();
+    global.fetch = jest.fn(async (_url, init) => {
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        thinking: { type: 'enabled' },
+        max_tokens: 2048,
+      });
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                'data: {"choices":[{"delta":{"reasoning_content":"step1"}}]}\n\n',
+              ),
+            );
+            controller.enqueue(
+              encoder.encode(
+                'data: {"choices":[{"delta":{"content":"answer"}}]}\n\n',
+              ),
+            );
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const client = new OpenAiCompatibleClient({
+      provider: 'custom',
+      apiKey: 'as-xxx',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-reasoner',
+    });
+    const events = [];
+    for await (const event of client.streamChat({
+      prompt: 'hello',
+      enableThinking: true,
+      maxTokens: 2048,
+    })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      { type: 'thinking', content: 'step1' },
+      { type: 'delta', content: 'answer' },
+      { type: 'done' },
+    ]);
+  });
+
   it('emits exactly one done event when an upstream stream ends without DONE', async () => {
     const encoder = new TextEncoder();
     global.fetch = jest.fn(async () =>

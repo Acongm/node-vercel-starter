@@ -20,20 +20,36 @@ export class MockAiClient implements AiClient {
       provider: 'mock',
       model: 'mock-local',
       message: prompt ? `Mock response: ${prompt}` : 'Mock response ready.',
+      thinking: input.enableThinking
+        ? 'Mock thinking: outline key points first.'
+        : undefined,
       sources: input.enableWebSearch
         ? [{ title: 'Mock source', url: 'https://example.com/mock' }]
         : undefined,
+      usage: {
+        promptTokens: 12,
+        completionTokens: 24,
+        totalTokens: 36,
+      },
     };
   }
 
   async *streamChat(input: AiChatInput): AsyncIterable<AiStreamEvent> {
+    if (input.signal?.aborted) {
+      yield { type: 'done' };
+      return;
+    }
+
     const result = await this.chat(input);
+    if (input.enableThinking && result.thinking) {
+      yield { type: 'thinking', content: result.thinking };
+    }
     yield { type: 'delta', content: result.message };
     yield {
       type: 'usage',
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
+      promptTokens: result.usage?.promptTokens ?? 0,
+      completionTokens: result.usage?.completionTokens ?? 0,
+      totalTokens: result.usage?.totalTokens ?? 0,
     };
     yield { type: 'done' };
   }

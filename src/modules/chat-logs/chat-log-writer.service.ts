@@ -16,12 +16,21 @@ export interface ChatLogPayload {
     messages?: Array<{ role: string; content: string }>;
     context?: ChatLogContext;
     enableWebSearch?: boolean;
+    conversationId?: string;
   };
   assistantMessage: string;
+  thinking?: string;
   provider?: string;
   model?: string;
   sources?: ChatSource[];
+  userId?: string | null;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
 }
+
+/** Avoid logging full thinking chains to third parties; keep a short sample. */
+const THINKING_LOG_CHAR_BUDGET = 2000;
 
 @Injectable()
 export class ChatLogWriterService {
@@ -46,19 +55,29 @@ export class ChatLogWriterService {
       return;
     }
 
+    const thinking = payload.thinking?.trim()
+      ? payload.thinking.trim().slice(0, THINKING_LOG_CHAR_BUDGET)
+      : undefined;
+
     const input: CreateChatLogInput = {
+      userId: payload.userId || undefined,
       clientId: meta.clientId,
       callSource: meta.callSource,
-      conversationId: meta.conversationId,
+      conversationId:
+        payload.dto.conversationId || meta.conversationId || undefined,
       endpoint: payload.endpoint,
       requestId: meta.requestId,
       userMessage,
       assistantMessage: payload.assistantMessage,
+      thinking,
       context: payload.dto.context,
       provider: payload.provider,
       model: payload.model,
       enableWebSearch: payload.dto.enableWebSearch ?? false,
       sources: payload.sources,
+      promptTokens: payload.promptTokens,
+      completionTokens: payload.completionTokens,
+      totalTokens: payload.totalTokens,
       origin: meta.origin,
       userAgent: meta.userAgent,
     };

@@ -27,6 +27,11 @@ export class AiV1Controller {
     @Req() req: Request,
     @Res() response: Response,
   ) {
+    const principal = await this.aiV1Service.enforceRateLimit(req);
+    const abortController = new AbortController();
+    const onClose = () => abortController.abort();
+    req.on('close', onClose);
+
     response.status(201);
     response.set({
       'content-type': 'text/event-stream; charset=utf-8',
@@ -39,33 +44,55 @@ export class AiV1Controller {
     let provider = '';
     let model = '';
     let assistantMessage = '';
+    let thinking = '';
+    let promptTokens: number | undefined;
+    let completionTokens: number | undefined;
+    let totalTokens: number | undefined;
 
     try {
-      for await (const event of this.aiV1Service.stream(dto)) {
+      for await (const event of this.aiV1Service.stream(dto, {
+        signal: abortController.signal,
+        principal,
+      })) {
         if (event.type === 'meta') {
           provider = event.provider;
           model = event.model;
         }
-
+        if (event.type === 'thinking' && event.content) {
+          thinking += event.content;
+        }
         if (event.type === 'delta' && event.content) {
           assistantMessage += event.content;
+        }
+        if (event.type === 'usage') {
+          promptTokens = event.promptTokens;
+          completionTokens = event.completionTokens;
+          totalTokens = event.totalTokens;
         }
 
         writeEvent(response, event);
       }
     } catch (error) {
-      writeEvent(response, {
-        type: 'error',
-        message: error instanceof Error ? error.message : 'AI stream failed.',
-      });
+      if (!abortController.signal.aborted) {
+        writeEvent(response, {
+          type: 'error',
+          message: error instanceof Error ? error.message : 'AI stream failed.',
+        });
+      }
     } finally {
+      req.off('close', onClose);
       if (assistantMessage.trim()) {
         await this.chatLogWriter.logFromRequest(req, {
           endpoint: '/api/ai/v1/chat/stream',
           dto,
           assistantMessage,
+          thinking: thinking || undefined,
           provider: provider || undefined,
           model: model || undefined,
+          userId: principal.userId,
+          promptTokens,
+          completionTokens,
+          totalTokens,
         });
       }
 

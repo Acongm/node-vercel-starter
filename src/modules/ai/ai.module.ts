@@ -3,18 +3,21 @@ import { AppConfig } from '../../config/app-config';
 import { AI_CLIENT, APP_CONFIG } from '../../common/tokens';
 import { MockAiClient } from '../../adapters/ai/mock-ai.client';
 import { OpenAiCompatibleClient } from '../../adapters/ai/openai-compatible.client';
+import { AuthModule } from '../auth/auth.module';
 import { ChatLogsModule } from '../chat-logs/chat-logs.module';
 import { AiController, OpenAiCompatibleController } from './ai.controller';
 import { AiService } from './ai.service';
+import { ChatRateLimitService } from './chat-rate-limit.service';
 import { AiV1Controller } from './v1/ai-v1.controller';
 import { AiV1Service } from './v1/ai-v1.service';
 
 @Module({
-  imports: [ChatLogsModule],
+  imports: [ChatLogsModule, AuthModule],
   controllers: [AiController, OpenAiCompatibleController, AiV1Controller],
   providers: [
     AiService,
     AiV1Service,
+    ChatRateLimitService,
     {
       provide: AI_CLIENT,
       inject: [APP_CONFIG],
@@ -26,5 +29,6 @@ import { AiV1Service } from './v1/ai-v1.service';
       },
     },
   ],
+  exports: [AiV1Service, ChatRateLimitService, AI_CLIENT],
 })
 export class AiModule {}

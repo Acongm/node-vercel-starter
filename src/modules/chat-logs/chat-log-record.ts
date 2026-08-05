@@ -15,6 +15,7 @@ export interface ChatLogSource {
 }
 
 export interface ChatLogRecord extends EntityRecord {
+  userId?: string;
   clientId?: string;
   callSource: string;
   conversationId?: string;
@@ -22,11 +23,15 @@ export interface ChatLogRecord extends EntityRecord {
   requestId?: string;
   userMessage: string;
   assistantMessage: string;
+  thinking?: string;
   context?: ChatLogContext;
   provider?: string;
   model?: string;
   enableWebSearch: boolean;
   sources?: ChatLogSource[];
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
   origin?: string;
   userAgent?: string;
 }
