@@ -3,6 +3,8 @@ import { ChatV1Dto } from './chat-v1.dto';
 
 export const HISTORY_MESSAGE_LIMIT = 12;
 export const HISTORY_CHAR_BUDGET = 24000;
+export const LONG_HISTORY_MESSAGE_LIMIT = 40;
+export const LONG_HISTORY_CHAR_BUDGET = 80000;
 export const DOCUMENT_CONTENT_CHAR_BUDGET = 8000;
 export const SYSTEM_PROMPT_CHAR_BUDGET = 10000;
 
@@ -27,6 +29,9 @@ function buildSystemPrompt(dto: ChatV1Dto): string {
     dto.enableWebSearch
       ? '用户要求联网检索；结合检索来源回答并给出引用。'
       : '除非上下文明确提供，否则不要声称已联网检索。',
+    dto.enableThinking
+      ? '可以先进行内部推理，再给出最终回答；对外回答保持简洁。'
+      : '',
     context?.title ? `标题：${normalize(context.title)}` : '',
     context?.pagePath ? `路径：${normalize(context.pagePath)}` : '',
     context?.moduleKey ? `模块：${normalize(context.moduleKey)}` : '',
@@ -64,9 +69,18 @@ function prepareConversation(dto: ChatV1Dto): ChatMessage[] {
     return prompt ? [{ role: 'user', content: prompt }] : [];
   }
 
-  const newest = supplied.slice(-HISTORY_MESSAGE_LIMIT);
+  const messageLimit =
+    dto.historyMode === 'long'
+      ? LONG_HISTORY_MESSAGE_LIMIT
+      : HISTORY_MESSAGE_LIMIT;
+  const charBudget =
+    dto.historyMode === 'long'
+      ? LONG_HISTORY_CHAR_BUDGET
+      : HISTORY_CHAR_BUDGET;
+
+  const newest = supplied.slice(-messageLimit);
   const bounded: ChatMessage[] = [];
-  let remaining = HISTORY_CHAR_BUDGET;
+  let remaining = charBudget;
 
   for (let index = newest.length - 1; index >= 0; index -= 1) {
     const message = newest[index];

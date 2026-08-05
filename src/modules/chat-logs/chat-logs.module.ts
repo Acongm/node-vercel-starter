@@ -60,6 +60,7 @@ export class ChatLogsModule {}
 function chatLogFromSupabaseRow(row: SupabaseRow): ChatLogRecord {
   return {
     id: String(row.id),
+    userId: row.user_id ? String(row.user_id) : undefined,
     clientId: row.client_id ? String(row.client_id) : undefined,
     callSource: String(row.call_source),
     conversationId: row.conversation_id
@@ -69,11 +70,20 @@ function chatLogFromSupabaseRow(row: SupabaseRow): ChatLogRecord {
     requestId: row.request_id ? String(row.request_id) : undefined,
     userMessage: String(row.user_message),
     assistantMessage: String(row.assistant_message),
+    thinking: row.thinking ? String(row.thinking) : undefined,
     context: row.context as ChatLogRecord['context'],
     provider: row.provider ? String(row.provider) : undefined,
     model: row.model ? String(row.model) : undefined,
     enableWebSearch: Boolean(row.enable_web_search),
     sources: row.sources as ChatLogRecord['sources'],
+    promptTokens:
+      row.prompt_tokens == null ? undefined : Number(row.prompt_tokens),
+    completionTokens:
+      row.completion_tokens == null
+        ? undefined
+        : Number(row.completion_tokens),
+    totalTokens:
+      row.total_tokens == null ? undefined : Number(row.total_tokens),
     origin: row.origin ? String(row.origin) : undefined,
     userAgent: row.user_agent ? String(row.user_agent) : undefined,
     createdAt: String(row.created_at),
@@ -85,6 +95,7 @@ function chatLogToSupabaseRow(
   input: Partial<CreateEntityInput<ChatLogRecord>>,
 ): SupabaseRow {
   return {
+    user_id: input.userId,
     client_id: input.clientId,
     call_source: input.callSource,
     conversation_id: input.conversationId,
@@ -92,11 +103,15 @@ function chatLogToSupabaseRow(
     request_id: input.requestId,
     user_message: input.userMessage,
     assistant_message: input.assistantMessage,
+    thinking: input.thinking,
     context: input.context,
     provider: input.provider,
     model: input.model,
     enable_web_search: input.enableWebSearch,
     sources: input.sources,
+    prompt_tokens: input.promptTokens,
+    completion_tokens: input.completionTokens,
+    total_tokens: input.totalTokens,
     origin: input.origin,
     user_agent: input.userAgent,
   };

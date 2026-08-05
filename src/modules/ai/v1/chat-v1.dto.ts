@@ -4,9 +4,12 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   Length,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
@@ -64,7 +67,7 @@ export class ChatV1Dto {
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(50)
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => ChatV1MessageDto)
   messages?: ChatV1MessageDto[];
@@ -77,4 +80,27 @@ export class ChatV1Dto {
   @IsOptional()
   @IsBoolean()
   enableWebSearch?: boolean;
+
+  /** Emit model reasoning/thinking stream events when the provider supports it. */
+  @IsOptional()
+  @IsBoolean()
+  enableThinking?: boolean;
+
+  /** Completion max tokens (1–8192). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(8192)
+  maxTokens?: number;
+
+  /** short = document Q&A bounds; long = expanded history for multi-turn chat. */
+  @IsOptional()
+  @IsIn(['short', 'long'])
+  historyMode?: 'short' | 'long';
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  conversationId?: string;
 }

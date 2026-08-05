@@ -19,6 +19,8 @@ export interface AppConfig {
   dataMode: DataMode;
   dataFilePath: string;
   chatLogsFilePath: string;
+  chatThreadsFilePath: string;
+  chatMessagesFilePath: string;
   clientLabelsFilePath: string;
   fileMode: FileMode;
   uploadDir: string;
@@ -109,6 +111,10 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     dataMode: enumValue(env.DATA_MODE, dataModes, 'memory'),
     dataFilePath: env.DATA_FILE_PATH || '.data/comments.json',
     chatLogsFilePath: env.CHAT_LOGS_FILE_PATH || '.data/chat-logs.json',
+    chatThreadsFilePath:
+      env.CHAT_THREADS_FILE_PATH || '.data/chat-threads.json',
+    chatMessagesFilePath:
+      env.CHAT_MESSAGES_FILE_PATH || '.data/chat-messages.json',
     clientLabelsFilePath:
       env.CLIENT_LABELS_FILE_PATH || '.data/chat-client-labels.json',
     fileMode: enumValue(env.FILE_MODE, fileModes, 'memory'),

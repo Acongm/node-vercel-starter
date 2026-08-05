@@ -15,11 +15,17 @@ import { SUMMARY_SYSTEM_PROMPT } from './summary.prompt';
 
 const MAX_SUMMARY_CONTENT_LENGTH = 3000;
 const DEFAULT_CHAT_MAX_TOKENS = 1024;
+const MAX_CHAT_MAX_TOKENS = 8192;
 
 function messagesFor(input: AiChatInput) {
   return input.messages && input.messages.length > 0
     ? input.messages
     : [{ role: 'user' as const, content: input.prompt || '' }];
+}
+
+function resolveMaxTokens(input: AiChatInput): number {
+  const requested = input.maxTokens ?? DEFAULT_CHAT_MAX_TOKENS;
+  return Math.min(Math.max(1, Math.floor(requested)), MAX_CHAT_MAX_TOKENS);
 }
 
 export class OpenAiCompatibleClient implements AiClient {
@@ -33,14 +39,39 @@ export class OpenAiCompatibleClient implements AiClient {
     const json = (await this.createChatCompletion({
       model: this.config.model,
       messages: messagesFor(input),
+      max_tokens: resolveMaxTokens(input),
+      ...(input.enableThinking ? { thinking: { type: 'enabled' } } : {}),
     })) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{
+        message?: {
+          content?: string;
+          reasoning_content?: string;
+          reasoning?: string;
+        };
+      }>;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      };
     };
+
+    const message = json.choices?.[0]?.message;
+    const thinking =
+      message?.reasoning_content || message?.reasoning || undefined;
 
     return {
       provider: this.config.provider,
       model: this.config.model,
-      message: json.choices?.[0]?.message?.content || '',
+      message: message?.content || '',
+      thinking,
+      usage: json.usage
+        ? {
+            promptTokens: json.usage.prompt_tokens || 0,
+            completionTokens: json.usage.completion_tokens || 0,
+            totalTokens: json.usage.total_tokens || 0,
+          }
+        : undefined,
     };
   }
 
@@ -60,8 +91,10 @@ export class OpenAiCompatibleClient implements AiClient {
         messages: messagesFor(input),
         stream: true,
         stream_options: { include_usage: true },
-        max_tokens: DEFAULT_CHAT_MAX_TOKENS,
+        max_tokens: resolveMaxTokens(input),
+        ...(input.enableThinking ? { thinking: { type: 'enabled' } } : {}),
       }),
+      signal: input.signal,
     });
 
     if (!response.ok) {
@@ -93,7 +126,13 @@ export class OpenAiCompatibleClient implements AiClient {
       }
 
       let payload: {
-        choices?: Array<{ delta?: { content?: string } }>;
+        choices?: Array<{
+          delta?: {
+            content?: string;
+            reasoning_content?: string;
+            reasoning?: string;
+          };
+        }>;
         usage?: {
           prompt_tokens?: number;
           completion_tokens?: number;
@@ -111,8 +150,10 @@ export class OpenAiCompatibleClient implements AiClient {
       }
 
       const events: AiStreamEvent[] = [];
-      const content = payload.choices?.[0]?.delta?.content;
-      if (content) events.push({ type: 'delta', content });
+      const delta = payload.choices?.[0]?.delta;
+      const thinking = delta?.reasoning_content || delta?.reasoning;
+      if (thinking) events.push({ type: 'thinking', content: thinking });
+      if (delta?.content) events.push({ type: 'delta', content: delta.content });
       if (payload.usage) {
         events.push({
           type: 'usage',
@@ -124,20 +165,32 @@ export class OpenAiCompatibleClient implements AiClient {
       return events;
     };
 
-    while (true) {
-      const result = await reader.read();
-      buffer += decoder.decode(result.value, { stream: !result.done });
-      const frames = buffer.split(/\r?\n\r?\n/);
-      buffer = frames.pop() || '';
-      for (const frame of frames) {
-        for (const event of parseFrame(frame)) yield event;
+    try {
+      while (true) {
+        if (input.signal?.aborted) {
+          await reader.cancel();
+          break;
+        }
+        const result = await reader.read();
+        buffer += decoder.decode(result.value, { stream: !result.done });
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() || '';
+        for (const frame of frames) {
+          for (const event of parseFrame(frame)) yield event;
+        }
+        if (result.done) break;
       }
-      if (result.done) break;
+      if (buffer.trim()) {
+        for (const event of parseFrame(buffer)) yield event;
+      }
+      if (!doneEmitted) yield { type: 'done' };
+    } catch (error) {
+      if (input.signal?.aborted) {
+        yield { type: 'done' };
+        return;
+      }
+      throw error;
     }
-    if (buffer.trim()) {
-      for (const event of parseFrame(buffer)) yield event;
-    }
-    if (!doneEmitted) yield { type: 'done' };
   }
 
   async generateSummary(input: SummaryInput): Promise<SummaryResult> {

@@ -21,16 +21,26 @@ export interface AiChatInput {
   messages?: ChatMessage[];
   context?: ChatContext;
   enableWebSearch?: boolean;
+  enableThinking?: boolean;
+  maxTokens?: number;
+  signal?: AbortSignal;
 }
 
 export interface AiChatResult {
   provider: string;
   model: string;
   message: string;
+  thinking?: string;
   sources?: ChatSource[];
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
 }
 
 export type AiStreamEvent =
+  | { type: 'thinking'; content: string }
   | { type: 'delta'; content: string }
   | {
       type: 'usage';
