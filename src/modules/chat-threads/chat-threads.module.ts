@@ -15,6 +15,7 @@ import {
 import { AppConfig } from '../../config/app-config';
 import { AiModule } from '../ai/ai.module';
 import { AuthModule } from '../auth/auth.module';
+import { OAuthController } from '../auth/oauth.controller';
 import { ChatLogsModule } from '../chat-logs/chat-logs.module';
 import {
   ChatMessageRecord,
@@ -25,7 +26,7 @@ import { ChatThreadsService } from './chat-threads.service';
 
 @Module({
   imports: [AuthModule, AiModule, ChatLogsModule],
-  controllers: [ChatThreadsController],
+  controllers: [ChatThreadsController, OAuthController],
   providers: [
     ChatThreadsService,
     {
@@ -39,6 +40,7 @@ import { ChatThreadsService } from './chat-threads.service';
       useFactory: (config: AppConfig) => createMessageStore(config),
     },
   ],
+  exports: [ChatThreadsService],
 })
 export class ChatThreadsModule {}
 

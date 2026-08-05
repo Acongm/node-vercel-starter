@@ -66,6 +66,39 @@ export class ChatThreadsService {
     return all.filter((thread) => this.canAccess(thread, principal, meta.clientId));
   }
 
+  /**
+   * After OAuth login: move anonymous threads (clientId, no userId) to the user.
+   */
+  async claimAnonymousThreads(
+    clientId: string,
+    principal: AuthPrincipal,
+  ): Promise<{ claimedThreads: number; threadIds: string[] }> {
+    if (principal.tier !== 'user' || !principal.userId) {
+      throw new ForbiddenException({
+        code: 'AUTH_REQUIRED',
+        message: 'Login required to claim anonymous threads.',
+      });
+    }
+    if (!clientId?.trim()) {
+      throw new BadRequestException('clientId is required.');
+    }
+
+    const all = await this.threads.list();
+    const owned = all.filter(
+      (thread) => thread.clientId === clientId && !thread.userId,
+    );
+    const threadIds: string[] = [];
+    for (const thread of owned) {
+      await this.threads.update(thread.id, {
+        userId: principal.userId,
+        clientId: thread.clientId,
+      });
+      threadIds.push(thread.id);
+    }
+
+    return { claimedThreads: threadIds.length, threadIds };
+  }
+
   async get(
     id: string,
     req: Request,

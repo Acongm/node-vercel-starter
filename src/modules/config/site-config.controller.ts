@@ -23,6 +23,7 @@ export class SiteConfigController {
         publishBranch: getPublishBranch(this.siteConfig),
       },
       limits: this.siteConfig.limits,
+      oauth: this.siteConfig.oauth,
       apiBase: getApiBase(this.siteConfig),
     };
   }
