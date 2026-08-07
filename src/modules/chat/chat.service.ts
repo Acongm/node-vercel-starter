@@ -78,6 +78,7 @@ export class ChatService {
     let promptTokens: number | undefined;
     let completionTokens: number | undefined;
     let totalTokens: number | undefined;
+    let streamDone = false;
 
     for await (const event of this.aiV1Service.stream(chatDto, {
       signal,
@@ -96,6 +97,11 @@ export class ChatService {
         promptTokens = event.promptTokens;
         completionTokens = event.completionTokens;
         totalTokens = event.totalTokens;
+      } else if (event.type === 'done') {
+        // Persist the assistant message before exposing the terminal event.
+        // Clients are allowed to stop reading once `done` is observed.
+        streamDone = true;
+        continue;
       }
       yield event;
     }
@@ -149,6 +155,10 @@ export class ChatService {
         chatId: id,
         messageId: assistant.id,
       };
+    }
+
+    if (streamDone) {
+      yield { type: 'done' as const };
     }
   }
 
