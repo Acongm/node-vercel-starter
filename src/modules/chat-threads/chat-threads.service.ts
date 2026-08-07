@@ -275,12 +275,16 @@ export class ChatThreadsService {
       conversationId: thread.conversationId || thread.id,
       context: {
         scope: dto.context?.scope || 'article',
-        pagePath: dto.context?.pagePath || thread.pagePath,
-        moduleKey: dto.context?.moduleKey || thread.moduleKey,
-        title: dto.context?.title || thread.title,
+        pagePath: dto.context?.pagePath || thread.pagePath || '/',
+        moduleKey: dto.context?.moduleKey || thread.moduleKey || '_general',
+        title: dto.context?.title || thread.title || '通用对话',
         tags: dto.context?.tags,
-        content: dto.context?.content,
-        contentHash: dto.context?.contentHash,
+        ...(dto.context?.content?.trim()
+          ? { content: dto.context.content.trim() }
+          : {}),
+        ...(dto.context?.contentHash?.trim()
+          ? { contentHash: dto.context.contentHash.trim() }
+          : {}),
       },
     };
   }

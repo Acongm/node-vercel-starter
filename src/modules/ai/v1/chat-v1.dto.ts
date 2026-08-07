@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -12,6 +12,11 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+
+/** class-validator `@IsOptional` only skips null/undefined — empty strings still fail `@Length`. */
+function EmptyToUndefined() {
+  return Transform(({ value }) => (value === '' ? undefined : value));
+}
 
 export class ChatV1MessageDto {
   @IsIn(['user', 'assistant'])
@@ -27,16 +32,19 @@ export class ChatV1ContextDto {
   @IsIn(['article', 'module'])
   scope?: 'article' | 'module';
 
+  @EmptyToUndefined()
   @IsOptional()
   @IsString()
   @Length(1, 512)
   pagePath?: string;
 
+  @EmptyToUndefined()
   @IsOptional()
   @IsString()
   @Length(1, 128)
   moduleKey?: string;
 
+  @EmptyToUndefined()
   @IsOptional()
   @IsString()
   @Length(1, 256)
@@ -48,11 +56,13 @@ export class ChatV1ContextDto {
   @IsString({ each: true })
   tags?: string[];
 
+  @EmptyToUndefined()
   @IsOptional()
   @IsString()
   @Length(1, 12000)
   content?: string;
 
+  @EmptyToUndefined()
   @IsOptional()
   @IsString()
   @Length(1, 80)
