@@ -54,6 +54,9 @@ export interface AppConfig {
   proxyAllowlist: Record<string, string>;
   supabase: {
     url?: string;
+    /** Publishable/anon key used for end-user Auth/RLS scoped requests. */
+    publicKey?: string;
+    /** Server-side API key; service role is allowed only for trusted backend tasks. */
     apiKey?: string;
     requestSecret?: string;
     commentsTable: string;
@@ -158,6 +161,10 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     proxyAllowlist: parseAllowlist(env.PROXY_ALLOWLIST),
     supabase: {
       url: env.SUPABASE_URL,
+      publicKey:
+        env.SUPABASE_PUBLISHABLE_KEY ||
+        env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+        env.SUPABASE_ANON_KEY,
       apiKey: env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_API_KEY,
       requestSecret: env.SUPABASE_REQUEST_SECRET,
       commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
