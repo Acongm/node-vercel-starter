@@ -31,10 +31,10 @@ export interface ChatMessageRecord {
 
 export function textFromParts(parts: ChatMessagePart[] | null | undefined): string {
   return (parts || [])
-    .filter((part): part is { type: 'text'; text: string } =>
-      part.type === 'text' && typeof part.text === 'string',
-    )
-    .map((part) => part.text)
+    .flatMap((part) => {
+      if (part.type !== 'text' || !('text' in part)) return [];
+      return typeof part.text === 'string' ? [part.text] : [];
+    })
     .join('\n')
     .trim();
 }
