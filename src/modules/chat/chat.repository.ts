@@ -80,6 +80,10 @@ export class ChatRepository {
       ...(dto.metadata !== undefined ? { metadata: dto.metadata } : {}),
     };
 
+    if (Object.keys(patch).length === 0) {
+      return this.get(request, id);
+    }
+
     const { data, error } = await client
       .from('chats')
       .update(patch)
