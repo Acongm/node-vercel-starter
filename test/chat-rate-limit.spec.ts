@@ -62,4 +62,33 @@ describe('ChatRateLimitService', () => {
       }).allowed,
     ).toBe(false);
   });
+
+  it('uses Supabase anonymous user ids instead of a shared anonymous bucket', () => {
+    const service = new ChatRateLimitService();
+    const now = new Date('2026-08-05T10:00:00.000Z');
+
+    const first = service.consume({
+      tier: 'anon',
+      userId: 'anonymous-user-1',
+      limit: 1,
+      now,
+    });
+    const secondUser = service.consume({
+      tier: 'anon',
+      userId: 'anonymous-user-2',
+      limit: 1,
+      now,
+    });
+    const firstAgain = service.consume({
+      tier: 'anon',
+      userId: 'anonymous-user-1',
+      limit: 1,
+      now,
+    });
+
+    expect(first.identity).toBe('anon-user:anonymous-user-1');
+    expect(first.allowed).toBe(true);
+    expect(secondUser.allowed).toBe(true);
+    expect(firstAgain.allowed).toBe(false);
+  });
 });
