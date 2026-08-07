@@ -24,6 +24,8 @@ import { JwtAuthService } from './jwt-auth.service';
 import { OAuthService } from './oauth.service';
 import { OptionalAuthGuard, RolesGuard } from './roles.guard';
 import { PlatformRole } from './roles';
+import { SupabaseAuthService } from './supabase-auth.service';
+import { SupabaseRequestClientService } from './supabase-request-client.service';
 
 @Module({
   imports: [JwtModule.register({})],
@@ -33,6 +35,8 @@ import { PlatformRole } from './roles';
     AdminSessionService,
     AdminSessionGuard,
     JwtAuthService,
+    SupabaseAuthService,
+    SupabaseRequestClientService,
     AccessTokenService,
     AuthUsersService,
     OAuthService,
@@ -48,6 +52,8 @@ import { PlatformRole } from './roles';
     AdminSessionService,
     AdminSessionGuard,
     JwtAuthService,
+    SupabaseAuthService,
+    SupabaseRequestClientService,
     AccessTokenService,
     AuthUsersService,
     OAuthService,
