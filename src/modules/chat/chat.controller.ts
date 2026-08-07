@@ -1,0 +1,119 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { Response } from 'express';
+import {
+  SupabaseAuthGuard,
+  SupabaseAuthenticatedRequest,
+} from '../auth/supabase-auth.guard';
+import { ChatService } from './chat.service';
+import { CreateChatDto, CreateChatMessageDto, UpdateChatDto } from './dto/chat.dto';
+
+function writeEvent(response: Response, event: Record<string, unknown>) {
+  const type = typeof event.type === 'string' ? event.type : 'message';
+  response.write(`event: ${type}\n`);
+  response.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+@Controller('api/chats')
+@UseGuards(SupabaseAuthGuard)
+export class ChatController {
+  constructor(private readonly chatService: ChatService) {}
+
+  @Get()
+  list(@Req() request: SupabaseAuthenticatedRequest) {
+    return this.chatService.list(request);
+  }
+
+  @Post()
+  create(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Body() dto: CreateChatDto,
+  ) {
+    return this.chatService.create(request, request.auth!, dto);
+  }
+
+  @Get(':id')
+  get(@Req() request: SupabaseAuthenticatedRequest, @Param('id') id: string) {
+    return this.chatService.get(request, id);
+  }
+
+  @Patch(':id')
+  update(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateChatDto,
+  ) {
+    return this.chatService.update(request, id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    await this.chatService.delete(request, id);
+  }
+
+  @Get(':id/messages')
+  messages(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Param('id') id: string,
+  ) {
+    return this.chatService.listMessages(request, id);
+  }
+
+  @Post(':id/messages/stream')
+  async streamMessage(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: CreateChatMessageDto,
+    @Res() response: Response,
+  ) {
+    const abortController = new AbortController();
+    const onClose = () => abortController.abort();
+    request.on('close', onClose);
+
+    response.status(201);
+    response.set({
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no',
+    });
+    response.flushHeaders();
+
+    try {
+      for await (const event of this.chatService.streamMessage(
+        id,
+        dto,
+        request,
+        request.auth!,
+        abortController.signal,
+      )) {
+        writeEvent(response, event);
+      }
+    } catch (error) {
+      if (!abortController.signal.aborted) {
+        writeEvent(response, {
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Chat stream failed.',
+        });
+      }
+    } finally {
+      request.off('close', onClose);
+      response.end();
+    }
+  }
+}
