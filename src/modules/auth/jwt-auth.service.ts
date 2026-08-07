@@ -33,7 +33,7 @@ export class JwtAuthService {
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly jwtService: JwtService,
-    private readonly supabaseAuth: SupabaseAuthService,
+    private readonly supabaseAuth?: SupabaseAuthService,
   ) {}
 
   async resolvePrincipal(request: Request): Promise<AuthPrincipal> {
@@ -48,7 +48,7 @@ export class JwtAuthService {
   async verifyAccessToken(token: string): Promise<AuthPrincipal> {
     // Supabase Auth is the primary identity source. getUser(token) validates
     // the access token against the Auth server instead of trusting local claims.
-    const supabasePrincipal = await this.supabaseAuth.verifyAccessToken(token);
+    const supabasePrincipal = await this.supabaseAuth?.verifyAccessToken(token);
     if (supabasePrincipal) {
       return supabasePrincipal;
     }
