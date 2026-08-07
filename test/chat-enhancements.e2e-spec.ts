@@ -145,4 +145,25 @@ describe('Chat enhancements (thinking / threads / rate limit)', () => {
 
     expect(afterStream.body.messages.length).toBeGreaterThanOrEqual(4);
   });
+
+  it('accepts empty optional context.content on /api/ai/v1/chat/stream', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/v1/chat/stream')
+      .set('x-client-id', 'client-empty-content')
+      .send({
+        messages: [{ role: 'user', content: '你好' }],
+        context: {
+          scope: 'article',
+          pagePath: '/',
+          moduleKey: '_general',
+          title: '通用对话',
+          tags: [],
+          content: '',
+        },
+        historyMode: 'long',
+      })
+      .expect(201);
+
+    expect(response.text).toContain('event: delta');
+  });
 });
