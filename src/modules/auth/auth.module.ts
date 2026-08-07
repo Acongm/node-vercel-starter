@@ -24,6 +24,7 @@ import { JwtAuthService } from './jwt-auth.service';
 import { OAuthService } from './oauth.service';
 import { OptionalAuthGuard, RolesGuard } from './roles.guard';
 import { PlatformRole } from './roles';
+import { SupabaseAuthGuard } from './supabase-auth.guard';
 import { SupabaseAuthService } from './supabase-auth.service';
 import { SupabaseRequestClientService } from './supabase-request-client.service';
 
@@ -36,6 +37,7 @@ import { SupabaseRequestClientService } from './supabase-request-client.service'
     AdminSessionGuard,
     JwtAuthService,
     SupabaseAuthService,
+    SupabaseAuthGuard,
     SupabaseRequestClientService,
     AccessTokenService,
     AuthUsersService,
@@ -53,6 +55,7 @@ import { SupabaseRequestClientService } from './supabase-request-client.service'
     AdminSessionGuard,
     JwtAuthService,
     SupabaseAuthService,
+    SupabaseAuthGuard,
     SupabaseRequestClientService,
     AccessTokenService,
     AuthUsersService,
