@@ -1,11 +1,22 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Request } from 'express';
 import { AiV1Service } from '../ai/v1/ai-v1.service';
 import { ChatV1Dto } from '../ai/v1/chat-v1.dto';
 import { AuthPrincipal } from '../auth/roles';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
 import { ChatRepository } from './chat.repository';
-import { ChatMessagePart, textFromParts } from './chat.types';
+import {
+  ChatMessagePart,
+  ChatMessageRecord,
+  ChatRunRecord,
+  selectMessageBranch,
+  textFromParts,
+} from './chat.types';
 import { CreateChatDto, CreateChatMessageDto, UpdateChatDto } from './dto/chat.dto';
 
 @Injectable()
@@ -54,22 +65,50 @@ export class ChatService {
 
     const chat = await this.repository.get(request, id);
     const priorMessages = await this.repository.listMessages(request, id);
+    const parentMessage = dto.parentMessageId
+      ? await this.resolveParentMessage(request, id, dto.parentMessageId)
+      : null;
 
-    const userMessage = await this.repository.createMessage(request, {
+    const { message: userMessage, reused: userMessageReused } =
+      await this.ensureUserMessage(request, id, userId, dto, parentMessage);
+
+    if (!userMessageReused) {
+      await this.repository.touch(request, id);
+    }
+
+    const { run, created: runCreated } = await this.repository.createRun(request, {
+      id: dto.runId,
       chatId: id,
       userId,
-      role: 'user',
-      parts: [{ type: 'text', text: dto.content }],
+      userMessageId: userMessage.id,
+      metadata: {
+        clientMessageId: dto.clientMessageId || null,
+        assistantMessageId: dto.assistantMessageId || null,
+      },
     });
-    await this.repository.touch(request, id);
+
+    this.assertRunMatchesRequest(run, id, userId, userMessage.id);
 
     yield {
       type: 'user-persisted' as const,
       chatId: id,
       messageId: userMessage.id,
+      clientMessageId: userMessage.client_message_id || dto.clientMessageId || undefined,
+      runId: run.id,
+      reused: userMessageReused,
     };
 
-    const chatDto = this.toChatDto(chat, priorMessages, dto);
+    if (!runCreated) {
+      yield* this.replayExistingRun(request, run);
+      return;
+    }
+
+    const branchMessages = selectMessageBranch(
+      this.withCurrentMessage(priorMessages, userMessage),
+      userMessage.id,
+    );
+    const chatDto = this.toChatDto(chat, branchMessages, dto);
+
     let assistantText = '';
     let reasoning = '';
     let provider = '';
@@ -80,93 +119,303 @@ export class ChatService {
     let totalTokens: number | undefined;
     let streamDone = false;
 
-    for await (const event of this.aiV1Service.stream(chatDto, {
-      signal,
-      principal,
-    })) {
-      if (event.type === 'meta') {
-        provider = event.provider;
-        model = event.model;
-      } else if (event.type === 'sources') {
-        sources = event.sources;
-      } else if (event.type === 'thinking') {
-        reasoning += event.content;
-      } else if (event.type === 'delta') {
-        assistantText += event.content;
-      } else if (event.type === 'usage') {
-        promptTokens = event.promptTokens;
-        completionTokens = event.completionTokens;
-        totalTokens = event.totalTokens;
-      } else if (event.type === 'done') {
-        // Persist the assistant message before exposing the terminal event.
-        // Clients are allowed to stop reading once `done` is observed.
-        streamDone = true;
-        continue;
+    try {
+      for await (const event of this.aiV1Service.stream(chatDto, {
+        signal,
+        principal,
+      })) {
+        if (event.type === 'meta') {
+          provider = event.provider;
+          model = event.model;
+        } else if (event.type === 'sources') {
+          sources = event.sources;
+        } else if (event.type === 'thinking') {
+          reasoning += event.content;
+        } else if (event.type === 'delta') {
+          assistantText += event.content;
+        } else if (event.type === 'usage') {
+          promptTokens = event.promptTokens;
+          completionTokens = event.completionTokens;
+          totalTokens = event.totalTokens;
+        } else if (event.type === 'done') {
+          // Persist the assistant message and run completion before exposing the
+          // terminal event. Clients may stop reading immediately after `done`.
+          streamDone = true;
+          continue;
+        }
+        yield event;
       }
-      yield event;
-    }
 
-    const parts: ChatMessagePart[] = [];
-    if (reasoning.trim()) {
-      parts.push({ type: 'reasoning', text: reasoning });
-    }
-    if (assistantText.trim()) {
-      parts.push({ type: 'text', text: assistantText });
-    }
-    for (const source of sources) {
-      parts.push({ type: 'source', source });
-    }
+      if (signal?.aborted) {
+        await this.finishRun(request, run.id, 'cancelled', undefined, 'Request cancelled.');
+        return;
+      }
 
-    if (parts.length > 0) {
-      const assistant = await this.repository.createMessage(request, {
-        chatId: id,
-        userId,
-        role: 'assistant',
-        parts,
+      if (!streamDone) {
+        throw new Error('Model stream ended without a done event.');
+      }
+
+      const parts = this.assistantParts(reasoning, assistantText, sources);
+      let assistant: ChatMessageRecord | null = null;
+
+      if (parts.length > 0) {
+        assistant = await this.repository.createMessage(request, {
+          chatId: id,
+          userId,
+          role: 'assistant',
+          parts,
+          clientMessageId: dto.assistantMessageId,
+          parentMessageId: userMessage.id,
+          metadata: {
+            provider,
+            model,
+            usage: {
+              promptTokens,
+              completionTokens,
+              totalTokens,
+            },
+            runId: run.id,
+          },
+        });
+        await this.repository.touch(request, id);
+      }
+
+      await this.repository.updateRun(request, run.id, {
+        status: 'complete',
+        assistantMessageId: assistant?.id || null,
+        errorMessage: null,
+        completedAt: new Date().toISOString(),
         metadata: {
           provider,
           model,
-          usage: {
+          usage: { promptTokens, completionTokens, totalTokens },
+          clientMessageId: dto.clientMessageId || null,
+          assistantMessageId: dto.assistantMessageId || null,
+        },
+      });
+
+      await this.maybeSetTitle(request, chat.id, chat.title, dto.content);
+
+      if (assistant) {
+        // Conversation persistence is authoritative. Telemetry is deliberately
+        // best-effort: observability outages must not invalidate a durable run.
+        try {
+          await this.chatLogWriter.logFromRequest(request, {
+            endpoint: '/api/chats/:id/messages/stream',
+            dto: chatDto,
+            assistantMessage: assistantText,
+            thinking: reasoning || undefined,
+            provider,
+            model,
+            sources,
+            userId,
             promptTokens,
             completionTokens,
             totalTokens,
-          },
-        },
-      });
-      await this.repository.touch(request, id);
-      await this.maybeSetTitle(request, chat.id, chat.title, dto.content);
+          });
+        } catch {
+          // Keep the persisted conversation available even when telemetry fails.
+        }
 
-      // Conversation persistence is authoritative. Telemetry is deliberately
-      // best-effort: an observability outage must not turn an already durable
-      // assistant answer into a failed UI run or suppress its message id.
-      try {
-        await this.chatLogWriter.logFromRequest(request, {
-          endpoint: '/api/chats/:id/messages/stream',
-          dto: chatDto,
-          assistantMessage: assistantText,
-          thinking: reasoning || undefined,
-          provider,
-          model,
-          sources,
-          userId,
-          promptTokens,
-          completionTokens,
-          totalTokens,
-        });
-      } catch {
-        // Keep the persisted conversation available even when telemetry fails.
+        yield {
+          type: 'persisted' as const,
+          chatId: id,
+          messageId: assistant.id,
+          clientMessageId:
+            assistant.client_message_id || dto.assistantMessageId || undefined,
+          runId: run.id,
+        };
       }
 
+      yield { type: 'done' as const, runId: run.id, status: 'complete' as const };
+    } catch (error) {
+      const cancelled = signal?.aborted || this.isAbortError(error);
+      try {
+        await this.finishRun(
+          request,
+          run.id,
+          cancelled ? 'cancelled' : 'error',
+          undefined,
+          cancelled ? 'Request cancelled.' : this.errorMessage(error),
+        );
+      } catch {
+        // Preserve the original provider/persistence failure. A secondary run
+        // status write failure must not hide the causal error from the caller.
+      }
+
+      if (cancelled) return;
+      throw error;
+    }
+  }
+
+  private async ensureUserMessage(
+    request: Request,
+    chatId: string,
+    userId: string,
+    dto: CreateChatMessageDto,
+    parentMessage: ChatMessageRecord | null,
+  ): Promise<{ message: ChatMessageRecord; reused: boolean }> {
+    const clientMessageId = dto.clientMessageId?.trim();
+    if (clientMessageId) {
+      const existing = await this.repository.findMessageByClientId(
+        request,
+        chatId,
+        clientMessageId,
+      );
+      if (existing) {
+        if (existing.role !== 'user' || textFromParts(existing.parts) !== dto.content.trim()) {
+          throw new ConflictException({
+            code: 'CHAT_MESSAGE_IDEMPOTENCY_CONFLICT',
+            message: 'clientMessageId is already bound to different message content.',
+          });
+        }
+        if (
+          dto.parentMessageId !== undefined &&
+          existing.parent_message_id !== parentMessage?.id
+        ) {
+          throw new ConflictException({
+            code: 'CHAT_MESSAGE_PARENT_CONFLICT',
+            message: 'clientMessageId is already bound to a different parent message.',
+          });
+        }
+        return { message: existing, reused: true };
+      }
+    }
+
+    const message = await this.repository.createMessage(request, {
+      chatId,
+      userId,
+      role: 'user',
+      parts: [{ type: 'text', text: dto.content }],
+      clientMessageId,
+      parentMessageId: parentMessage?.id || null,
+    });
+    return { message, reused: false };
+  }
+
+  private async resolveParentMessage(
+    request: Request,
+    chatId: string,
+    reference: string,
+  ): Promise<ChatMessageRecord> {
+    const parent = await this.repository.findMessageByReference(
+      request,
+      chatId,
+      reference,
+    );
+    if (!parent) {
+      throw new BadRequestException({
+        code: 'CHAT_PARENT_NOT_FOUND',
+        message: 'parentMessageId does not reference a visible message in this chat.',
+      });
+    }
+    return parent;
+  }
+
+  private assertRunMatchesRequest(
+    run: ChatRunRecord,
+    chatId: string,
+    userId: string,
+    userMessageId: string,
+  ) {
+    if (
+      run.chat_id !== chatId ||
+      run.user_id !== userId ||
+      run.user_message_id !== userMessageId
+    ) {
+      throw new ConflictException({
+        code: 'CHAT_RUN_IDEMPOTENCY_CONFLICT',
+        message: 'runId is already bound to another chat or user message.',
+      });
+    }
+  }
+
+  private async *replayExistingRun(request: Request, run: ChatRunRecord) {
+    if (run.status === 'running') {
+      throw new ConflictException({
+        code: 'CHAT_RUN_IN_PROGRESS',
+        message: 'This runId is already running.',
+      });
+    }
+    if (run.status === 'cancelled' || run.status === 'error') {
+      throw new ConflictException({
+        code: 'CHAT_RUN_TERMINAL',
+        status: run.status,
+        message:
+          run.error_message ||
+          `This runId is already ${run.status}; create a new runId to retry.`,
+      });
+    }
+
+    const assistant = run.assistant_message_id
+      ? await this.repository.findMessageByReference(
+          request,
+          run.chat_id,
+          run.assistant_message_id,
+        )
+      : null;
+
+    if (assistant) {
+      const reasoning = assistant.parts
+        .filter((part) => part.type === 'reasoning' && 'text' in part)
+        .map((part) => (typeof part.text === 'string' ? part.text : ''))
+        .join('');
+      const text = textFromParts(assistant.parts);
+      const sources = assistant.parts
+        .filter((part) => part.type === 'source' && 'source' in part)
+        .map((part) => part.source)
+        .filter(
+          (source): source is { title: string; url: string } =>
+            Boolean(
+              source &&
+                typeof source === 'object' &&
+                'title' in source &&
+                'url' in source &&
+                typeof source.title === 'string' &&
+                typeof source.url === 'string',
+            ),
+        );
+
+      if (reasoning) yield { type: 'thinking' as const, content: reasoning };
+      if (sources.length) yield { type: 'sources' as const, sources };
+      if (text) yield { type: 'delta' as const, content: text };
       yield {
         type: 'persisted' as const,
-        chatId: id,
+        chatId: run.chat_id,
         messageId: assistant.id,
+        clientMessageId: assistant.client_message_id || undefined,
+        runId: run.id,
+        replayed: true,
       };
     }
 
-    if (streamDone) {
-      yield { type: 'done' as const };
-    }
+    yield {
+      type: 'done' as const,
+      runId: run.id,
+      status: 'complete' as const,
+      replayed: true,
+    };
+  }
+
+  private assistantParts(
+    reasoning: string,
+    assistantText: string,
+    sources: { title: string; url: string }[],
+  ): ChatMessagePart[] {
+    const parts: ChatMessagePart[] = [];
+    if (reasoning.trim()) parts.push({ type: 'reasoning', text: reasoning });
+    if (assistantText.trim()) parts.push({ type: 'text', text: assistantText });
+    for (const source of sources) parts.push({ type: 'source', source });
+    return parts;
+  }
+
+  private withCurrentMessage(
+    messages: ChatMessageRecord[],
+    current: ChatMessageRecord,
+  ): ChatMessageRecord[] {
+    return messages.some((message) => message.id === current.id)
+      ? messages
+      : [...messages, current];
   }
 
   private toChatDto(
@@ -176,20 +425,20 @@ export class ChatService {
       page_path: string | null;
       module_key: string | null;
     },
-    priorMessages: { role: string; parts: ChatMessagePart[] }[],
+    branchMessages: ChatMessageRecord[],
     dto: CreateChatMessageDto,
   ): ChatV1Dto {
-    const history = priorMessages
+    const history = branchMessages
       .filter((message) => message.role === 'user' || message.role === 'assistant')
       .map((message) => ({
         role: message.role as 'user' | 'assistant',
         content: textFromParts(message.parts),
       }))
       .filter((message) => message.content)
-      .slice(-99);
+      .slice(-100);
 
     return {
-      messages: [...history, { role: 'user', content: dto.content }],
+      messages: history,
       historyMode: 'long',
       enableThinking: dto.enableThinking,
       enableWebSearch: dto.enableWebSearch,
@@ -203,6 +452,29 @@ export class ChatService {
         title: dto.context?.title || chat.title || '通用对话',
       },
     };
+  }
+
+  private async finishRun(
+    request: Request,
+    runId: string,
+    status: 'cancelled' | 'error',
+    assistantMessageId?: string,
+    errorMessage?: string,
+  ) {
+    await this.repository.updateRun(request, runId, {
+      status,
+      assistantMessageId,
+      errorMessage: errorMessage || null,
+      completedAt: new Date().toISOString(),
+    });
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === 'AbortError';
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Chat run failed.';
   }
 
   private async maybeSetTitle(
