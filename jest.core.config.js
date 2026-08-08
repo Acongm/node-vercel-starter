@@ -9,6 +9,7 @@ module.exports = {
   collectCoverage: true,
   collectCoverageFrom: [
     'src/modules/auth/bearer-token.ts',
+    'src/modules/auth/supabase-auth.guard.ts',
     'src/modules/auth/supabase-auth.service.ts',
     'src/modules/auth/supabase-request-client.service.ts',
     'src/modules/user/user.service.ts',
@@ -24,6 +25,12 @@ module.exports = {
       functions: 95,
       lines: 90,
       statements: 90,
+    },
+    './src/modules/auth/supabase-auth.guard.ts': {
+      branches: 90,
+      functions: 100,
+      lines: 100,
+      statements: 100,
     },
     './src/modules/chat/chat.repository.ts': {
       branches: 70,
