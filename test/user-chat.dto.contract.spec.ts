@@ -17,6 +17,15 @@ describe('User/Chat DTO contract', () => {
     expect(errors).not.toHaveLength(0);
   });
 
+  it('allows explicit null to clear display name and avatar', async () => {
+    const dto = plainToInstance(UpdateUserProfileDto, {
+      displayName: null,
+      avatarUrl: null,
+    });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
   it('rejects avatar URLs without a protocol', async () => {
     const dto = plainToInstance(UpdateUserProfileDto, {
       avatarUrl: 'example.com/avatar.png',
@@ -31,6 +40,14 @@ describe('User/Chat DTO contract', () => {
     });
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
+  });
+
+  it('rejects null preferences instead of leaking a NOT NULL violation to the database', async () => {
+    const dto = plainToInstance(UpdateUserProfileDto, {
+      preferences: null,
+    });
+    const errors = await validate(dto);
+    expect(errors).not.toHaveLength(0);
   });
 
   it('rejects message content above the public API limit', async () => {
