@@ -33,6 +33,12 @@ module.exports = {
       lines: 100,
       statements: 100,
     },
+    './src/modules/chat/chat.controller.ts': {
+      branches: 100,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
     './src/modules/chat/chat.repository.ts': {
       branches: 70,
       functions: 100,
