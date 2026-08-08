@@ -29,7 +29,9 @@ describe('chat run/idempotency migration invariants', () => {
 
   it('stores one durable lifecycle row per model run', () => {
     expect(migration).toContain('create table if not exists public.chat_runs');
-    expect(migration).toContain("check (status in ('running', 'complete', 'cancelled', 'error'))");
+    expect(migration).toContain(
+      "check (status in ('running', 'complete', 'cancelled', 'error'))",
+    );
     expect(migration).toContain(
       'user_message_id uuid not null references public.messages(id) on delete cascade',
     );
@@ -38,14 +40,23 @@ describe('chat run/idempotency migration invariants', () => {
     );
   });
 
-  it('enables RLS and verifies the run belongs to the same owned chat and user message', () => {
+  it('enables RLS and binds run message references to the same owned chat', () => {
     expect(migration).toContain(
       'alter table public.chat_runs enable row level security',
     );
-    expect(migration).toContain('(select auth.uid()) = user_id');
-    expect(migration).toContain('where c.id = chat_id');
-    expect(migration).toContain('where m.id = user_message_id');
+    expect(migration).toContain(
+      '(select auth.uid()) = chat_runs.user_id',
+    );
+    expect(migration).toContain('where c.id = chat_runs.chat_id');
+    expect(migration).toContain(
+      'where m.id = chat_runs.user_message_id',
+    );
+    expect(migration).toContain(
+      'where m.id = chat_runs.assistant_message_id',
+    );
+    expect(migration).toContain('and m.chat_id = chat_runs.chat_id');
     expect(migration).toContain("and m.role = 'user'");
+    expect(migration).toContain("and m.role = 'assistant'");
   });
 
   it('does not drop legacy or foundation chat tables', () => {
