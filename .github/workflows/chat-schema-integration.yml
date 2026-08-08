@@ -34,8 +34,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Seed Supabase-compatible legacy fixture
+      - name: Seed Supabase-compatible legacy Chat fixture
         run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-migration-fixture.sql
+
+      - name: Seed verified live comments drift fixture
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/comments-drift-fixture.sql
 
       - name: Execute User Chat migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808040630_user_chat_supabase_auth.sql
@@ -46,8 +49,14 @@ jobs:
       - name: Execute stable pagination migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808042351_chat_stable_pagination.sql
 
-      - name: Verify migration behavior and RLS
+      - name: Execute comments constraint repair
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808050000_comments_constraints_repair.sql
+
+      - name: Verify Chat migration behavior and RLS
         run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-migration-verify.sql
 
       - name: Verify deterministic cursor indexes
         run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-index-verify.sql
+
+      - name: Verify comments constraint repair
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/comments-constraints-verify.sql
