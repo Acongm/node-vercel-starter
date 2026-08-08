@@ -65,7 +65,7 @@ jobs:
           AUTH_MODE: none
           AI_PROVIDER: mock
         run: |
-          nohup node dist/main.js >/tmp/nest-supabase.log 2>&1 &
+          nohup npm start >/tmp/nest-supabase.log 2>&1 &
           echo $! >/tmp/nest-supabase.pid
           for attempt in $(seq 1 30); do
             status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/user/me || true)"
