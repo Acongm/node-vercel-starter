@@ -5,7 +5,10 @@ const files = readdirSync(join(process.cwd(), 'supabase/migrations'))
   .filter((name) => name.endsWith('.sql'))
   .sort();
 
-const expected = [
+const required = [
+  // This prerequisite exists in the repository and creates comments/api_secrets.
+  // The current live DB has the objects but is missing this historical version
+  // entry, which is handled as an explicit deployment-history repair concern.
   '20260606000000_create_comments.sql',
   '20260620022412_create_chat_logs.sql',
   '20260620030938_chat_logs_anon_secret_policy.sql',
@@ -16,8 +19,8 @@ const expected = [
   '20260805090524_chat_logs_structured_fields.sql',
   '20260805090528_create_auth_users.sql',
   '20260808040630_user_chat_supabase_auth.sql',
-  '20260808040700_chat_runs_idempotency.sql',
-  '20260808040800_chat_stable_pagination.sql',
+  '20260808042345_chat_runs_idempotency.sql',
+  '20260808042351_chat_stable_pagination.sql',
 ] as const;
 
 const stale = [
@@ -32,11 +35,13 @@ const stale = [
   '20260808000000_user_chat_supabase_auth.sql',
   '20260808010000_chat_runs_idempotency.sql',
   '20260808020000_chat_stable_pagination.sql',
+  '20260808040700_chat_runs_idempotency.sql',
+  '20260808040800_chat_stable_pagination.sql',
 ] as const;
 
 describe('Supabase migration history ordering', () => {
-  it('contains the live-aligned migration versions and durable successors', () => {
-    for (const name of expected) expect(files).toContain(name);
+  it('contains the reproducible prerequisite and live-version migrations', () => {
+    for (const name of required) expect(files).toContain(name);
   });
 
   it('removes stale aliases that could replay already-applied SQL', () => {
@@ -49,10 +54,10 @@ describe('Supabase migration history ordering', () => {
     );
   });
 
-  it('runs foundation before durable runs and stable pagination', () => {
+  it('runs foundation before live-version durable runs and pagination', () => {
     const foundation = files.indexOf('20260808040630_user_chat_supabase_auth.sql');
-    const runs = files.indexOf('20260808040700_chat_runs_idempotency.sql');
-    const pagination = files.indexOf('20260808040800_chat_stable_pagination.sql');
+    const runs = files.indexOf('20260808042345_chat_runs_idempotency.sql');
+    const pagination = files.indexOf('20260808042351_chat_stable_pagination.sql');
 
     expect(foundation).toBeGreaterThanOrEqual(0);
     expect(runs).toBeGreaterThan(foundation);
