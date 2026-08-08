@@ -53,6 +53,49 @@ jobs:
       - name: Exercise Auth JWTs through PostgREST and RLS
         run: node test/integration/supabase-chat-rls.mjs
 
+      - name: Build Nest application
+        run: npm run build
+
+      - name: Start Nest against isolated Supabase
+        shell: bash
+        env:
+          PORT: "3100"
+          DATA_MODE: memory
+          FILE_MODE: memory
+          AUTH_MODE: none
+          AI_PROVIDER: mock
+        run: |
+          nohup npm start >/tmp/nest-supabase.log 2>&1 &
+          echo $! >/tmp/nest-supabase.pid
+          for attempt in $(seq 1 30); do
+            status="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/api/user/me || true)"
+            if [ "$status" = "401" ]; then
+              echo "Nest is ready and SupabaseAuthGuard is active."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Nest did not become ready."
+          cat /tmp/nest-supabase.log || true
+          exit 1
+
+      - name: Exercise Nest Guard, User and Chat APIs with real Supabase JWTs
+        env:
+          NEST_API_URL: http://127.0.0.1:3100
+        run: node test/integration/nest-supabase-api.mjs
+
+      - name: Show Nest logs on failure
+        if: failure()
+        run: cat /tmp/nest-supabase.log || true
+
+      - name: Stop Nest application
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/nest-supabase.pid ]; then
+            kill "$(cat /tmp/nest-supabase.pid)" || true
+          fi
+
       - name: Stop local Supabase stack
         if: always()
         run: supabase stop --no-backup || true
