@@ -56,8 +56,10 @@ export interface AppConfig {
     url?: string;
     /** Publishable/anon key used for end-user Auth/RLS scoped requests. */
     publicKey?: string;
-    /** Server-side API key; service role is allowed only for trusted backend tasks. */
+    /** Server-side API key used by existing trusted data-store integrations. */
     apiKey?: string;
+    /** Explicit service-role key for privileged, security-reviewed backend operations. */
+    serviceRoleKey?: string;
     requestSecret?: string;
     commentsTable: string;
     chatLogsTable: string;
@@ -166,6 +168,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
         env.SUPABASE_ANON_KEY,
       apiKey: env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_API_KEY,
+      serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
       requestSecret: env.SUPABASE_REQUEST_SECRET,
       commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
       chatLogsTable: env.SUPABASE_CHAT_LOGS_TABLE || 'chat_logs',
