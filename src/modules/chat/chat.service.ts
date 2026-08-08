@@ -136,19 +136,26 @@ export class ChatService {
       await this.repository.touch(request, id);
       await this.maybeSetTitle(request, chat.id, chat.title, dto.content);
 
-      await this.chatLogWriter.logFromRequest(request, {
-        endpoint: '/api/chats/:id/messages/stream',
-        dto: chatDto,
-        assistantMessage: assistantText,
-        thinking: reasoning || undefined,
-        provider,
-        model,
-        sources,
-        userId,
-        promptTokens,
-        completionTokens,
-        totalTokens,
-      });
+      // Conversation persistence is authoritative. Telemetry is deliberately
+      // best-effort: an observability outage must not turn an already durable
+      // assistant answer into a failed UI run or suppress its message id.
+      try {
+        await this.chatLogWriter.logFromRequest(request, {
+          endpoint: '/api/chats/:id/messages/stream',
+          dto: chatDto,
+          assistantMessage: assistantText,
+          thinking: reasoning || undefined,
+          provider,
+          model,
+          sources,
+          userId,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+        });
+      } catch {
+        // Keep the persisted conversation available even when telemetry fails.
+      }
 
       yield {
         type: 'persisted' as const,

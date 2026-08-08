@@ -1,9 +1,19 @@
-import { IsObject, IsOptional, IsString, IsUrl, Length } from 'class-validator';
+import {
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Length,
+  Matches,
+} from 'class-validator';
 
 export class UpdateUserProfileDto {
   @IsOptional()
   @IsString()
   @Length(1, 80)
+  @Matches(/\S/, {
+    message: 'displayName must contain non-whitespace characters',
+  })
   displayName?: string;
 
   @IsOptional()

@@ -13,6 +13,7 @@ module.exports = {
     'src/modules/auth/supabase-auth.service.ts',
     'src/modules/auth/supabase-request-client.service.ts',
     'src/modules/user/user.service.ts',
+    'src/modules/chat/chat.controller.ts',
     'src/modules/chat/chat.service.ts',
     'src/modules/chat/chat.repository.ts',
     'src/modules/chat/chat.types.ts',
@@ -28,6 +29,12 @@ module.exports = {
     },
     './src/modules/auth/supabase-auth.guard.ts': {
       branches: 90,
+      functions: 100,
+      lines: 100,
+      statements: 100,
+    },
+    './src/modules/chat/chat.controller.ts': {
+      branches: 100,
       functions: 100,
       lines: 100,
       statements: 100,
