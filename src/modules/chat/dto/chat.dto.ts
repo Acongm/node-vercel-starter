@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   Max,
   Min,
   ValidateNested,
@@ -57,6 +58,7 @@ export class UpdateChatDto {
 export class CreateChatMessageDto {
   @IsString()
   @Length(1, 12000)
+  @Matches(/\S/, { message: 'content must contain non-whitespace characters' })
   content!: string;
 
   @IsOptional()
