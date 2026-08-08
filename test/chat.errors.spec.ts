@@ -44,7 +44,7 @@ describe('toChatErrorFrame', () => {
     new BadRequestException({ message: 'missing code' }),
     new BadRequestException({ code: 'CHAT_BAD_REQUEST' }),
     new HttpException('raw string response', HttpStatus.BAD_REQUEST),
-    new HttpException(null, HttpStatus.BAD_REQUEST),
+    new HttpException('', HttpStatus.BAD_REQUEST),
   ])('sanitizes incomplete/non-object HttpException payloads', (error) => {
     expect(toChatErrorFrame(error)).toEqual({
       type: 'error',
