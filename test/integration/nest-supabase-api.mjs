@@ -158,6 +158,7 @@ assert.equal(result.body.chats.length, 1);
 assert.equal(result.body.chats[0].user_id, userAId);
 assert.ok(result.body.nextCursor, 'user A first page should expose a cursor');
 const cursor = result.body.nextCursor;
+const firstPageId = result.body.chats[0].id;
 
 result = await request(`/api/chats?limit=1&after=${encodeURIComponent(cursor)}`, {
   token: userAToken,
@@ -165,7 +166,12 @@ result = await request(`/api/chats?limit=1&after=${encodeURIComponent(cursor)}`,
 expectStatus(result, 200, 'user A second chat page');
 assert.equal(result.body.chats.length, 1);
 assert.equal(result.body.chats[0].user_id, userAId);
-assert.notEqual(result.body.chats[0].id, createdA[0].id === result.body.chats[0].id ? createdA[0].id : '');
+assert.notEqual(result.body.chats[0].id, firstPageId);
+assert.deepEqual(
+  new Set([firstPageId, result.body.chats[0].id]),
+  new Set(createdA.map((chat) => chat.id)),
+  'two cursor pages should cover A own chats without duplication',
+);
 
 result = await request('/api/chats', { token: userBToken });
 expectStatus(result, 200, 'anonymous B chat list');
