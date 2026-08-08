@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   Patch,
@@ -18,6 +19,7 @@ import {
   SupabaseAuthenticatedRequest,
 } from '../auth/supabase-auth.guard';
 import { toChatErrorFrame } from './chat.errors';
+import { ChatOwnershipTransferService } from './chat-ownership-transfer.service';
 import { ChatService } from './chat.service';
 import {
   ChatPageQueryDto,
@@ -35,7 +37,10 @@ function writeEvent(response: Response, event: Record<string, unknown>) {
 @Controller('api/chats')
 @UseGuards(SupabaseAuthGuard)
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly ownershipTransfer: ChatOwnershipTransferService,
+  ) {}
 
   @Get()
   list(
@@ -51,6 +56,18 @@ export class ChatController {
     @Body() dto: CreateChatDto,
   ) {
     return this.chatService.create(request, request.auth!, dto);
+  }
+
+  @Post('transfer-ownership')
+  @HttpCode(200)
+  transferOwnership(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Headers('x-anonymous-authorization') sourceAuthorization?: string,
+  ) {
+    return this.ownershipTransfer.transfer(
+      request.auth!,
+      sourceAuthorization,
+    );
   }
 
   @Get(':id')
