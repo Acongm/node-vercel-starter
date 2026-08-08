@@ -9,6 +9,7 @@ import { AiV1Service } from '../ai/v1/ai-v1.service';
 import { ChatV1Dto } from '../ai/v1/chat-v1.dto';
 import { AuthPrincipal } from '../auth/roles';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
+import { ChatContractError } from './chat.errors';
 import { ChatRepository } from './chat.repository';
 import {
   ChatMessagePart,
@@ -17,7 +18,12 @@ import {
   selectMessageBranch,
   textFromParts,
 } from './chat.types';
-import { CreateChatDto, CreateChatMessageDto, UpdateChatDto } from './dto/chat.dto';
+import {
+  ChatPageQueryDto,
+  CreateChatDto,
+  CreateChatMessageDto,
+  UpdateChatDto,
+} from './dto/chat.dto';
 
 @Injectable()
 export class ChatService {
@@ -27,8 +33,8 @@ export class ChatService {
     private readonly chatLogWriter: ChatLogWriterService,
   ) {}
 
-  list(request: Request) {
-    return this.repository.list(request);
+  list(request: Request, query: ChatPageQueryDto = {}) {
+    return this.repository.list(request, query);
   }
 
   create(request: Request, principal: AuthPrincipal, dto: CreateChatDto) {
@@ -37,8 +43,8 @@ export class ChatService {
 
   async get(request: Request, id: string) {
     const chat = await this.repository.get(request, id);
-    const messages = await this.repository.listMessages(request, id);
-    return { chat, messages };
+    const page = await this.repository.listMessages(request, id, { limit: 100 });
+    return { chat, ...page };
   }
 
   update(request: Request, id: string, dto: UpdateChatDto) {
@@ -49,8 +55,15 @@ export class ChatService {
     return this.repository.delete(request, id);
   }
 
-  listMessages(request: Request, id: string) {
-    return this.repository.listMessages(request, id);
+  async listMessages(
+    request: Request,
+    id: string,
+    query: ChatPageQueryDto = {},
+  ) {
+    // RLS can make an inaccessible chat indistinguishable from an empty
+    // message result. Load the chat first so the public contract is stable 404.
+    await this.repository.get(request, id);
+    return this.repository.listMessages(request, id, query);
   }
 
   async *streamMessage(
@@ -64,17 +77,15 @@ export class ChatService {
     await this.aiV1Service.enforceRateLimit(request);
 
     const chat = await this.repository.get(request, id);
-    const priorMessages = await this.repository.listMessages(request, id);
+    // Model context is deliberately bounded and separate from persisted history
+    // pagination. The model only projects the latest selected branch below.
+    const priorMessages = await this.repository.listRecentMessages(request, id, 500);
     const parentMessage = dto.parentMessageId
       ? await this.resolveParentMessage(request, id, dto.parentMessageId)
       : priorMessages.at(-1) || null;
 
     const { message: userMessage, reused: userMessageReused } =
       await this.ensureUserMessage(request, id, userId, dto, parentMessage);
-
-    if (!userMessageReused) {
-      await this.repository.touch(request, id);
-    }
 
     const { run, created: runCreated } = await this.repository.createRun(request, {
       id: dto.runId,
@@ -88,6 +99,7 @@ export class ChatService {
     });
 
     this.assertRunMatchesRequest(run, id, userId, userMessage.id);
+    if (!userMessageReused) await this.safeTouch(request, id);
 
     yield {
       type: 'user-persisted' as const,
@@ -150,37 +162,44 @@ export class ChatService {
       }
 
       if (!streamDone) {
-        throw new Error('Model stream ended without a done event.');
+        throw new ChatContractError(
+          'CHAT_STREAM_INCOMPLETE',
+          'Model stream ended before completion.',
+        );
+      }
+
+      if (!reasoning.trim() && !assistantText.trim()) {
+        throw new ChatContractError(
+          'CHAT_EMPTY_RESPONSE',
+          'Model returned no usable content.',
+        );
       }
 
       const parts = this.assistantParts(reasoning, assistantText, sources);
-      let assistant: ChatMessageRecord | null = null;
-
-      if (parts.length > 0) {
-        assistant = await this.repository.createMessage(request, {
-          chatId: id,
-          userId,
-          role: 'assistant',
-          parts,
-          clientMessageId: dto.assistantMessageId,
-          parentMessageId: userMessage.id,
-          metadata: {
-            provider,
-            model,
-            usage: {
-              promptTokens,
-              completionTokens,
-              totalTokens,
-            },
-            runId: run.id,
+      const assistant = await this.repository.createMessage(request, {
+        chatId: id,
+        userId,
+        role: 'assistant',
+        parts,
+        clientMessageId: dto.assistantMessageId,
+        parentMessageId: userMessage.id,
+        metadata: {
+          provider,
+          model,
+          usage: {
+            promptTokens,
+            completionTokens,
+            totalTokens,
           },
-        });
-        await this.repository.touch(request, id);
-      }
+          runId: run.id,
+        },
+      });
 
+      // This write is the authoritative terminal state. Nothing auxiliary below
+      // is allowed to turn a completed durable run back into a product failure.
       await this.repository.updateRun(request, run.id, {
         status: 'complete',
-        assistantMessageId: assistant?.id || null,
+        assistantMessageId: assistant.id,
         errorMessage: null,
         completedAt: new Date().toISOString(),
         metadata: {
@@ -192,37 +211,29 @@ export class ChatService {
         },
       });
 
-      await this.maybeSetTitle(request, chat.id, chat.title, dto.content);
+      await this.safeTouch(request, id);
+      await this.safeMaybeSetTitle(request, chat.id, chat.title, dto.content);
+      await this.safeTelemetry(request, {
+        chatDto,
+        assistantText,
+        reasoning,
+        provider,
+        model,
+        sources,
+        userId,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+      });
 
-      if (assistant) {
-        try {
-          await this.chatLogWriter.logFromRequest(request, {
-            endpoint: '/api/chats/:id/messages/stream',
-            dto: chatDto,
-            assistantMessage: assistantText,
-            thinking: reasoning || undefined,
-            provider,
-            model,
-            sources,
-            userId,
-            promptTokens,
-            completionTokens,
-            totalTokens,
-          });
-        } catch {
-          // Conversation persistence is authoritative; telemetry is best-effort.
-        }
-
-        yield {
-          type: 'persisted' as const,
-          chatId: id,
-          messageId: assistant.id,
-          clientMessageId:
-            assistant.client_message_id || dto.assistantMessageId || undefined,
-          runId: run.id,
-        };
-      }
-
+      yield {
+        type: 'persisted' as const,
+        chatId: id,
+        messageId: assistant.id,
+        clientMessageId:
+          assistant.client_message_id || dto.assistantMessageId || undefined,
+        runId: run.id,
+      };
       yield { type: 'done' as const, runId: run.id, status: 'complete' as const };
     } catch (error) {
       const cancelled = signal?.aborted || this.isAbortError(error);
@@ -464,15 +475,15 @@ export class ChatService {
     });
   }
 
-  private isAbortError(error: unknown): boolean {
-    return error instanceof Error && error.name === 'AbortError';
+  private async safeTouch(request: Request, chatId: string) {
+    try {
+      await this.repository.touch(request, chatId);
+    } catch {
+      // updated_at is auxiliary to the durable message/run lifecycle.
+    }
   }
 
-  private errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : 'Chat run failed.';
-  }
-
-  private async maybeSetTitle(
+  private async safeMaybeSetTitle(
     request: Request,
     chatId: string,
     currentTitle: string | null,
@@ -480,9 +491,54 @@ export class ChatService {
   ) {
     if (currentTitle?.trim()) return;
     const title = content.replace(/\s+/g, ' ').trim().slice(0, 80);
-    if (title) {
+    if (!title) return;
+    try {
       await this.repository.update(request, chatId, { title });
+    } catch {
+      // Auto-title failure must not invalidate an already completed run.
     }
+  }
+
+  private async safeTelemetry(
+    request: Request,
+    input: {
+      chatDto: ChatV1Dto;
+      assistantText: string;
+      reasoning: string;
+      provider: string;
+      model: string;
+      sources: { title: string; url: string }[];
+      userId: string;
+      promptTokens?: number;
+      completionTokens?: number;
+      totalTokens?: number;
+    },
+  ) {
+    try {
+      await this.chatLogWriter.logFromRequest(request, {
+        endpoint: '/api/chats/:id/messages/stream',
+        dto: input.chatDto,
+        assistantMessage: input.assistantText,
+        thinking: input.reasoning || undefined,
+        provider: input.provider,
+        model: input.model,
+        sources: input.sources,
+        userId: input.userId,
+        promptTokens: input.promptTokens,
+        completionTokens: input.completionTokens,
+        totalTokens: input.totalTokens,
+      });
+    } catch {
+      // Observability is auxiliary and always best-effort.
+    }
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return error instanceof Error && error.name === 'AbortError';
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Chat run failed.';
   }
 
   private requireUserId(principal: AuthPrincipal): string {
