@@ -40,16 +40,16 @@ module.exports = {
       statements: 100,
     },
     './src/modules/chat/chat.repository.ts': {
-      branches: 70,
+      branches: 85,
       functions: 100,
-      lines: 90,
-      statements: 85,
+      lines: 100,
+      statements: 90,
     },
     './src/modules/chat/chat.service.ts': {
-      branches: 80,
+      branches: 90,
       functions: 100,
-      lines: 90,
-      statements: 90,
+      lines: 100,
+      statements: 100,
     },
   },
 };
