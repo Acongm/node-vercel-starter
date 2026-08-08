@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -16,8 +17,14 @@ import {
   SupabaseAuthGuard,
   SupabaseAuthenticatedRequest,
 } from '../auth/supabase-auth.guard';
+import { toChatErrorFrame } from './chat.errors';
 import { ChatService } from './chat.service';
-import { CreateChatDto, CreateChatMessageDto, UpdateChatDto } from './dto/chat.dto';
+import {
+  ChatPageQueryDto,
+  CreateChatDto,
+  CreateChatMessageDto,
+  UpdateChatDto,
+} from './dto/chat.dto';
 
 function writeEvent(response: Response, event: Record<string, unknown>) {
   const type = typeof event.type === 'string' ? event.type : 'message';
@@ -31,8 +38,11 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Get()
-  list(@Req() request: SupabaseAuthenticatedRequest) {
-    return this.chatService.list(request);
+  list(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Query() query: ChatPageQueryDto,
+  ) {
+    return this.chatService.list(request, query);
   }
 
   @Post()
@@ -70,8 +80,9 @@ export class ChatController {
   messages(
     @Req() request: SupabaseAuthenticatedRequest,
     @Param('id') id: string,
+    @Query() query: ChatPageQueryDto,
   ) {
-    return this.chatService.listMessages(request, id);
+    return this.chatService.listMessages(request, id, query);
   }
 
   @Post(':id/messages/stream')
@@ -106,10 +117,7 @@ export class ChatController {
       }
     } catch (error) {
       if (!abortController.signal.aborted) {
-        writeEvent(response, {
-          type: 'error',
-          message: error instanceof Error ? error.message : 'Chat stream failed.',
-        });
+        writeEvent(response, toChatErrorFrame(error));
       }
     } finally {
       request.off('close', onClose);

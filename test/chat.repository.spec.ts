@@ -8,17 +8,26 @@ function repositoryWith(client: { from: jest.Mock }) {
 }
 
 describe('ChatRepository', () => {
-  it('lists chats in updated order and clamps the requested limit', async () => {
-    const rows = [{ id: 'chat-1' }];
+  it('lists chats with stable updated_at + id ordering and bounded page size', async () => {
+    const rows = [
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        updated_at: '2026-08-08T00:00:00.000Z',
+      },
+    ];
     const limit = jest.fn().mockResolvedValue({ data: rows, error: null });
-    const order = jest.fn().mockReturnValue({ limit });
-    const select = jest.fn().mockReturnValue({ order });
+    const orderId = jest.fn().mockReturnValue({ limit });
+    const orderUpdated = jest.fn().mockReturnValue({ order: orderId });
+    const select = jest.fn().mockReturnValue({ order: orderUpdated });
     const from = jest.fn().mockReturnValue({ select });
 
-    await expect(repositoryWith({ from }).list(request, 500)).resolves.toBe(rows);
+    await expect(
+      repositoryWith({ from }).list(request, { limit: 100 }),
+    ).resolves.toEqual({ chats: rows, nextCursor: null });
     expect(from).toHaveBeenCalledWith('chats');
-    expect(order).toHaveBeenCalledWith('updated_at', { ascending: false });
-    expect(limit).toHaveBeenCalledWith(100);
+    expect(orderUpdated).toHaveBeenCalledWith('updated_at', { ascending: false });
+    expect(orderId).toHaveBeenCalledWith('id', { ascending: false });
+    expect(limit).toHaveBeenCalledWith(101);
   });
 
   it('maps create input to the chats schema and applies defaults', async () => {
@@ -73,11 +82,16 @@ describe('ChatRepository', () => {
   });
 
   it('surfaces get query errors', async () => {
-    const maybeSingle = jest.fn().mockResolvedValue({ data: null, error: { message: 'rls error' } });
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'rls error' },
+    });
     const eq = jest.fn().mockReturnValue({ maybeSingle });
     const select = jest.fn().mockReturnValue({ eq });
     const from = jest.fn().mockReturnValue({ select });
-    await expect(repositoryWith({ from }).get(request, 'chat-1')).rejects.toThrow('Failed to load chat: rls error');
+    await expect(repositoryWith({ from }).get(request, 'chat-1')).rejects.toThrow(
+      'Failed to load chat: rls error',
+    );
   });
 
   it('updates only supplied fields and normalizes empty optional values to null', async () => {
@@ -105,9 +119,13 @@ describe('ChatRepository', () => {
   it('falls back to get when update DTO has no fields', async () => {
     const from = jest.fn();
     const repository = repositoryWith({ from });
-    const get = jest.spyOn(repository, 'get').mockResolvedValue({ id: 'chat-1' } as never);
+    const get = jest
+      .spyOn(repository, 'get')
+      .mockResolvedValue({ id: 'chat-1' } as never);
 
-    await expect(repository.update(request, 'chat-1', {})).resolves.toEqual({ id: 'chat-1' });
+    await expect(repository.update(request, 'chat-1', {})).resolves.toEqual({
+      id: 'chat-1',
+    });
     expect(get).toHaveBeenCalledWith(request, 'chat-1');
     expect(from).not.toHaveBeenCalled();
   });
@@ -119,20 +137,34 @@ describe('ChatRepository', () => {
     const update = jest.fn().mockReturnValue({ eq });
     const from = jest.fn().mockReturnValue({ update });
 
-    await expect(repositoryWith({ from }).update(request, 'missing', { title: 'x' })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      repositoryWith({ from }).update(request, 'missing', { title: 'x' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('queries messages by chat id instead of loading all messages', async () => {
-    const rows = [{ id: 'm1', chat_id: 'chat-1' }];
-    const order = jest.fn().mockResolvedValue({ data: rows, error: null });
-    const eq = jest.fn().mockReturnValue({ order });
+  it('queries paginated messages by chat id using stable created_at + id ordering', async () => {
+    const rows = [
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        chat_id: 'chat-1',
+        created_at: '2026-08-08T00:00:00.000Z',
+      },
+    ];
+    const limit = jest.fn().mockResolvedValue({ data: rows, error: null });
+    const orderId = jest.fn().mockReturnValue({ limit });
+    const orderCreated = jest.fn().mockReturnValue({ order: orderId });
+    const eq = jest.fn().mockReturnValue({ order: orderCreated });
     const select = jest.fn().mockReturnValue({ eq });
     const from = jest.fn().mockReturnValue({ select });
 
-    await expect(repositoryWith({ from }).listMessages(request, 'chat-1')).resolves.toBe(rows);
+    await expect(
+      repositoryWith({ from }).listMessages(request, 'chat-1', { limit: 50 }),
+    ).resolves.toEqual({ messages: rows, nextCursor: null });
     expect(from).toHaveBeenCalledWith('messages');
     expect(eq).toHaveBeenCalledWith('chat_id', 'chat-1');
-    expect(order).toHaveBeenCalledWith('created_at', { ascending: true });
+    expect(orderCreated).toHaveBeenCalledWith('created_at', { ascending: true });
+    expect(orderId).toHaveBeenCalledWith('id', { ascending: true });
+    expect(limit).toHaveBeenCalledWith(51);
   });
 
   it('persists extensible message parts unchanged and defaults metadata', async () => {
@@ -168,7 +200,10 @@ describe('ChatRepository', () => {
       parts,
       metadata: { provider: 'test' },
     });
-    expect(insert).toHaveBeenNthCalledWith(2, expect.objectContaining({ metadata: {} }));
+    expect(insert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ metadata: {} }),
+    );
   });
 
   it('deletes the chat directly and relies on the FK cascade for messages', async () => {
@@ -176,7 +211,9 @@ describe('ChatRepository', () => {
     const deleteQuery = jest.fn().mockReturnValue({ eq });
     const from = jest.fn().mockReturnValue({ delete: deleteQuery });
 
-    await expect(repositoryWith({ from }).delete(request, 'chat-1')).resolves.toBeUndefined();
+    await expect(
+      repositoryWith({ from }).delete(request, 'chat-1'),
+    ).resolves.toBeUndefined();
     expect(from).toHaveBeenCalledTimes(1);
     expect(from).toHaveBeenCalledWith('chats');
     expect(eq).toHaveBeenCalledWith('id', 'chat-1');
@@ -193,15 +230,23 @@ describe('ChatRepository', () => {
 
     await repository.touch(request, 'chat-1');
     expect(update).toHaveBeenCalledWith({ updated_at: expect.any(String) });
-    await expect(repository.touch(request, 'chat-1')).rejects.toThrow('Failed to touch chat: write failed');
+    await expect(repository.touch(request, 'chat-1')).rejects.toThrow(
+      'Failed to touch chat: write failed',
+    );
   });
 
-  it('surfaces database errors instead of silently returning incomplete state', async () => {
-    const limit = jest.fn().mockResolvedValue({ data: null, error: { message: 'db down' } });
-    const order = jest.fn().mockReturnValue({ limit });
-    const select = jest.fn().mockReturnValue({ order });
+  it('surfaces paginated list database errors instead of returning incomplete state', async () => {
+    const limit = jest.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'db down' },
+    });
+    const orderId = jest.fn().mockReturnValue({ limit });
+    const orderUpdated = jest.fn().mockReturnValue({ order: orderId });
+    const select = jest.fn().mockReturnValue({ order: orderUpdated });
     const from = jest.fn().mockReturnValue({ select });
 
-    await expect(repositoryWith({ from }).list(request)).rejects.toThrow('Failed to list chats: db down');
+    await expect(repositoryWith({ from }).list(request)).rejects.toThrow(
+      'Failed to list chats: db down',
+    );
   });
 });

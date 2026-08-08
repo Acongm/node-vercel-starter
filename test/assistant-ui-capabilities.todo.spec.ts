@@ -1,37 +1,9 @@
 describe('assistant-ui durable backend capability backlog', () => {
   /**
    * These are deliberately executable TODOs, not skipped happy-path tests.
-   * The current Acongm/chat UI exposes these behaviors through assistant-ui,
-   * but the new /api/chats persistence contract does not yet prove them.
-   *
-   * Convert each TODO into a failing contract test before implementing the
-   * corresponding backend capability, then remove the TODO only after CI
-   * proves the durable behavior end to end.
+   * Implemented capabilities are removed only after a real contract test is
+   * green. Remaining entries are still not claimed by coverage percentages.
    */
-
-  it.todo(
-    'reload/regenerate reuses the persisted user turn instead of appending a duplicate user message',
-  );
-
-  it.todo(
-    'duplicate clientMessageId retries are idempotent and return the same persisted user message',
-  );
-
-  it.todo(
-    'each generation has a stable runId and repeated delivery cannot create duplicate assistant completion rows',
-  );
-
-  it.todo(
-    'cancelling a running assistant-ui generation persists a cancelled/incomplete run status',
-  );
-
-  it.todo(
-    'provider failure persists an error/incomplete run status without marking an assistant message complete',
-  );
-
-  it.todo(
-    'editing a historical user message records a durable parent/branch relationship instead of rewriting linear history ambiguously',
-  );
 
   it.todo(
     'history load returns the active branch in assistant-ui ThreadHistoryAdapter-compatible order',
