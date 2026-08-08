@@ -60,8 +60,12 @@ describe('ChatController contract', () => {
   it('delegates REST routes without substituting client-owned identity', async () => {
     const list = jest.fn().mockResolvedValue([{ id: 'chat-1' }]);
     const create = jest.fn().mockResolvedValue({ id: 'chat-2' });
-    const get = jest.fn().mockResolvedValue({ chat: { id: 'chat-1' }, messages: [] });
-    const update = jest.fn().mockResolvedValue({ id: 'chat-1', title: 'Renamed' });
+    const get = jest
+      .fn()
+      .mockResolvedValue({ chat: { id: 'chat-1' }, messages: [] });
+    const update = jest
+      .fn()
+      .mockResolvedValue({ id: 'chat-1', title: 'Renamed' });
     const remove = jest.fn().mockResolvedValue(undefined);
     const listMessages = jest.fn().mockResolvedValue([{ id: 'message-1' }]);
     const controller = new ChatController({
@@ -93,9 +97,13 @@ describe('ChatController contract', () => {
     ).resolves.toEqual([{ id: 'message-1' }]);
 
     expect(list).toHaveBeenCalledWith(request);
-    expect(create).toHaveBeenCalledWith(request, principal, { title: 'New chat' });
+    expect(create).toHaveBeenCalledWith(request, principal, {
+      title: 'New chat',
+    });
     expect(get).toHaveBeenCalledWith(request, 'chat-1');
-    expect(update).toHaveBeenCalledWith(request, 'chat-1', { title: 'Renamed' });
+    expect(update).toHaveBeenCalledWith(request, 'chat-1', {
+      title: 'Renamed',
+    });
     expect(remove).toHaveBeenCalledWith(request, 'chat-1');
     expect(listMessages).toHaveBeenCalledWith(request, 'chat-1');
   });
@@ -137,6 +145,27 @@ describe('ChatController contract', () => {
     expect(request.listenerCount('close')).toBe(0);
   });
 
+  it('falls back to the generic message event type for untyped payloads', async () => {
+    async function* stream() {
+      yield { content: 'untyped payload' };
+    }
+    const controller = new ChatController({
+      streamMessage: jest.fn(() => stream()),
+    } as never);
+    const request = new FakeRequest();
+    const response = new FakeResponse();
+
+    await controller.streamMessage(
+      request as never,
+      'chat-1',
+      { content: 'question' },
+      response as never,
+    );
+
+    expect(eventTypes(response.chunks)).toEqual(['message']);
+    expect(response.chunks.join('')).toContain('untyped payload');
+  });
+
   it('frames service failures as an SSE error when the client is still connected', async () => {
     async function* stream() {
       yield { type: 'meta', provider: 'test', model: 'test' };
@@ -158,6 +187,28 @@ describe('ChatController contract', () => {
     expect(eventTypes(response.chunks)).toEqual(['meta', 'error']);
     expect(response.chunks.join('')).toContain('provider failed');
     expect(response.ended).toBe(true);
+  });
+
+  it('uses a stable generic error message for non-Error failures', async () => {
+    async function* stream() {
+      throw 'provider-string-failure';
+    }
+    const controller = new ChatController({
+      streamMessage: jest.fn(() => stream()),
+    } as never);
+    const request = new FakeRequest();
+    const response = new FakeResponse();
+
+    await controller.streamMessage(
+      request as never,
+      'chat-1',
+      { content: 'question' },
+      response as never,
+    );
+
+    expect(eventTypes(response.chunks)).toEqual(['error']);
+    expect(response.chunks.join('')).toContain('Chat stream failed.');
+    expect(response.chunks.join('')).not.toContain('provider-string-failure');
   });
 
   it('aborts the provider and suppresses a synthetic error event after the client closes', async () => {
