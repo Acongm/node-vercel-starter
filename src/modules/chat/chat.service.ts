@@ -67,7 +67,7 @@ export class ChatService {
     const priorMessages = await this.repository.listMessages(request, id);
     const parentMessage = dto.parentMessageId
       ? await this.resolveParentMessage(request, id, dto.parentMessageId)
-      : null;
+      : priorMessages.at(-1) || null;
 
     const { message: userMessage, reused: userMessageReused } =
       await this.ensureUserMessage(request, id, userId, dto, parentMessage);
@@ -138,8 +138,6 @@ export class ChatService {
           completionTokens = event.completionTokens;
           totalTokens = event.totalTokens;
         } else if (event.type === 'done') {
-          // Persist the assistant message and run completion before exposing the
-          // terminal event. Clients may stop reading immediately after `done`.
           streamDone = true;
           continue;
         }
@@ -197,8 +195,6 @@ export class ChatService {
       await this.maybeSetTitle(request, chat.id, chat.title, dto.content);
 
       if (assistant) {
-        // Conversation persistence is authoritative. Telemetry is deliberately
-        // best-effort: observability outages must not invalidate a durable run.
         try {
           await this.chatLogWriter.logFromRequest(request, {
             endpoint: '/api/chats/:id/messages/stream',
@@ -214,7 +210,7 @@ export class ChatService {
             totalTokens,
           });
         } catch {
-          // Keep the persisted conversation available even when telemetry fails.
+          // Conversation persistence is authoritative; telemetry is best-effort.
         }
 
         yield {
@@ -239,8 +235,7 @@ export class ChatService {
           cancelled ? 'Request cancelled.' : this.errorMessage(error),
         );
       } catch {
-        // Preserve the original provider/persistence failure. A secondary run
-        // status write failure must not hide the causal error from the caller.
+        // Preserve the original provider/persistence failure.
       }
 
       if (cancelled) return;
