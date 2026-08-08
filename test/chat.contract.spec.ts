@@ -14,17 +14,14 @@ const principal: AuthPrincipal = {
   tier: 'user',
   source: 'supabase',
 };
-
 const request = { header: () => 'Bearer token' } as never;
+const defaultRunId = '11111111-1111-4111-8111-111111111111';
 
-async function collectResult<T>(iterable: AsyncIterable<T>): Promise<{
-  events: T[];
-  error?: unknown;
-}> {
+async function collectResult<T>(iterable: AsyncIterable<T>) {
   const events: T[] = [];
   try {
     for await (const event of iterable) events.push(event);
-    return { events };
+    return { events } as { events: T[]; error?: unknown };
   } catch (error) {
     return { events, error };
   }
@@ -48,11 +45,9 @@ function message(
   };
 }
 
-function run(
-  overrides: Partial<ChatRunRecord> = {},
-): ChatRunRecord {
+function run(overrides: Partial<ChatRunRecord> = {}): ChatRunRecord {
   return {
-    id: overrides.id ?? '11111111-1111-4111-8111-111111111111',
+    id: overrides.id ?? defaultRunId,
     chat_id: overrides.chat_id ?? 'chat-1',
     user_id: overrides.user_id ?? 'user-1',
     user_message_id: overrides.user_message_id ?? 'user-message',
@@ -83,17 +78,6 @@ function baseRepository(overrides: Record<string, unknown> = {}) {
     });
   });
 
-  const createRun = jest.fn(async (_request: unknown, input: any) => ({
-    run: run({
-      id: input.id,
-      chat_id: input.chatId,
-      user_id: input.userId,
-      user_message_id: input.userMessageId,
-      metadata: input.metadata,
-    }),
-    created: true,
-  }));
-
   return {
     get: jest.fn().mockResolvedValue({
       id: 'chat-1',
@@ -101,11 +85,20 @@ function baseRepository(overrides: Record<string, unknown> = {}) {
       page_path: null,
       module_key: null,
     }),
-    listMessages: jest.fn().mockResolvedValue([]),
+    listRecentMessages: jest.fn().mockResolvedValue([]),
     findMessageByClientId: jest.fn().mockResolvedValue(null),
     findMessageByReference: jest.fn().mockResolvedValue(null),
     createMessage,
-    createRun,
+    createRun: jest.fn(async (_request: unknown, input: any) => ({
+      run: run({
+        id: input.id,
+        chat_id: input.chatId,
+        user_id: input.userId,
+        user_message_id: input.userMessageId,
+        metadata: input.metadata,
+      }),
+      created: true,
+    })),
     updateRun: jest.fn(async (_request: unknown, id: string, patch: any) =>
       run({
         id,
@@ -122,15 +115,26 @@ function baseRepository(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function serviceWith(repository: Record<string, unknown>, stream: () => AsyncIterable<any>) {
+function serviceWith(
+  repository: Record<string, unknown>,
+  stream: () => AsyncIterable<any>,
+  logs: Record<string, unknown> = { logFromRequest: jest.fn() },
+) {
   return new ChatService(
     repository as never,
     {
       enforceRateLimit: jest.fn().mockResolvedValue(undefined),
       stream: jest.fn(() => stream()),
     } as never,
-    { logFromRequest: jest.fn() } as never,
+    logs as never,
   );
+}
+
+function successfulStream(text = 'answer') {
+  return (async function* () {
+    yield { type: 'delta', content: text };
+    yield { type: 'done' };
+  })();
 }
 
 describe('ChatService UI contract', () => {
@@ -157,18 +161,11 @@ describe('ChatService UI contract', () => {
     expect(ai.stream).not.toHaveBeenCalled();
   });
 
-  it('fails missing/inaccessible chat before persisting the user message or run', async () => {
+  it('fails inaccessible chat before persisting user message or run', async () => {
     const repository = baseRepository({
       get: jest.fn().mockRejectedValue(new Error('Chat not found.')),
     });
-    const service = new ChatService(
-      repository as never,
-      {
-        enforceRateLimit: jest.fn().mockResolvedValue(undefined),
-        stream: jest.fn(),
-      } as never,
-      { logFromRequest: jest.fn() } as never,
-    );
+    const service = serviceWith(repository, () => successfulStream());
 
     const result = await collectResult(
       service.streamMessage('chat-1', { content: 'hello' }, request, principal),
@@ -179,13 +176,12 @@ describe('ChatService UI contract', () => {
     expect(repository.createRun).not.toHaveBeenCalled();
   });
 
-  it('persists provider failure as an error run without fabricating an assistant row', async () => {
+  it('persists provider failure as an error run without fabricating assistant row', async () => {
     const repository = baseRepository();
-    async function* providerStream() {
+    const service = serviceWith(repository, async function* () {
       yield { type: 'meta', provider: 'test', model: 'test-model' };
       throw new Error('provider unavailable');
-    }
-    const service = serviceWith(repository, providerStream);
+    });
 
     const result = await collectResult(
       service.streamMessage('chat-1', { content: 'hello' }, request, principal),
@@ -207,19 +203,19 @@ describe('ChatService UI contract', () => {
     );
   });
 
-  it('does not emit persisted or done if assistant persistence fails and marks the run error', async () => {
+  it('never emits persisted/done when assistant persistence fails', async () => {
     const createMessage = jest
       .fn()
       .mockResolvedValueOnce(
-        message({ id: 'user-message', role: 'user', parts: [{ type: 'text', text: 'hello' }] }),
+        message({
+          id: 'user-message',
+          role: 'user',
+          parts: [{ type: 'text', text: 'hello' }],
+        }),
       )
       .mockRejectedValueOnce(new Error('assistant write failed'));
     const repository = baseRepository({ createMessage });
-    async function* providerStream() {
-      yield { type: 'delta', content: 'answer' };
-      yield { type: 'done' };
-    }
-    const service = serviceWith(repository, providerStream);
+    const service = serviceWith(repository, () => successfulStream());
 
     const result = await collectResult(
       service.streamMessage('chat-1', { content: 'hello' }, request, principal),
@@ -237,23 +233,12 @@ describe('ChatService UI contract', () => {
     );
   });
 
-  it('treats telemetry as best-effort after assistant and run completion are durable', async () => {
+  it('keeps telemetry best-effort after durable completion', async () => {
     const repository = baseRepository();
-    async function* providerStream() {
-      yield { type: 'delta', content: 'answer' };
-      yield { type: 'done' };
-    }
     const logs = {
       logFromRequest: jest.fn().mockRejectedValue(new Error('telemetry down')),
     };
-    const service = new ChatService(
-      repository as never,
-      {
-        enforceRateLimit: jest.fn().mockResolvedValue(undefined),
-        stream: jest.fn(() => providerStream()),
-      } as never,
-      logs as never,
-    );
+    const service = serviceWith(repository, () => successfulStream(), logs);
 
     const result = await collectResult(
       service.streamMessage('chat-1', { content: 'hello' }, request, principal),
@@ -280,14 +265,13 @@ describe('ChatService UI contract', () => {
   it('persists cancellation when AbortSignal interrupts a provider run', async () => {
     const repository = baseRepository();
     const controller = new AbortController();
-    async function* providerStream() {
+    const service = serviceWith(repository, async function* () {
       yield { type: 'meta', provider: 'test', model: 'model' };
       controller.abort();
       const error = new Error('aborted');
       error.name = 'AbortError';
       throw error;
-    }
-    const service = serviceWith(repository, providerStream);
+    });
 
     const result = await collectResult(
       service.streamMessage(
@@ -311,26 +295,31 @@ describe('ChatService UI contract', () => {
     );
   });
 
-  it('treats a provider stream ending without done as an error run', async () => {
+  it('treats provider stream ending without done as explicit incomplete error', async () => {
     const repository = baseRepository();
-    async function* providerStream() {
+    const service = serviceWith(repository, async function* () {
       yield { type: 'delta', content: 'partial' };
-    }
-    const service = serviceWith(repository, providerStream);
+    });
 
     const result = await collectResult(
       service.streamMessage('chat-1', { content: 'hello' }, request, principal),
     );
 
-    expect(result.error).toEqual(new Error('Model stream ended without a done event.'));
+    expect(result.error).toMatchObject({
+      code: 'CHAT_STREAM_INCOMPLETE',
+      message: 'Model stream ended before completion.',
+    });
     expect(repository.updateRun).toHaveBeenLastCalledWith(
       request,
       expect.any(String),
-      expect.objectContaining({ status: 'error' }),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Model stream ended before completion.',
+      }),
     );
   });
 
-  it('reuses a stable clientMessageId on retry instead of appending a duplicate user message', async () => {
+  it('reuses stable clientMessageId instead of appending duplicate user turn', async () => {
     const existingUser = message({
       id: 'user-message',
       role: 'user',
@@ -338,13 +327,10 @@ describe('ChatService UI contract', () => {
       parts: [{ type: 'text', text: 'hello' }],
     });
     const repository = baseRepository({
-      listMessages: jest.fn().mockResolvedValue([existingUser]),
+      listRecentMessages: jest.fn().mockResolvedValue([existingUser]),
       findMessageByClientId: jest.fn().mockResolvedValue(existingUser),
     });
-    async function* providerStream() {
-      yield { type: 'done' };
-    }
-    const service = serviceWith(repository, providerStream);
+    const service = serviceWith(repository, () => successfulStream());
 
     const result = await collectResult(
       service.streamMessage(
@@ -363,7 +349,7 @@ describe('ChatService UI contract', () => {
     );
   });
 
-  it('reload/regenerate reuses the user turn and excludes the previous assistant branch from model context', async () => {
+  it('reload reuses user turn and excludes sibling old assistant from model context', async () => {
     const rootUser = message({
       id: 'user-message',
       role: 'user',
@@ -378,26 +364,23 @@ describe('ChatService UI contract', () => {
       parts: [{ type: 'text', text: 'old answer' }],
     });
     const repository = baseRepository({
-      listMessages: jest.fn().mockResolvedValue([rootUser, oldAssistant]),
+      listRecentMessages: jest.fn().mockResolvedValue([rootUser, oldAssistant]),
       findMessageByClientId: jest.fn().mockResolvedValue(rootUser),
     });
     let receivedDto: any;
-    async function* providerStream() {
-      yield { type: 'done' };
-    }
     const service = new ChatService(
       repository as never,
       {
         enforceRateLimit: jest.fn().mockResolvedValue(undefined),
         stream: jest.fn((dto: unknown) => {
           receivedDto = dto;
-          return providerStream();
+          return successfulStream('new answer');
         }),
       } as never,
-      { logFromRequest: jest.fn() } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
     );
 
-    await collectResult(
+    const result = await collectResult(
       service.streamMessage(
         'chat-1',
         {
@@ -411,6 +394,7 @@ describe('ChatService UI contract', () => {
       ),
     );
 
+    expect(result.error).toBeUndefined();
     expect(receivedDto.messages).toEqual([{ role: 'user', content: 'question' }]);
     expect(receivedDto.messages).not.toContainEqual({
       role: 'assistant',
@@ -418,7 +402,7 @@ describe('ChatService UI contract', () => {
     });
   });
 
-  it('replays a completed run without invoking the provider or creating another assistant completion', async () => {
+  it('replays completed run without invoking provider or duplicating assistant', async () => {
     const existingUser = message({
       id: 'user-message',
       role: 'user',
@@ -442,7 +426,7 @@ describe('ChatService UI contract', () => {
       completed_at: '2026-08-08T00:01:00.000Z',
     });
     const repository = baseRepository({
-      listMessages: jest.fn().mockResolvedValue([existingUser, existingAssistant]),
+      listRecentMessages: jest.fn().mockResolvedValue([existingUser, existingAssistant]),
       findMessageByClientId: jest.fn().mockResolvedValue(existingUser),
       findMessageByReference: jest.fn().mockResolvedValue(existingAssistant),
       createRun: jest.fn().mockResolvedValue({ run: existingRun, created: false }),
@@ -483,7 +467,7 @@ describe('ChatService UI contract', () => {
     expect(repository.createMessage).not.toHaveBeenCalled();
   });
 
-  it('rejects concurrent duplicate delivery for a runId that is still running', async () => {
+  it('rejects duplicate delivery while same runId is still running', async () => {
     const existingUser = message({
       id: 'user-message',
       role: 'user',
@@ -492,7 +476,7 @@ describe('ChatService UI contract', () => {
     });
     const existingRun = run({ status: 'running', user_message_id: existingUser.id });
     const repository = baseRepository({
-      listMessages: jest.fn().mockResolvedValue([existingUser]),
+      listRecentMessages: jest.fn().mockResolvedValue([existingUser]),
       findMessageByClientId: jest.fn().mockResolvedValue(existingUser),
       createRun: jest.fn().mockResolvedValue({ run: existingRun, created: false }),
     });
@@ -531,11 +515,10 @@ describe('ChatService UI contract', () => {
       parts: [{ type: 'text', text: 'original' }],
     });
     const repository = baseRepository({
+      listRecentMessages: jest.fn().mockResolvedValue([existingUser]),
       findMessageByClientId: jest.fn().mockResolvedValue(existingUser),
     });
-    const service = serviceWith(repository, async function* () {
-      yield { type: 'done' };
-    });
+    const service = serviceWith(repository, () => successfulStream());
 
     const result = await collectResult(
       service.streamMessage(
@@ -550,17 +533,15 @@ describe('ChatService UI contract', () => {
     expect(repository.createRun).not.toHaveBeenCalled();
   });
 
-  it('persists edited user turns as a new branch child of the selected historical parent', async () => {
+  it('persists edited user turn as child of selected historical parent', async () => {
     const parent = message({ id: 'assistant-parent', role: 'assistant' });
     const repository = baseRepository({
-      listMessages: jest.fn().mockResolvedValue([parent]),
+      listRecentMessages: jest.fn().mockResolvedValue([parent]),
       findMessageByReference: jest.fn().mockResolvedValue(parent),
     });
-    const service = serviceWith(repository, async function* () {
-      yield { type: 'done' };
-    });
+    const service = serviceWith(repository, () => successfulStream('edited answer'));
 
-    await collectResult(
+    const result = await collectResult(
       service.streamMessage(
         'chat-1',
         {
@@ -573,6 +554,7 @@ describe('ChatService UI contract', () => {
       ),
     );
 
+    expect(result.error).toBeUndefined();
     expect(repository.createMessage).toHaveBeenCalledWith(
       request,
       expect.objectContaining({
@@ -583,14 +565,13 @@ describe('ChatService UI contract', () => {
     );
   });
 
-  it('limits model context to the latest 100 messages on the selected branch including the current user', async () => {
+  it('limits model projection to latest 100 messages on selected branch', async () => {
     const priorMessages = Array.from({ length: 120 }, (_, index) =>
       message({
         id: `message-${index}`,
         role: index % 2 === 0 ? 'user' : 'assistant',
         parent_message_id: index === 0 ? null : `message-${index - 1}`,
         parts: [{ type: 'text', text: `prior-${index}` }],
-        created_at: `2026-08-08T00:${String(index).padStart(2, '0')}:00.000Z`,
       }),
     );
     const current = message({
@@ -600,29 +581,38 @@ describe('ChatService UI contract', () => {
       parts: [{ type: 'text', text: 'current' }],
     });
     const repository = baseRepository({
-      listMessages: jest.fn().mockResolvedValue(priorMessages),
-      createMessage: jest.fn().mockResolvedValue(current),
+      listRecentMessages: jest.fn().mockResolvedValue(priorMessages),
+      createMessage: jest
+        .fn()
+        .mockResolvedValueOnce(current)
+        .mockResolvedValueOnce(
+          message({
+            id: 'assistant-message',
+            role: 'assistant',
+            parent_message_id: current.id,
+            parts: [{ type: 'text', text: 'answer' }],
+          }),
+        ),
     });
     let receivedDto: any;
-    async function* providerStream() {
-      yield { type: 'done' };
-    }
     const service = new ChatService(
       repository as never,
       {
         enforceRateLimit: jest.fn().mockResolvedValue(undefined),
         stream: jest.fn((dto: unknown) => {
           receivedDto = dto;
-          return providerStream();
+          return successfulStream();
         }),
       } as never,
-      { logFromRequest: jest.fn() } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
     );
 
-    await collectResult(
+    const result = await collectResult(
       service.streamMessage('chat-1', { content: 'current' }, request, principal),
     );
 
+    expect(result.error).toBeUndefined();
+    expect(repository.listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 500);
     expect(receivedDto.messages).toHaveLength(100);
     expect(receivedDto.messages[0]).toEqual({
       role: 'assistant',
@@ -634,7 +624,7 @@ describe('ChatService UI contract', () => {
     });
   });
 
-  it('rejects legacy principals for streaming, not only chat creation', async () => {
+  it('rejects legacy principals for streaming', async () => {
     const repository = baseRepository();
     const service = new ChatService(repository as never, {} as never, {} as never);
 
