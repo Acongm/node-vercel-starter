@@ -76,7 +76,7 @@ function repository(overrides: Record<string, unknown> = {}) {
       page_path: null,
       module_key: null,
     }),
-    listMessages: jest.fn().mockResolvedValue([]),
+    listRecentMessages: jest.fn().mockResolvedValue([]),
     findMessageByClientId: jest.fn().mockResolvedValue(null),
     findMessageByReference: jest.fn().mockResolvedValue(null),
     createMessage: jest.fn().mockResolvedValue(user),
@@ -106,7 +106,7 @@ function service(
 }
 
 describe('ChatService durable run edge contracts', () => {
-  it('marks a run cancelled when the provider ends cleanly after the signal becomes aborted', async () => {
+  it('marks run cancelled when provider ends cleanly after signal becomes aborted', async () => {
     const repo = repository();
     const abort = new AbortController();
     async function* provider() {
@@ -132,12 +132,13 @@ describe('ChatService durable run edge contracts', () => {
     );
   });
 
-  it('rejects an explicit parent reference that is not visible in the chat', async () => {
+  it('rejects explicit parent reference that is not visible in chat', async () => {
     const repo = repository({
       findMessageByReference: jest.fn().mockResolvedValue(null),
     });
     const result = await collect(
       service(repo, async function* () {
+        yield { type: 'delta', content: 'answer' };
         yield { type: 'done' };
       }).streamMessage(
         'chat-1',
@@ -152,7 +153,7 @@ describe('ChatService durable run edge contracts', () => {
     expect(repo.createRun).not.toHaveBeenCalled();
   });
 
-  it('rejects reuse of a client message id with a different explicit parent', async () => {
+  it('rejects reuse of client message id with a different explicit parent', async () => {
     const stored = message({
       id: 'user-message',
       role: 'user',
@@ -162,13 +163,14 @@ describe('ChatService durable run edge contracts', () => {
     });
     const newParent = message({ id: 'new-parent', role: 'assistant' });
     const repo = repository({
-      listMessages: jest.fn().mockResolvedValue([stored]),
+      listRecentMessages: jest.fn().mockResolvedValue([stored]),
       findMessageByClientId: jest.fn().mockResolvedValue(stored),
       findMessageByReference: jest.fn().mockResolvedValue(newParent),
     });
 
     const result = await collect(
       service(repo, async function* () {
+        yield { type: 'delta', content: 'answer' };
         yield { type: 'done' };
       }).streamMessage(
         'chat-1',
@@ -186,7 +188,7 @@ describe('ChatService durable run edge contracts', () => {
     expect(repo.createRun).not.toHaveBeenCalled();
   });
 
-  it('rejects reuse of runId if the durable run belongs to another user message', async () => {
+  it('rejects reuse of runId if run belongs to another user message', async () => {
     const repo = repository({
       createRun: jest.fn().mockResolvedValue({
         run: run({ user_message_id: 'different-message' }),
@@ -196,6 +198,7 @@ describe('ChatService durable run edge contracts', () => {
 
     const result = await collect(
       service(repo, async function* () {
+        yield { type: 'delta', content: 'answer' };
         yield { type: 'done' };
       }).streamMessage('chat-1', { content: 'hello' }, request, principal),
     );
@@ -207,7 +210,7 @@ describe('ChatService durable run edge contracts', () => {
     ['cancelled', null],
     ['error', 'provider failed'],
   ] as const)(
-    'rejects replay of a terminal %s run and does not call the provider',
+    'rejects replay of terminal %s run and does not call provider',
     async (status, errorMessage) => {
       const stored = message({
         id: 'user-message',
@@ -216,7 +219,7 @@ describe('ChatService durable run edge contracts', () => {
         parts: [{ type: 'text', text: 'hello' }],
       });
       const repo = repository({
-        listMessages: jest.fn().mockResolvedValue([stored]),
+        listRecentMessages: jest.fn().mockResolvedValue([stored]),
         findMessageByClientId: jest.fn().mockResolvedValue(stored),
         createRun: jest.fn().mockResolvedValue({
           run: run({
@@ -251,7 +254,7 @@ describe('ChatService durable run edge contracts', () => {
     },
   );
 
-  it('replays persisted sources and client assistant id for a completed run', async () => {
+  it('replays persisted sources and client assistant id for completed run', async () => {
     const storedUser = message({
       id: 'user-message',
       role: 'user',
@@ -268,7 +271,7 @@ describe('ChatService durable run edge contracts', () => {
       ],
     });
     const repo = repository({
-      listMessages: jest.fn().mockResolvedValue([storedUser, storedAssistant]),
+      listRecentMessages: jest.fn().mockResolvedValue([storedUser, storedAssistant]),
       findMessageByClientId: jest.fn().mockResolvedValue(storedUser),
       findMessageByReference: jest.fn().mockResolvedValue(storedAssistant),
       createRun: jest.fn().mockResolvedValue({
@@ -309,7 +312,7 @@ describe('ChatService durable run edge contracts', () => {
     );
   });
 
-  it('preserves the provider failure if persisting the error run status also fails', async () => {
+  it('preserves provider failure if persisting error status also fails', async () => {
     const repo = repository({
       updateRun: jest.fn().mockRejectedValue(new Error('status database down')),
     });
@@ -322,7 +325,7 @@ describe('ChatService durable run edge contracts', () => {
     expect(result.error).toEqual(new Error('provider original error'));
   });
 
-  it('uses a stable generic run error for non-Error provider failures', async () => {
+  it('uses stable generic run error for non-Error provider failures', async () => {
     const repo = repository();
     const result = await collect(
       service(repo, async function* () {
