@@ -20,6 +20,16 @@ async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   return result;
 }
 
+async function collectResult<T>(iterable: AsyncIterable<T>) {
+  const events: T[] = [];
+  try {
+    for await (const event of iterable) events.push(event);
+    return { events } as { events: T[]; error?: unknown };
+  } catch (error) {
+    return { events, error };
+  }
+}
+
 function message(
   id: string,
   role: 'user' | 'assistant',
@@ -63,7 +73,7 @@ describe('ChatService', () => {
     );
   });
 
-  it('streams model output, preserves legacy linear history, persists run completion, then emits persisted before done', async () => {
+  it('streams model output from bounded recent history and emits done only after durable run completion', async () => {
     const previousUser = message(
       'prev-user',
       'user',
@@ -89,6 +99,9 @@ describe('ChatService', () => {
     );
     const update = jest.fn().mockResolvedValue({});
     const updateRun = jest.fn().mockResolvedValue({});
+    const listRecentMessages = jest
+      .fn()
+      .mockResolvedValue([previousUser, previousAssistant]);
     const repository = {
       get: jest.fn().mockResolvedValue({
         id: 'chat-1',
@@ -96,7 +109,7 @@ describe('ChatService', () => {
         page_path: '/docs/a',
         module_key: 'docs',
       }),
-      listMessages: jest.fn().mockResolvedValue([previousUser, previousAssistant]),
+      listRecentMessages,
       findMessageByClientId: jest.fn().mockResolvedValue(null),
       findMessageByReference: jest.fn().mockResolvedValue(null),
       createMessage,
@@ -138,6 +151,7 @@ describe('ChatService', () => {
       ),
     );
 
+    expect(listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 500);
     expect(events.map((event: any) => event.type)).toEqual([
       'user-persisted',
       'meta',
@@ -195,7 +209,7 @@ describe('ChatService', () => {
     });
   });
 
-  it('does not create an empty assistant message but still completes the durable run', async () => {
+  it('treats empty provider output as an error run and never emits success', async () => {
     const createMessage = jest.fn().mockResolvedValue(
       message('msg-user', 'user', null, [{ type: 'text', text: 'hello' }]),
     );
@@ -207,7 +221,7 @@ describe('ChatService', () => {
         page_path: null,
         module_key: null,
       }),
-      listMessages: jest.fn().mockResolvedValue([]),
+      listRecentMessages: jest.fn().mockResolvedValue([]),
       findMessageByClientId: jest.fn().mockResolvedValue(null),
       findMessageByReference: jest.fn().mockResolvedValue(null),
       createMessage,
@@ -229,19 +243,25 @@ describe('ChatService', () => {
       { logFromRequest: jest.fn() } as never,
     );
 
-    const events = await collect(
+    const result = await collectResult(
       service.streamMessage('chat-1', { content: 'hello' }, request, principal),
     );
-    expect(events.map((event: any) => event.type)).toEqual([
+    expect(result.events.map((event: any) => event.type)).toEqual([
       'user-persisted',
       'meta',
-      'done',
     ]);
+    expect(result.error).toMatchObject({
+      code: 'CHAT_EMPTY_RESPONSE',
+      message: 'Model returned no usable content.',
+    });
     expect(createMessage).toHaveBeenCalledTimes(1);
-    expect(updateRun).toHaveBeenCalledWith(
+    expect(updateRun).toHaveBeenLastCalledWith(
       request,
       runId,
-      expect.objectContaining({ status: 'complete', assistantMessageId: null }),
+      expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Model returned no usable content.',
+      }),
     );
     expect(repository.update).not.toHaveBeenCalled();
   });
