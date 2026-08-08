@@ -59,7 +59,9 @@ describe('UserService contract', () => {
   });
 
   it('always derives the profile owner id from the verified principal', async () => {
-    const mocks = profileClient({ update: { id: 'user-1', display_name: 'Only Name' } });
+    const mocks = profileClient({
+      update: { id: 'user-1', display_name: 'Only Name' },
+    });
     const service = new UserService({ create: () => mocks.client } as never);
 
     await service.updateProfile(request, userPrincipal, {
@@ -76,7 +78,9 @@ describe('UserService contract', () => {
   });
 
   it('does not overwrite omitted profile fields during a partial patch', async () => {
-    const mocks = profileClient({ update: { id: 'user-1', preferences: { language: 'zh-CN' } } });
+    const mocks = profileClient({
+      update: { id: 'user-1', preferences: { language: 'zh-CN' } },
+    });
     const service = new UserService({ create: () => mocks.client } as never);
 
     await service.updateProfile(request, userPrincipal, {
@@ -105,10 +109,10 @@ describe('UserService contract', () => {
 
   it('rejects a Supabase-shaped principal without a stable user id', async () => {
     const service = new UserService({ create: jest.fn() } as never);
-    const invalid = {
+    const invalid: AuthPrincipal = {
       ...userPrincipal,
-      userId: undefined,
-    } as AuthPrincipal;
+      userId: null,
+    };
 
     await expect(service.me(request, invalid)).rejects.toBeInstanceOf(
       UnauthorizedException,
