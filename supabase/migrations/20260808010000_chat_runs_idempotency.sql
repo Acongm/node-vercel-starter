@@ -9,9 +9,11 @@ alter table public.messages
   add column if not exists client_message_id text,
   add column if not exists parent_message_id uuid references public.messages(id) on delete set null;
 
+-- PostgreSQL UNIQUE still allows multiple NULL values, so this can be used as
+-- an ON CONFLICT target while legacy/new callers that omit client ids continue
+-- to append normally.
 create unique index if not exists messages_chat_client_message_id_uidx
-  on public.messages(chat_id, client_message_id)
-  where client_message_id is not null;
+  on public.messages(chat_id, client_message_id);
 
 create index if not exists messages_parent_message_id_idx
   on public.messages(parent_message_id)
