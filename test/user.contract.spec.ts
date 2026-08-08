@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import { UserService } from '../src/modules/user/user.service';
 
@@ -16,34 +16,49 @@ const userPrincipal: AuthPrincipal = {
 function profileClient(options: {
   profile?: unknown;
   loadError?: unknown;
-  update?: unknown;
+  updated?: unknown;
   updateError?: unknown;
+  inserted?: unknown;
+  insertError?: unknown;
 } = {}) {
-  const maybeSingle = jest.fn().mockResolvedValue({
+  const loadMaybeSingle = jest.fn().mockResolvedValue({
     data: options.profile ?? null,
     error: options.loadError ?? null,
   });
-  const eq = jest.fn().mockReturnValue({ maybeSingle });
-  const selectForLoad = jest.fn().mockReturnValue({ eq });
+  const loadEq = jest.fn().mockReturnValue({ maybeSingle: loadMaybeSingle });
+  const select = jest.fn().mockReturnValue({ eq: loadEq });
 
-  const single = jest.fn().mockResolvedValue({
-    data: options.update ?? { id: 'user-1' },
+  const updateMaybeSingle = jest.fn().mockResolvedValue({
+    data: Object.prototype.hasOwnProperty.call(options, 'updated')
+      ? options.updated
+      : { id: 'user-1' },
     error: options.updateError ?? null,
   });
-  const selectForUpdate = jest.fn().mockReturnValue({ single });
-  const upsert = jest.fn().mockReturnValue({ select: selectForUpdate });
-  const from = jest.fn().mockReturnValue({ select: selectForLoad, upsert });
+  const updateSelect = jest.fn().mockReturnValue({
+    maybeSingle: updateMaybeSingle,
+  });
+  const updateEq = jest.fn().mockReturnValue({ select: updateSelect });
+  const update = jest.fn().mockReturnValue({ eq: updateEq });
 
-  return { client: { from }, from, upsert };
+  const insertSingle = jest.fn().mockResolvedValue({
+    data: options.inserted ?? { id: 'user-1' },
+    error: options.insertError ?? null,
+  });
+  const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
+  const insert = jest.fn().mockReturnValue({ select: insertSelect });
+
+  const from = jest.fn().mockReturnValue({ select, update, insert });
+
+  return { client: { from }, from, update, updateEq, insert };
 }
 
 describe('UserService contract', () => {
-  it('returns a Supabase anonymous identity even when no application profile exists yet', async () => {
+  it('returns a stable anonymous Supabase identity without granting viewer role', async () => {
     const mocks = profileClient({ profile: null });
     const service = new UserService({ create: () => mocks.client } as never);
     const anonymous: AuthPrincipal = {
       userId: 'anon-user-1',
-      role: 'viewer',
+      role: 'anonymous',
       tier: 'anon',
       source: 'supabase',
     };
@@ -52,15 +67,21 @@ describe('UserService contract', () => {
       id: 'anon-user-1',
       email: undefined,
       name: undefined,
-      role: 'viewer',
+      role: 'anonymous',
       tier: 'anon',
+      isAnonymous: true,
       profile: null,
     });
   });
 
-  it('always derives the profile owner id from the verified principal', async () => {
+  it('PATCHes only supplied fields and always scopes the write to the verified principal', async () => {
     const mocks = profileClient({
-      update: { id: 'user-1', display_name: 'Only Name' },
+      updated: {
+        id: 'user-1',
+        display_name: 'Only Name',
+        avatar_url: 'https://example.com/existing.png',
+        preferences: { language: 'zh-CN' },
+      },
     });
     const service = new UserService({ create: () => mocks.client } as never);
 
@@ -68,35 +89,58 @@ describe('UserService contract', () => {
       displayName: '  Only Name  ',
     });
 
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      {
-        id: 'user-1',
-        display_name: 'Only Name',
-      },
-      { onConflict: 'id' },
-    );
+    expect(mocks.update).toHaveBeenCalledWith({ display_name: 'Only Name' });
+    expect(mocks.updateEq).toHaveBeenCalledWith('id', 'user-1');
   });
 
-  it('does not overwrite omitted profile fields during a partial patch', async () => {
-    const mocks = profileClient({
-      update: { id: 'user-1', preferences: { language: 'zh-CN' } },
-    });
+  it('supports explicit null clear for nullable profile fields', async () => {
+    const mocks = profileClient({ updated: { id: 'user-1' } });
     const service = new UserService({ create: () => mocks.client } as never);
 
     await service.updateProfile(request, userPrincipal, {
-      preferences: { language: 'zh-CN' },
+      displayName: null,
+      avatarUrl: null,
     });
 
-    const row = mocks.upsert.mock.calls[0][0];
-    expect(row).toEqual({
+    expect(mocks.update).toHaveBeenCalledWith({
+      display_name: null,
+      avatar_url: null,
+    });
+  });
+
+  it('creates the application profile only when no profile row exists yet', async () => {
+    const mocks = profileClient({
+      updated: null,
+      inserted: { id: 'user-1', preferences: { language: 'zh-CN' } },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(
+      service.updateProfile(request, userPrincipal, {
+        preferences: { language: 'zh-CN' },
+      }),
+    ).resolves.toEqual({
       id: 'user-1',
       preferences: { language: 'zh-CN' },
     });
-    expect(row).not.toHaveProperty('display_name');
-    expect(row).not.toHaveProperty('avatar_url');
+
+    expect(mocks.insert).toHaveBeenCalledWith({
+      id: 'user-1',
+      preferences: { language: 'zh-CN' },
+    });
   });
 
-  it('surfaces profile write failures instead of returning an optimistic profile', async () => {
+  it('rejects an empty PATCH instead of performing an ambiguous no-op', async () => {
+    const mocks = profileClient();
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(
+      service.updateProfile(request, userPrincipal, {}),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('surfaces profile write failures instead of returning optimistic state', async () => {
     const mocks = profileClient({
       updateError: { message: 'rls denied' },
     });
