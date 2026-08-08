@@ -43,8 +43,8 @@ jobs:
       - name: Execute durable run migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808010000_chat_runs_idempotency.sql
 
-      - name: Execute cursor index migration
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808020000_chat_cursor_indexes.sql
+      - name: Execute stable pagination migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808020000_chat_stable_pagination.sql
 
       - name: Verify migration behavior and RLS
         run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-migration-verify.sql
