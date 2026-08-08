@@ -38,7 +38,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-migration-fixture.sql
 
       - name: Execute User Chat migration
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808000000_user_chat_supabase_auth.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808040630_user_chat_supabase_auth.sql
 
       - name: Execute durable run migration
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808010000_chat_runs_idempotency.sql
