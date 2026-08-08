@@ -11,6 +11,49 @@ describe('User/Chat DTO contract', () => {
     expect(errors).not.toHaveLength(0);
   });
 
+  it('rejects blank-only durable message references', async () => {
+    for (const field of [
+      'clientMessageId',
+      'parentMessageId',
+      'assistantMessageId',
+    ] as const) {
+      const dto = plainToInstance(CreateChatMessageDto, {
+        content: 'hello',
+        [field]: '   ',
+      });
+      const errors = await validate(dto);
+      expect(errors.some((error) => error.property === field)).toBe(true);
+    }
+  });
+
+  it('requires runId to be a v4 UUID so retries have a stable unambiguous key', async () => {
+    const invalid = plainToInstance(CreateChatMessageDto, {
+      content: 'hello',
+      runId: 'same-run',
+    });
+    const valid = plainToInstance(CreateChatMessageDto, {
+      content: 'hello',
+      runId: '22222222-2222-4222-8222-222222222222',
+    });
+
+    expect((await validate(invalid)).some((error) => error.property === 'runId')).toBe(
+      true,
+    );
+    expect(await validate(valid)).toHaveLength(0);
+  });
+
+  it('accepts assistant-ui message ids that are not UUIDs', async () => {
+    const dto = plainToInstance(CreateChatMessageDto, {
+      content: 'hello',
+      clientMessageId: 'msg_user_local_1',
+      parentMessageId: 'msg_assistant_local_0',
+      assistantMessageId: 'msg_assistant_local_1',
+      runId: '22222222-2222-4222-8222-222222222222',
+    });
+
+    expect(await validate(dto)).toHaveLength(0);
+  });
+
   it('rejects blank-only display names', async () => {
     const dto = plainToInstance(UpdateUserProfileDto, { displayName: '   ' });
     const errors = await validate(dto);
