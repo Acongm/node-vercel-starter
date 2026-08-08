@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { AuthPrincipal } from '../src/modules/auth/roles';
+import { ChatContractError } from '../src/modules/chat/chat.errors';
 import { ChatController } from '../src/modules/chat/chat.controller';
 
 const principal: AuthPrincipal = {
@@ -56,18 +57,27 @@ function eventTypes(chunks: string[]): string[] {
     .map((chunk) => chunk.slice('event: '.length).trim());
 }
 
+function joinedData(chunks: string[]) {
+  return chunks.join('');
+}
+
 describe('ChatController contract', () => {
-  it('delegates REST routes without substituting client-owned identity', async () => {
-    const list = jest.fn().mockResolvedValue([{ id: 'chat-1' }]);
+  it('delegates paginated REST routes without substituting client-owned identity', async () => {
+    const listResult = { chats: [{ id: 'chat-1' }], nextCursor: 'next-chat' };
+    const messageResult = {
+      messages: [{ id: 'message-1' }],
+      nextCursor: 'next-message',
+    };
+    const list = jest.fn().mockResolvedValue(listResult);
     const create = jest.fn().mockResolvedValue({ id: 'chat-2' });
     const get = jest
       .fn()
-      .mockResolvedValue({ chat: { id: 'chat-1' }, messages: [] });
+      .mockResolvedValue({ chat: { id: 'chat-1' }, messages: [], nextCursor: null });
     const update = jest
       .fn()
       .mockResolvedValue({ id: 'chat-1', title: 'Renamed' });
     const remove = jest.fn().mockResolvedValue(undefined);
-    const listMessages = jest.fn().mockResolvedValue([{ id: 'message-1' }]);
+    const listMessages = jest.fn().mockResolvedValue(messageResult);
     const controller = new ChatController({
       list,
       create,
@@ -77,26 +87,29 @@ describe('ChatController contract', () => {
       listMessages,
     } as never);
     const request = new FakeRequest();
+    const chatQuery = { limit: 20, after: 'chat-cursor' };
+    const messageQuery = { limit: 40, after: 'message-cursor' };
 
-    await expect(controller.list(request as never)).resolves.toEqual([
-      { id: 'chat-1' },
-    ]);
+    await expect(controller.list(request as never, chatQuery)).resolves.toBe(
+      listResult,
+    );
     await expect(
       controller.create(request as never, { title: 'New chat' }),
     ).resolves.toEqual({ id: 'chat-2' });
     await expect(controller.get(request as never, 'chat-1')).resolves.toEqual({
       chat: { id: 'chat-1' },
       messages: [],
+      nextCursor: null,
     });
     await expect(
       controller.update(request as never, 'chat-1', { title: 'Renamed' }),
     ).resolves.toEqual({ id: 'chat-1', title: 'Renamed' });
     await controller.remove(request as never, 'chat-1');
     await expect(
-      controller.messages(request as never, 'chat-1'),
-    ).resolves.toEqual([{ id: 'message-1' }]);
+      controller.messages(request as never, 'chat-1', messageQuery),
+    ).resolves.toBe(messageResult);
 
-    expect(list).toHaveBeenCalledWith(request);
+    expect(list).toHaveBeenCalledWith(request, chatQuery);
     expect(create).toHaveBeenCalledWith(request, principal, {
       title: 'New chat',
     });
@@ -105,7 +118,7 @@ describe('ChatController contract', () => {
       title: 'Renamed',
     });
     expect(remove).toHaveBeenCalledWith(request, 'chat-1');
-    expect(listMessages).toHaveBeenCalledWith(request, 'chat-1');
+    expect(listMessages).toHaveBeenCalledWith(request, 'chat-1', messageQuery);
   });
 
   it('sets SSE headers and preserves service event order', async () => {
@@ -163,13 +176,13 @@ describe('ChatController contract', () => {
     );
 
     expect(eventTypes(response.chunks)).toEqual(['message']);
-    expect(response.chunks.join('')).toContain('untyped payload');
+    expect(joinedData(response.chunks)).toContain('untyped payload');
   });
 
-  it('frames service failures as an SSE error when the client is still connected', async () => {
+  it('sanitizes unknown provider/database failures instead of leaking internal details', async () => {
     async function* stream() {
       yield { type: 'meta', provider: 'test', model: 'test' };
-      throw new Error('provider failed');
+      throw new Error('postgres password=secret provider stack');
     }
     const controller = new ChatController({
       streamMessage: jest.fn(() => stream()),
@@ -185,11 +198,38 @@ describe('ChatController contract', () => {
     );
 
     expect(eventTypes(response.chunks)).toEqual(['meta', 'error']);
-    expect(response.chunks.join('')).toContain('provider failed');
+    expect(joinedData(response.chunks)).toContain('CHAT_STREAM_FAILED');
+    expect(joinedData(response.chunks)).toContain('Chat stream failed.');
+    expect(joinedData(response.chunks)).not.toContain('password=secret');
     expect(response.ended).toBe(true);
   });
 
-  it('uses a stable generic error message for non-Error failures', async () => {
+  it('preserves explicit safe chat contract error code/message', async () => {
+    async function* stream() {
+      throw new ChatContractError(
+        'CHAT_EMPTY_RESPONSE',
+        'Model returned no usable content.',
+      );
+    }
+    const controller = new ChatController({
+      streamMessage: jest.fn(() => stream()),
+    } as never);
+    const request = new FakeRequest();
+    const response = new FakeResponse();
+
+    await controller.streamMessage(
+      request as never,
+      'chat-1',
+      { content: 'question' },
+      response as never,
+    );
+
+    expect(eventTypes(response.chunks)).toEqual(['error']);
+    expect(joinedData(response.chunks)).toContain('CHAT_EMPTY_RESPONSE');
+    expect(joinedData(response.chunks)).toContain('Model returned no usable content.');
+  });
+
+  it('uses a stable generic error frame for non-Error failures', async () => {
     async function* stream() {
       throw 'provider-string-failure';
     }
@@ -207,8 +247,8 @@ describe('ChatController contract', () => {
     );
 
     expect(eventTypes(response.chunks)).toEqual(['error']);
-    expect(response.chunks.join('')).toContain('Chat stream failed.');
-    expect(response.chunks.join('')).not.toContain('provider-string-failure');
+    expect(joinedData(response.chunks)).toContain('CHAT_STREAM_FAILED');
+    expect(joinedData(response.chunks)).not.toContain('provider-string-failure');
   });
 
   it('aborts the provider and suppresses a synthetic error event after the client closes', async () => {
