@@ -4,7 +4,7 @@ import { join } from 'node:path';
 const migration = readFileSync(
   join(
     process.cwd(),
-    'supabase/migrations/20260808040800_chat_stable_pagination.sql',
+    'supabase/migrations/20260808042351_chat_stable_pagination.sql',
   ),
   'utf8',
 );
