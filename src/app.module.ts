@@ -10,6 +10,8 @@ import { UploadModule } from './modules/upload/upload.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SiteConfigModule } from './modules/config/site-config.module';
 import { ChatThreadsModule } from './modules/chat-threads/chat-threads.module';
+import { UserModule } from './modules/user/user.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { ChatThreadsModule } from './modules/chat-threads/chat-threads.module';
     AuthModule,
     SiteConfigModule,
     ChatThreadsModule,
+    UserModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

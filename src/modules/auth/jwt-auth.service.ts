@@ -3,13 +3,14 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
-import { extractBearerToken } from './admin-session.guard';
+import { extractBearerToken } from './bearer-token';
 import {
   AuthPrincipal,
   PlatformRole,
   createAnonymousPrincipal,
   isPlatformRole,
 } from './roles';
+import { SupabaseAuthService } from './supabase-auth.service';
 
 interface JwtClaims {
   sub?: string;
@@ -32,6 +33,7 @@ export class JwtAuthService {
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly jwtService: JwtService,
+    private readonly supabaseAuth?: SupabaseAuthService,
   ) {}
 
   async resolvePrincipal(request: Request): Promise<AuthPrincipal> {
@@ -44,6 +46,15 @@ export class JwtAuthService {
   }
 
   async verifyAccessToken(token: string): Promise<AuthPrincipal> {
+    // Supabase Auth is the primary identity source. getUser(token) validates
+    // the access token against the Auth server instead of trusting local claims.
+    const supabasePrincipal = await this.supabaseAuth?.verifyAccessToken(token);
+    if (supabasePrincipal) {
+      return supabasePrincipal;
+    }
+
+    // Temporary compatibility path while legacy local/admin sessions are
+    // migrated. New callers must use Supabase access tokens.
     const localPrincipal = await this.tryVerifyLocalAccessToken(token);
     if (localPrincipal) {
       return localPrincipal;
@@ -54,9 +65,11 @@ export class JwtAuthService {
       return adminPrincipal;
     }
 
-    const supabasePrincipal = await this.tryVerifySupabaseJwt(token);
-    if (supabasePrincipal) {
-      return supabasePrincipal;
+    // Legacy fallback for deployments that only configured SUPABASE_JWT_SECRET.
+    // Remove after all environments have SUPABASE_PUBLISHABLE_KEY configured.
+    const legacySupabasePrincipal = await this.tryVerifyLegacySupabaseJwt(token);
+    if (legacySupabasePrincipal) {
+      return legacySupabasePrincipal;
     }
 
     throw new UnauthorizedException({
@@ -124,7 +137,7 @@ export class JwtAuthService {
     }
   }
 
-  private async tryVerifySupabaseJwt(
+  private async tryVerifyLegacySupabaseJwt(
     token: string,
   ): Promise<AuthPrincipal | null> {
     const secret = this.config.auth.supabaseJwtSecret;

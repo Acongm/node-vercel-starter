@@ -9,6 +9,7 @@
     "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "test": "jest --runInBand",
+    "test:core": "jest --runInBand --config jest.core.config.js",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "seed:auth-user": "ts-node scripts/seed-auth-user.ts"
