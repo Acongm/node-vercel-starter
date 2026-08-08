@@ -20,10 +20,22 @@ module.exports = {
   coverageReporters: ['text', 'text-summary', 'json-summary'],
   coverageThreshold: {
     global: {
+      branches: 75,
+      functions: 95,
+      lines: 90,
+      statements: 90,
+    },
+    './src/modules/chat/chat.repository.ts': {
       branches: 70,
-      functions: 80,
-      lines: 80,
-      statements: 80,
+      functions: 100,
+      lines: 90,
+      statements: 85,
+    },
+    './src/modules/chat/chat.service.ts': {
+      branches: 80,
+      functions: 100,
+      lines: 90,
+      statements: 90,
     },
   },
 };
