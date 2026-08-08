@@ -120,7 +120,7 @@ end;
 $$;
 
 -- User A: sees only A rows; can create a valid run; cannot target B's chat or
--- smuggle cross-user message foreign keys into an otherwise owned run.
+-- smuggle cross-user / cross-chat message foreign keys into an owned run.
 set role authenticated;
 select set_config(
   'request.jwt.claim.sub',
@@ -240,6 +240,58 @@ begin
   end;
   if not blocked then
     raise exception 'RLS allowed user A run to reference user B assistant_message_id';
+  end if;
+
+  -- Same owner, different chat: run/message foreign keys must still stay inside
+  -- the run's chat. This catches accidental inner-column shadowing in policies.
+  insert into public.chats (
+    id, user_id, title
+  ) values (
+    '88888888-8888-4888-8888-888888888888',
+    '11111111-1111-4111-8111-111111111111',
+    'User A second chat'
+  );
+
+  insert into public.messages (
+    id, chat_id, user_id, role, parts
+  ) values
+    (
+      'dddddddd-dddd-4ddd-8ddd-ddddddddddd3',
+      '88888888-8888-4888-8888-888888888888',
+      '11111111-1111-4111-8111-111111111111',
+      'user',
+      '[{"type":"text","text":"same user different chat user message"}]'
+    ),
+    (
+      'dddddddd-dddd-4ddd-8ddd-ddddddddddd4',
+      '88888888-8888-4888-8888-888888888888',
+      '11111111-1111-4111-8111-111111111111',
+      'assistant',
+      '[{"type":"text","text":"same user different chat assistant message"}]'
+    );
+
+  blocked := false;
+  begin
+    update public.chat_runs
+    set user_message_id = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd3'
+    where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1';
+  exception when insufficient_privilege then
+    blocked := true;
+  end;
+  if not blocked then
+    raise exception 'RLS allowed run.user_message_id to cross chats for the same user';
+  end if;
+
+  blocked := false;
+  begin
+    update public.chat_runs
+    set assistant_message_id = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd4'
+    where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1';
+  exception when insufficient_privilege then
+    blocked := true;
+  end;
+  if not blocked then
+    raise exception 'RLS allowed run.assistant_message_id to cross chats for the same user';
   end if;
 end;
 $$;
