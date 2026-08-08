@@ -5,6 +5,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   Max,
@@ -60,6 +61,35 @@ export class CreateChatMessageDto {
   @Length(1, 12000)
   @Matches(/\S/, { message: 'content must contain non-whitespace characters' })
   content!: string;
+
+  /** Stable assistant-ui/local message id for retry idempotency. */
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  @Matches(/\S/, { message: 'clientMessageId must contain non-whitespace characters' })
+  clientMessageId?: string;
+
+  /**
+   * Previous message reference for branching. May be either a server message
+   * UUID returned by the API or a stable clientMessageId known to this chat.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  @Matches(/\S/, { message: 'parentMessageId must contain non-whitespace characters' })
+  parentMessageId?: string;
+
+  /** Stable assistant-ui id for the assistant message produced by this run. */
+  @IsOptional()
+  @IsString()
+  @Length(1, 200)
+  @Matches(/\S/, { message: 'assistantMessageId must contain non-whitespace characters' })
+  assistantMessageId?: string;
+
+  /** One UUID per model run. Reuse it only when retrying the same request. */
+  @IsOptional()
+  @IsUUID('4')
+  runId?: string;
 
   @IsOptional()
   @IsBoolean()
