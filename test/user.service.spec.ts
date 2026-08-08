@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { UserService } from '../src/modules/user/user.service';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 
@@ -18,29 +18,37 @@ function request() {
 function profileClient(options: {
   profile?: unknown;
   loadError?: unknown;
-  update?: unknown;
+  updated?: unknown;
   updateError?: unknown;
+  inserted?: unknown;
+  insertError?: unknown;
 } = {}) {
-  const maybeSingle = jest.fn().mockResolvedValue({
+  const loadMaybeSingle = jest.fn().mockResolvedValue({
     data: options.profile ?? null,
     error: options.loadError ?? null,
   });
-  const eq = jest.fn().mockReturnValue({ maybeSingle });
-  const selectForLoad = jest.fn().mockReturnValue({ eq });
+  const loadEq = jest.fn().mockReturnValue({ maybeSingle: loadMaybeSingle });
+  const select = jest.fn().mockReturnValue({ eq: loadEq });
 
-  const single = jest.fn().mockResolvedValue({
-    data: options.update ?? { id: 'user-1', display_name: 'Updated' },
+  const updateMaybeSingle = jest.fn().mockResolvedValue({
+    data: Object.prototype.hasOwnProperty.call(options, 'updated')
+      ? options.updated
+      : { id: 'user-1', display_name: 'Updated' },
     error: options.updateError ?? null,
   });
-  const selectForUpdate = jest.fn().mockReturnValue({ single });
-  const upsert = jest.fn().mockReturnValue({ select: selectForUpdate });
+  const updateSelect = jest.fn().mockReturnValue({ maybeSingle: updateMaybeSingle });
+  const updateEq = jest.fn().mockReturnValue({ select: updateSelect });
+  const update = jest.fn().mockReturnValue({ eq: updateEq });
 
-  const from = jest.fn().mockReturnValue({
-    select: selectForLoad,
-    upsert,
+  const insertSingle = jest.fn().mockResolvedValue({
+    data: options.inserted ?? { id: 'user-1' },
+    error: options.insertError ?? null,
   });
+  const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
+  const insert = jest.fn().mockReturnValue({ select: insertSelect });
 
-  return { client: { from }, from, upsert };
+  const from = jest.fn().mockReturnValue({ select, update, insert });
+  return { client: { from }, from, update, updateEq, insert };
 }
 
 describe('UserService', () => {
@@ -56,13 +64,34 @@ describe('UserService', () => {
       name: 'User One',
       role: 'editor',
       tier: 'user',
+      isAnonymous: false,
       profile: { id: 'user-1', display_name: 'Acongm', preferences: {} },
     });
     expect(mocks.from).toHaveBeenCalledWith('profiles');
   });
 
-  it('upserts only application profile data and trims display name', async () => {
-    const mocks = profileClient({ update: { id: 'user-1', display_name: 'Updated' } });
+  it('returns isAnonymous for stable Supabase anonymous identities', async () => {
+    const mocks = profileClient();
+    const service = new UserService({ create: () => mocks.client } as never);
+    const anonymous: AuthPrincipal = {
+      userId: 'anon-1',
+      role: 'anonymous',
+      tier: 'anon',
+      source: 'supabase',
+    };
+
+    await expect(service.me(request(), anonymous)).resolves.toMatchObject({
+      id: 'anon-1',
+      role: 'anonymous',
+      tier: 'anon',
+      isAnonymous: true,
+    });
+  });
+
+  it('updates all supplied application profile fields without using upsert', async () => {
+    const mocks = profileClient({
+      updated: { id: 'user-1', display_name: 'Updated' },
+    });
     const service = new UserService({ create: () => mocks.client } as never);
 
     await service.updateProfile(request(), principal, {
@@ -71,26 +100,92 @@ describe('UserService', () => {
       preferences: { language: 'zh-CN' },
     });
 
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      {
-        id: 'user-1',
-        display_name: 'Updated',
-        avatar_url: 'https://example.com/a.png',
+    expect(mocks.update).toHaveBeenCalledWith({
+      display_name: 'Updated',
+      avatar_url: 'https://example.com/a.png',
+      preferences: { language: 'zh-CN' },
+    });
+    expect(mocks.updateEq).toHaveBeenCalledWith('id', 'user-1');
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it('supports explicit clear for nullable fields', async () => {
+    const mocks = profileClient({ updated: { id: 'user-1' } });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await service.updateProfile(request(), principal, {
+      displayName: null,
+      avatarUrl: null,
+    });
+
+    expect(mocks.update).toHaveBeenCalledWith({
+      display_name: null,
+      avatar_url: null,
+    });
+  });
+
+  it('inserts a new profile when update finds no existing row', async () => {
+    const mocks = profileClient({
+      updated: null,
+      inserted: { id: 'user-1', preferences: { language: 'zh-CN' } },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(
+      service.updateProfile(request(), principal, {
         preferences: { language: 'zh-CN' },
-      },
-      { onConflict: 'id' },
+      }),
+    ).resolves.toEqual({
+      id: 'user-1',
+      preferences: { language: 'zh-CN' },
+    });
+    expect(mocks.insert).toHaveBeenCalledWith({
+      id: 'user-1',
+      preferences: { language: 'zh-CN' },
+    });
+  });
+
+  it('rejects an empty profile patch', async () => {
+    const mocks = profileClient();
+    const service = new UserService({ create: () => mocks.client } as never);
+    await expect(service.updateProfile(request(), principal, {})).rejects.toBeInstanceOf(
+      BadRequestException,
     );
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('surfaces update failures', async () => {
+    const mocks = profileClient({ updateError: { message: 'rls denied' } });
+    const service = new UserService({ create: () => mocks.client } as never);
+    await expect(
+      service.updateProfile(request(), principal, { displayName: 'Updated' }),
+    ).rejects.toThrow('Failed to update user profile: rls denied');
+  });
+
+  it('surfaces insert failures for first profile creation', async () => {
+    const mocks = profileClient({
+      updated: null,
+      insertError: { message: 'duplicate or denied' },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+    await expect(
+      service.updateProfile(request(), principal, { displayName: 'Updated' }),
+    ).rejects.toThrow('Failed to create user profile: duplicate or denied');
   });
 
   it('rejects legacy/local principals from the new user module', async () => {
     const service = new UserService({ create: jest.fn() } as never);
     const legacy = { ...principal, source: 'local' as const };
-    await expect(service.me(request(), legacy)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.me(request(), legacy)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
   it('surfaces profile query failures', async () => {
     const mocks = profileClient({ loadError: { message: 'rls denied' } });
     const service = new UserService({ create: () => mocks.client } as never);
-    await expect(service.me(request(), principal)).rejects.toThrow('Failed to load user profile: rls denied');
+    await expect(service.me(request(), principal)).rejects.toThrow(
+      'Failed to load user profile: rls denied',
+    );
   });
 });
