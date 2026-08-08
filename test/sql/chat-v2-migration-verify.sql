@@ -119,7 +119,8 @@ begin
 end;
 $$;
 
--- User A: sees only A rows; can create a valid run; cannot target B's chat.
+-- User A: sees only A rows; can create a valid run; cannot target B's chat or
+-- smuggle cross-user message foreign keys into an otherwise owned run.
 set role authenticated;
 select set_config(
   'request.jwt.claim.sub',
@@ -215,6 +216,30 @@ begin
   end;
   if not blocked then
     raise exception 'RLS allowed a run to bind user A to user B chat';
+  end if;
+
+  blocked := false;
+  begin
+    update public.chat_runs
+    set user_message_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
+    where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1';
+  exception when insufficient_privilege then
+    blocked := true;
+  end;
+  if not blocked then
+    raise exception 'RLS allowed user A run to reference user B user_message_id';
+  end if;
+
+  blocked := false;
+  begin
+    update public.chat_runs
+    set assistant_message_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
+    where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1';
+  exception when insufficient_privilege then
+    blocked := true;
+  end;
+  if not blocked then
+    raise exception 'RLS allowed user A run to reference user B assistant_message_id';
   end if;
 end;
 $$;
