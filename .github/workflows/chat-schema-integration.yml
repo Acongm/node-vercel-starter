@@ -41,10 +41,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808040630_user_chat_supabase_auth.sql
 
       - name: Execute durable run migration
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808040700_chat_runs_idempotency.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808042345_chat_runs_idempotency.sql
 
       - name: Execute stable pagination migration
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808040800_chat_stable_pagination.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808042351_chat_stable_pagination.sql
 
       - name: Verify migration behavior and RLS
         run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-migration-verify.sql
