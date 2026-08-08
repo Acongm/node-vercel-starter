@@ -33,7 +33,9 @@ describe('SupabaseAuthService', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('returns null without Supabase configuration', async () => {
-    const service = new SupabaseAuthService(config({ url: undefined, publicKey: undefined, apiKey: undefined }));
+    const service = new SupabaseAuthService(
+      config({ url: undefined, publicKey: undefined, apiKey: undefined }),
+    );
     await expect(service.verifyAccessToken('token')).resolves.toBeNull();
     expect(createClientMock).not.toHaveBeenCalled();
   });
@@ -64,7 +66,9 @@ describe('SupabaseAuthService', () => {
     expect(createClientMock).toHaveBeenCalledWith(
       'https://example.supabase.co',
       'sb_publishable_test',
-      expect.objectContaining({ auth: expect.objectContaining({ persistSession: false }) }),
+      expect.objectContaining({
+        auth: expect.objectContaining({ persistSession: false }),
+      }),
     );
   });
 
@@ -81,16 +85,20 @@ describe('SupabaseAuthService', () => {
       error: null,
     });
 
-    const principal = await new SupabaseAuthService(config()).verifyAccessToken('token');
+    const principal = await new SupabaseAuthService(config()).verifyAccessToken(
+      'token',
+    );
     expect(principal?.role).toBe('viewer');
   });
 
-  it('maps Supabase anonymous users to anon tier while preserving auth.uid', async () => {
+  it('keeps Supabase anonymous users unprivileged while preserving auth.uid', async () => {
     mockGetUser({
       data: {
         user: {
           id: 'anon-user-1',
           is_anonymous: true,
+          // Even trusted-looking role metadata must not promote an anonymous
+          // principal before it becomes an authenticated account.
           app_metadata: { roles: ['editor'] },
           user_metadata: {},
         },
@@ -98,16 +106,23 @@ describe('SupabaseAuthService', () => {
       error: null,
     });
 
-    await expect(new SupabaseAuthService(config()).verifyAccessToken('token')).resolves.toMatchObject({
+    await expect(
+      new SupabaseAuthService(config()).verifyAccessToken('token'),
+    ).resolves.toMatchObject({
       userId: 'anon-user-1',
-      role: 'editor',
+      role: 'anonymous',
       tier: 'anon',
       source: 'supabase',
     });
   });
 
   it('returns null for rejected or missing users', async () => {
-    mockGetUser({ data: { user: null }, error: { message: 'invalid token' } });
-    await expect(new SupabaseAuthService(config()).verifyAccessToken('bad')).resolves.toBeNull();
+    mockGetUser({
+      data: { user: null },
+      error: { message: 'invalid token' },
+    });
+    await expect(
+      new SupabaseAuthService(config()).verifyAccessToken('bad'),
+    ).resolves.toBeNull();
   });
 });
