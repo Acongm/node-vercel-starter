@@ -1,12 +1,12 @@
 # User / Chat UI contract testing
 
-This document defines the backend behavior that must be proven before coverage percentages are treated as meaningful for the new Supabase-native User and Chat modules.
+This document defines the observable backend contract that must be proven before coverage percentages are treated as meaningful for the Supabase-native User and Chat modules.
 
-The contract is derived from the current `Acongm/chat` application, not from hypothetical CRUD requirements.
+The contract is derived from the real `Acongm/chat` assistant-ui behavior rather than hypothetical CRUD requirements.
 
-## Current frontend contract
+## Current frontend boundary
 
-The current chat application uses:
+The chat application currently uses:
 
 - `@assistant-ui/react` LocalRuntime
 - `@acongm/chat-ui`
@@ -14,102 +14,116 @@ The current chat application uses:
 - `@acongm/auth-client`
 - Supabase Auth
 
-The visible thread UI currently exposes:
+The visible UI exposes send, stop/cancel, edit, reload/regenerate, reasoning and thread navigation. The production persistence client still needs Stage 1.3 (#43) migration from legacy `/api/chat/threads` to `/api/chats`; therefore a backend capability is not considered product-complete until the consumer is migrated or the UI capability is explicitly disabled.
 
-- send
-- stop/cancel while a run is active
-- edit a user message
-- reload/regenerate an assistant message
-- reasoning parts
-- new/select/delete/refresh thread
+## Stage 1.2 capability matrix
 
-The current frontend persistence SDK still targets the legacy `/api/chat/threads` API. The new backend `/api/chats` API therefore cannot be considered production-compatible merely because its service methods have high line coverage.
-
-## Capability matrix
-
-| Capability | Current new backend | Durable contract status |
+| Capability | Durable backend contract | Consumer status |
 | --- | --- | --- |
-| list chats | supported | tested |
-| create chat | supported | tested |
-| load chat/messages | supported | tested |
-| rename/update chat | supported | partially tested |
-| delete chat | supported | tested, FK cascade invariant |
-| send + stream message | supported | state-machine contract tests |
-| reasoning/text/source parts | supported | tested |
-| stop/cancel run | signal forwarded | partial: no durable run status yet |
-| reload/regenerate | LocalRuntime can invoke | **not durable/idempotent yet** |
-| edit user message | UI exposed | **no durable branching/update contract yet** |
-| resume interrupted run | unsupported | planned |
-| attachments/tools | schema can extend parts | API contract not implemented yet |
-| thread archive | unsupported | planned if required by adapter |
-| history update/delete | unsupported | planned for durable assistant-ui history adapter |
-| cursor pagination | unsupported | planned |
+| list/create/get/rename/delete chats | supported + tested | migrate in #43 |
+| message history | persisted + stable cursor pagination | migrate in #43 |
+| send + stream | durable state-machine contract | migrate in #43 |
+| text/reasoning/source parts | persisted + tested | adapter in #43 |
+| retry delivery | `clientMessageId` idempotency | adapter in #43 |
+| reload/regenerate | reuses persisted user turn; new run/assistant result | enable after #43 fixture/E2E |
+| stop/cancel | upstream abort + durable cancelled run | enable after #43 fixture/E2E |
+| provider/persistence failure | durable error state; no fake completion | supported |
+| edit/branch parent relation | `parentMessageId` durable relation + branch-aware model context | UI update/delete semantics still gated in #43/Stage 6 |
+| resume/reconnect interrupted run | unsupported | capability=false until future implementation |
+| ThreadHistoryAdapter update/delete | not a complete public durable API yet | capability=false unless #43 implements a safe adapter |
+| attachments/tools | parts schema is extensible; end-to-end contract not implemented | future capability |
 
-The UI must not silently imply that a capability is durable when the backend only supports it locally.
+The UI must never imply durable support for a capability that is only local runtime behavior.
+
+## Durable message and run identity
+
+Stage 1.2 introduces explicit persistence semantics:
+
+- server message id
+- client-generated `clientMessageId` for delivery idempotency
+- `parentMessageId` for durable lineage
+- stable `runId`
+- explicit run status (`running`, `complete`, `cancelled`, `error`)
+- one completed run references at most one durable assistant completion
+
+Required retry semantics:
+
+1. same `clientMessageId` + same content/parent reuses the user turn;
+2. same client id + different content/parent is a conflict;
+3. completed `runId` replay does not call the provider again;
+4. a running `runId` cannot start a second concurrent generation;
+5. cancelled/error runs are terminal; retry creates a new run;
+6. regenerate reuses the existing user turn rather than appending a duplicate user message.
 
 ## Chat state-machine contract
 
-Successful stream:
+Successful generation:
 
 ```text
 accepted
   -> authorization/rate-limit checks
   -> chat ownership/read
-  -> user persisted
-  -> user-persisted event
-  -> provider running
+  -> user message resolved/persisted
+  -> run running
+  -> provider
   -> assistant persisted
-  -> telemetry best effort
+  -> run complete
   -> persisted event
   -> done event
+  -> best-effort auxiliary touch/title/telemetry
 ```
 
 Required invariants:
 
-1. Rate-limit failure occurs before any chat/message write.
-2. Missing or RLS-inaccessible chat occurs before user-message persistence.
-3. Provider failure after user persistence must not create a fake completed assistant row.
-4. Assistant persistence failure must not emit `persisted` or terminal `done`.
-5. Telemetry failure must not turn a durably persisted assistant answer into a failed UI run.
-6. The caller AbortSignal must reach the model provider.
-7. A closed HTTP connection must abort the provider and must not emit a synthetic SSE error after disconnect.
-8. `done` must never be visible before durable assistant persistence.
-9. Model context truncation and persisted history pagination are different concerns.
+1. Rate-limit failure occurs before durable chat/message/run writes for the attempted generation.
+2. Missing or RLS-inaccessible chat fails before user-message persistence.
+3. Provider failure after user persistence records an error run and never fabricates a completed assistant message.
+4. Client abort/disconnect records a cancelled run where persistence is still possible.
+5. Assistant persistence failure cannot emit `persisted` or terminal success.
+6. Provider completion without protocol `done` is `CHAT_STREAM_INCOMPLETE`.
+7. Empty provider output is `CHAT_EMPTY_RESPONSE`, never silent success.
+8. `done` is observable only after assistant persistence and run completion.
+9. `touch`, automatic title and telemetry are auxiliary; their failure cannot reverse an already durable successful answer.
+10. Persisted history pagination and bounded model-context projection are separate concerns.
 
-## Missing message/run contract
+## Stable pagination
 
-The next schema/API slice should introduce explicit identifiers/status so assistant-ui retry/regeneration cannot accidentally append duplicate turns:
+### Chat list
 
-- `clientMessageId` or equivalent idempotency key
-- server message id
-- run id
-- message/run status (`running`, `complete`, `cancelled`, `error` or equivalent)
-- optional parent message/run id if durable branching is supported
+- order: `updated_at DESC, id DESC`
+- opaque cursor contains the stable boundary
+- query uses `limit + 1` to derive `nextCursor`
+- matching index: `(user_id, updated_at DESC, id DESC)`
 
-Until that exists, Edit/Reload should be documented as local/non-durable behavior or disabled where that distinction would otherwise corrupt history.
+### Message history
+
+- order: `created_at ASC, id ASC`
+- opaque cursor + deterministic id tie-breaker
+- bounded page using `limit + 1`
+- matching index: `(chat_id, created_at ASC, id ASC)`
+
+Equal timestamps must not produce duplicate or missing rows across page boundaries.
 
 ## User contract
 
-Supabase Auth remains the identity source. The application `profiles` table stores only non-auth business/profile data.
+Supabase Auth remains the identity source. `public.profiles` stores only application profile data.
 
-Required `/api/user/me` behavior:
+`GET /api/user/me` exposes the verified Supabase identity plus application role/tier, `isAnonymous`, and nullable profile.
 
-- verified Supabase `userId`
-- optional email/name
-- role/tier
-- profile or `null`
-- anonymous Supabase users remain valid stable users
+Profile PATCH semantics are explicit:
 
-Required profile update behavior:
+- owner id always comes from verified principal
+- existing rows use partial update; missing rows are inserted
+- omitted fields remain unchanged
+- `displayName: null` / `avatarUrl: null` explicitly clear nullable fields
+- supplied `preferences` replaces the preferences object; null is rejected
+- body input cannot change userId/email/role/tier
+- blank display names and invalid avatar URLs are rejected
 
-- owner id always comes from the verified principal
-- omitted fields remain omitted from the upsert patch
-- write/RLS errors surface to the caller
-- blank display names are rejected
-- invalid avatar URLs are rejected
-- role/email/userId cannot be changed through profile input
+Stage 1.1 also locks stable auth errors:
 
-Preferences currently use replacement semantics for the supplied `preferences` object. If merge semantics are desired later, that must be introduced as an explicit contract and test rather than inferred client-side.
+- missing bearer token -> `401 AUTH_REQUIRED`
+- invalid/expired/malformed Supabase principal -> `401 INVALID_TOKEN`
 
 ## Test layers
 
@@ -117,30 +131,25 @@ Preferences currently use replacement semantics for the supplied `preferences` o
 
 `npm run test:contracts`
 
-These tests verify observable behavior and side-effect order, including negative paths. They are intentionally separate from coverage reporting so a test can fail even when all relevant lines were executed.
+These verify observable behavior and side-effect ordering. They are intentionally independent from coverage reporting.
 
 ### Core coverage
 
 `npm run test:core`
 
-Coverage remains a regression guard, not a completeness metric. Per-file thresholds are used for critical services so unrelated files cannot average away weak coverage.
+Coverage is a regression guard, not a completeness metric. Critical files have explicit per-file thresholds.
 
-### Database/RLS integration — still required
+### PostgreSQL / RLS integration
 
-Static SQL invariant tests do not prove real Postgres/Supabase behavior. A subsequent integration suite must execute the migration and verify at minimum:
+Stage 1.2 includes real schema/RLS workflow fixtures that execute migrations against PostgreSQL/Supabase-compatible infrastructure and verify ownership using distinct principals. Final production-path JWT/Data API E2E remains part of #37 after the real consumer is migrated.
 
-- user A cannot read/write user B chats/messages/profile
-- anonymous user A cannot read anonymous user B data
-- FK cascade works in the real database
-- migration preserves eligible legacy data
+### Mutation testing
 
-### Mutation testing — planned
+A focused mutation smoke workflow targets high-value Chat decision points. #37 remains responsible for the final mutation threshold and survivor review across the production consumer path.
 
-A restricted StrykerJS suite should target Auth/User/Chat decision logic. Mutation survivors are more useful than another increase in line coverage because they identify branches whose behavior can change without making tests fail.
+## Migration target
 
-## Migration target for `Acongm/chat`
-
-The frontend currently still uses legacy `/api/chat/threads` and `claimAnonymousThreads`. The intended end state is:
+The intended product path is:
 
 ```text
 Supabase Auth (including anonymous identity)
@@ -149,6 +158,6 @@ Supabase Auth (including anonymous identity)
   -> assistant-ui thread/history adapters
 ```
 
-The frontend migration should happen only after the new API proves the thread/history/run contracts needed by the visible assistant-ui controls.
+Stage 1.2 proves the durable backend core. Stage 1.3 (#43) must then migrate `Acongm/chat`, portal embedded chat and auth-client consumers, and gate any capability that still lacks a durable public adapter.
 
-See issue #37 for the staged implementation plan.
+See #32 for the Stage 1 sequence and #37 for the final quality gate.
