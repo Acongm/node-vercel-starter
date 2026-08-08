@@ -7,21 +7,61 @@ function context(request: unknown) {
   } as never;
 }
 
+async function expectUnauthorized(
+  promise: Promise<unknown>,
+  response: { code: string; message: string },
+) {
+  try {
+    await promise;
+    throw new Error('Expected request to be rejected');
+  } catch (error) {
+    expect(error).toBeInstanceOf(UnauthorizedException);
+    expect((error as UnauthorizedException).getStatus()).toBe(401);
+    expect((error as UnauthorizedException).getResponse()).toEqual(response);
+  }
+}
+
 describe('SupabaseAuthGuard', () => {
-  it('rejects requests without a bearer token', async () => {
+  it('rejects missing bearer tokens with the stable AUTH_REQUIRED contract', async () => {
     const guard = new SupabaseAuthGuard({ verifyAccessToken: jest.fn() } as never);
-    await expect(
+
+    await expectUnauthorized(
       guard.canActivate(context({ header: () => undefined })),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+      {
+        code: 'AUTH_REQUIRED',
+        message: 'Missing Supabase access token.',
+      },
+    );
   });
 
-  it('rejects invalid Supabase tokens', async () => {
+  it('rejects invalid or expired Supabase tokens with the stable INVALID_TOKEN contract', async () => {
     const verifyAccessToken = jest.fn().mockResolvedValue(null);
     const guard = new SupabaseAuthGuard({ verifyAccessToken } as never);
     const request = { header: () => 'Bearer bad-token' };
 
-    await expect(guard.canActivate(context(request))).rejects.toBeInstanceOf(UnauthorizedException);
+    await expectUnauthorized(guard.canActivate(context(request)), {
+      code: 'INVALID_TOKEN',
+      message: 'Invalid or expired Supabase access token.',
+    });
     expect(verifyAccessToken).toHaveBeenCalledWith('bad-token');
+  });
+
+  it('rejects a verified result that has no stable auth.users id', async () => {
+    const verifyAccessToken = jest.fn().mockResolvedValue({
+      userId: null,
+      role: 'viewer',
+      tier: 'user',
+      source: 'supabase',
+    });
+    const guard = new SupabaseAuthGuard({ verifyAccessToken } as never);
+
+    await expectUnauthorized(
+      guard.canActivate(context({ header: () => 'Bearer malformed-principal' })),
+      {
+        code: 'INVALID_TOKEN',
+        message: 'Invalid or expired Supabase access token.',
+      },
+    );
   });
 
   it('attaches the verified principal to the request', async () => {
