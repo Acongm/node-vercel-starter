@@ -14,6 +14,20 @@ import {
 } from 'class-validator';
 import { ChatV1ContextDto } from '../../ai/v1/chat-v1.dto';
 
+export class ChatPageQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 1000)
+  after?: string;
+}
+
 export class CreateChatDto {
   @IsOptional()
   @IsString()
