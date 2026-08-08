@@ -3,11 +3,18 @@ import { ChatSource } from '../../adapters/ai/ai-client.interface';
 export type ChatRole = 'user' | 'assistant' | 'system' | 'tool';
 export type ChatRunStatus = 'running' | 'complete' | 'cancelled' | 'error';
 
+type ExtensibleChatMessagePart = {
+  type: string;
+  text?: unknown;
+  source?: unknown;
+  [key: string]: unknown;
+};
+
 export type ChatMessagePart =
-  | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string }
-  | { type: 'source'; source: ChatSource }
-  | { type: string; [key: string]: unknown };
+  | (ExtensibleChatMessagePart & { type: 'text'; text: string })
+  | (ExtensibleChatMessagePart & { type: 'reasoning'; text: string })
+  | (ExtensibleChatMessagePart & { type: 'source'; source: ChatSource })
+  | ExtensibleChatMessagePart;
 
 export interface ChatRecord {
   id: string;
@@ -49,7 +56,7 @@ export interface ChatRunRecord {
 export function textFromParts(parts: ChatMessagePart[] | null | undefined): string {
   return (parts || [])
     .flatMap((part) => {
-      if (part.type !== 'text' || !('text' in part)) return [];
+      if (part.type !== 'text') return [];
       return typeof part.text === 'string' ? [part.text] : [];
     })
     .join('\n')
