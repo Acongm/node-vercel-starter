@@ -1,0 +1,58 @@
+name: Supabase Auth RLS integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  auth-postgrest-rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.112.0
+
+      - name: Start isolated local Supabase stack and apply migrations
+        run: supabase start
+
+      - name: Export ephemeral local Supabase credentials
+        shell: bash
+        run: |
+          eval "$(supabase status -o env \
+            --override-name api.url=SUPABASE_URL \
+            --override-name auth.publishable_key=SUPABASE_PUBLISHABLE_KEY \
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY)"
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_PUBLISHABLE_KEY"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+          {
+            echo "SUPABASE_URL=$SUPABASE_URL"
+            echo "SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+
+      - name: Exercise Auth JWTs through PostgREST and RLS
+        run: node test/integration/supabase-chat-rls.mjs
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup || true

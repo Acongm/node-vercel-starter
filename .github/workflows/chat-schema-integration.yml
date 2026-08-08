@@ -1,0 +1,53 @@
+name: Chat schema integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Seed Supabase-compatible legacy fixture
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-migration-fixture.sql
+
+      - name: Execute User Chat migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808000000_user_chat_supabase_auth.sql
+
+      - name: Execute durable run migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808010000_chat_runs_idempotency.sql
+
+      - name: Execute stable pagination migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260808020000_chat_stable_pagination.sql
+
+      - name: Verify migration behavior and RLS
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-migration-verify.sql
+
+      - name: Verify deterministic cursor indexes
+        run: psql -v ON_ERROR_STOP=1 -f test/sql/chat-v2-index-verify.sql

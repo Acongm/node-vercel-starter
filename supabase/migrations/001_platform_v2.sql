@@ -7,6 +7,15 @@ create extension if not exists pgcrypto;
 
 create schema if not exists private;
 
+-- Historical production setup created this secret registry out-of-band before
+-- the original Platform v2 migration. Keep the baseline migration self-contained
+-- so a clean Supabase database can bootstrap from migration history alone.
+create table if not exists private.api_secrets (
+  name text primary key,
+  secret_hash text not null,
+  updated_at timestamptz not null default now()
+);
+
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
