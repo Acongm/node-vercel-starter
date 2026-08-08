@@ -10,6 +10,7 @@ import {
   Matches,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { ChatV1ContextDto } from '../../ai/v1/chat-v1.dto';
@@ -32,6 +33,7 @@ export class CreateChatDto {
   @IsOptional()
   @IsString()
   @Length(1, 200)
+  @Matches(/\S/, { message: 'title must contain non-whitespace characters' })
   title?: string;
 
   @IsOptional()
@@ -50,22 +52,28 @@ export class CreateChatDto {
 }
 
 export class UpdateChatDto {
-  @IsOptional()
+  // Null is not a valid title clear operation. Omit title to leave it unchanged.
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 200)
+  @Matches(/\S/, { message: 'title must contain non-whitespace characters' })
   title?: string;
 
-  @IsOptional()
+  // Page/module context can be explicitly cleared with null.
+  @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsString()
   @Length(1, 512)
-  pagePath?: string;
+  @Matches(/\S/, { message: 'pagePath must contain non-whitespace characters' })
+  pagePath?: string | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined && value !== null)
   @IsString()
   @Length(1, 128)
-  moduleKey?: string;
+  @Matches(/\S/, { message: 'moduleKey must contain non-whitespace characters' })
+  moduleKey?: string | null;
 
-  @IsOptional()
+  // Metadata is replacement semantics when supplied; null is invalid.
+  @ValidateIf((_, value) => value !== undefined)
   @IsObject()
   metadata?: Record<string, unknown>;
 }
