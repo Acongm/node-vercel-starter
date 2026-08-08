@@ -52,27 +52,26 @@ export class CreateChatDto {
 }
 
 export class UpdateChatDto {
-  // Null is not a valid title clear operation. Omit title to leave it unchanged.
+  // Omit a field to leave it unchanged. Null is not a valid update value.
   @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 200)
   @Matches(/\S/, { message: 'title must contain non-whitespace characters' })
   title?: string;
 
-  // Page/module context can be explicitly cleared with null.
-  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 512)
   @Matches(/\S/, { message: 'pagePath must contain non-whitespace characters' })
-  pagePath?: string | null;
+  pagePath?: string;
 
-  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @Length(1, 128)
   @Matches(/\S/, { message: 'moduleKey must contain non-whitespace characters' })
-  moduleKey?: string | null;
+  moduleKey?: string;
 
-  // Metadata is replacement semantics when supplied; null is invalid.
+  // Metadata uses replacement semantics when supplied; null is invalid.
   @ValidateIf((_, value) => value !== undefined)
   @IsObject()
   metadata?: Record<string, unknown>;
