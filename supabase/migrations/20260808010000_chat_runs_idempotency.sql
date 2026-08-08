@@ -73,35 +73,35 @@ drop policy if exists "chat_runs_select_own" on public.chat_runs;
 create policy "chat_runs_select_own"
 on public.chat_runs for select
 to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = chat_runs.user_id);
 
 drop policy if exists "chat_runs_insert_own" on public.chat_runs;
 create policy "chat_runs_insert_own"
 on public.chat_runs for insert
 to authenticated
 with check (
-  (select auth.uid()) = user_id
+  (select auth.uid()) = chat_runs.user_id
   and exists (
     select 1
     from public.chats c
-    where c.id = chat_id
+    where c.id = chat_runs.chat_id
       and c.user_id = (select auth.uid())
   )
   and exists (
     select 1
     from public.messages m
-    where m.id = user_message_id
-      and m.chat_id = chat_id
+    where m.id = chat_runs.user_message_id
+      and m.chat_id = chat_runs.chat_id
       and m.user_id = (select auth.uid())
       and m.role = 'user'
   )
   and (
-    assistant_message_id is null
+    chat_runs.assistant_message_id is null
     or exists (
       select 1
       from public.messages m
-      where m.id = assistant_message_id
-        and m.chat_id = chat_id
+      where m.id = chat_runs.assistant_message_id
+        and m.chat_id = chat_runs.chat_id
         and m.user_id = (select auth.uid())
         and m.role = 'assistant'
     )
@@ -112,30 +112,30 @@ drop policy if exists "chat_runs_update_own" on public.chat_runs;
 create policy "chat_runs_update_own"
 on public.chat_runs for update
 to authenticated
-using ((select auth.uid()) = user_id)
+using ((select auth.uid()) = chat_runs.user_id)
 with check (
-  (select auth.uid()) = user_id
+  (select auth.uid()) = chat_runs.user_id
   and exists (
     select 1
     from public.chats c
-    where c.id = chat_id
+    where c.id = chat_runs.chat_id
       and c.user_id = (select auth.uid())
   )
   and exists (
     select 1
     from public.messages m
-    where m.id = user_message_id
-      and m.chat_id = chat_id
+    where m.id = chat_runs.user_message_id
+      and m.chat_id = chat_runs.chat_id
       and m.user_id = (select auth.uid())
       and m.role = 'user'
   )
   and (
-    assistant_message_id is null
+    chat_runs.assistant_message_id is null
     or exists (
       select 1
       from public.messages m
-      where m.id = assistant_message_id
-        and m.chat_id = chat_id
+      where m.id = chat_runs.assistant_message_id
+        and m.chat_id = chat_runs.chat_id
         and m.user_id = (select auth.uid())
         and m.role = 'assistant'
     )
@@ -146,4 +146,4 @@ drop policy if exists "chat_runs_delete_own" on public.chat_runs;
 create policy "chat_runs_delete_own"
 on public.chat_runs for delete
 to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = chat_runs.user_id);
