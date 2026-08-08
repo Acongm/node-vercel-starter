@@ -7,8 +7,7 @@ const files = readdirSync(join(process.cwd(), 'supabase/migrations'))
 
 const required = [
   // This prerequisite exists in the repository and creates comments/api_secrets.
-  // The current live DB has the objects but is missing this historical version
-  // entry, which is handled as an explicit deployment-history repair concern.
+  // The live DB has those objects but is missing this historical version entry.
   '20260606000000_create_comments.sql',
   '20260620022412_create_chat_logs.sql',
   '20260620030938_chat_logs_anon_secret_policy.sql',
@@ -21,6 +20,9 @@ const required = [
   '20260808040630_user_chat_supabase_auth.sql',
   '20260808042345_chat_runs_idempotency.sql',
   '20260808042351_chat_stable_pagination.sql',
+  // Read-only parity audit found the live comments table lacks the two length
+  // CHECKs from the historical baseline, so history repair alone is not enough.
+  '20260808050000_comments_constraints_repair.sql',
 ] as const;
 
 const stale = [
@@ -40,7 +42,7 @@ const stale = [
 ] as const;
 
 describe('Supabase migration history ordering', () => {
-  it('contains the reproducible prerequisite and live-version migrations', () => {
+  it('contains the reproducible prerequisite, live-version migrations and drift repair', () => {
     for (const name of required) expect(files).toContain(name);
   });
 
@@ -54,13 +56,17 @@ describe('Supabase migration history ordering', () => {
     );
   });
 
-  it('runs foundation before live-version durable runs and pagination', () => {
+  it('runs foundation before durable runs, pagination and comments drift repair', () => {
     const foundation = files.indexOf('20260808040630_user_chat_supabase_auth.sql');
     const runs = files.indexOf('20260808042345_chat_runs_idempotency.sql');
     const pagination = files.indexOf('20260808042351_chat_stable_pagination.sql');
+    const commentsRepair = files.indexOf(
+      '20260808050000_comments_constraints_repair.sql',
+    );
 
     expect(foundation).toBeGreaterThanOrEqual(0);
     expect(runs).toBeGreaterThan(foundation);
     expect(pagination).toBeGreaterThan(runs);
+    expect(commentsRepair).toBeGreaterThan(pagination);
   });
 });
