@@ -56,7 +56,50 @@ function eventTypes(chunks: string[]): string[] {
     .map((chunk) => chunk.slice('event: '.length).trim());
 }
 
-describe('ChatController SSE contract', () => {
+describe('ChatController contract', () => {
+  it('delegates REST routes without substituting client-owned identity', async () => {
+    const list = jest.fn().mockResolvedValue([{ id: 'chat-1' }]);
+    const create = jest.fn().mockResolvedValue({ id: 'chat-2' });
+    const get = jest.fn().mockResolvedValue({ chat: { id: 'chat-1' }, messages: [] });
+    const update = jest.fn().mockResolvedValue({ id: 'chat-1', title: 'Renamed' });
+    const remove = jest.fn().mockResolvedValue(undefined);
+    const listMessages = jest.fn().mockResolvedValue([{ id: 'message-1' }]);
+    const controller = new ChatController({
+      list,
+      create,
+      get,
+      update,
+      delete: remove,
+      listMessages,
+    } as never);
+    const request = new FakeRequest();
+
+    await expect(controller.list(request as never)).resolves.toEqual([
+      { id: 'chat-1' },
+    ]);
+    await expect(
+      controller.create(request as never, { title: 'New chat' }),
+    ).resolves.toEqual({ id: 'chat-2' });
+    await expect(controller.get(request as never, 'chat-1')).resolves.toEqual({
+      chat: { id: 'chat-1' },
+      messages: [],
+    });
+    await expect(
+      controller.update(request as never, 'chat-1', { title: 'Renamed' }),
+    ).resolves.toEqual({ id: 'chat-1', title: 'Renamed' });
+    await controller.remove(request as never, 'chat-1');
+    await expect(
+      controller.messages(request as never, 'chat-1'),
+    ).resolves.toEqual([{ id: 'message-1' }]);
+
+    expect(list).toHaveBeenCalledWith(request);
+    expect(create).toHaveBeenCalledWith(request, principal, { title: 'New chat' });
+    expect(get).toHaveBeenCalledWith(request, 'chat-1');
+    expect(update).toHaveBeenCalledWith(request, 'chat-1', { title: 'Renamed' });
+    expect(remove).toHaveBeenCalledWith(request, 'chat-1');
+    expect(listMessages).toHaveBeenCalledWith(request, 'chat-1');
+  });
+
   it('sets SSE headers and preserves service event order', async () => {
     async function* stream() {
       yield { type: 'user-persisted', messageId: 'u1', chatId: 'chat-1' };
