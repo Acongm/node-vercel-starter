@@ -1,7 +1,11 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { CreateChatMessageDto } from '../src/modules/chat/dto/chat.dto';
+import {
+  CreateChatDto,
+  CreateChatMessageDto,
+  UpdateChatDto,
+} from '../src/modules/chat/dto/chat.dto';
 import { UpdateUserProfileDto } from '../src/modules/user/dto/update-user-profile.dto';
 
 describe('User/Chat DTO contract', () => {
@@ -52,6 +56,29 @@ describe('User/Chat DTO contract', () => {
     });
 
     expect(await validate(dto)).toHaveLength(0);
+  });
+
+  it('rejects blank-only chat titles and update context fields', async () => {
+    const createErrors = await validate(
+      plainToInstance(CreateChatDto, { title: '   ' }),
+    );
+    expect(createErrors.some((error) => error.property === 'title')).toBe(true);
+
+    for (const field of ['title', 'pagePath', 'moduleKey'] as const) {
+      const errors = await validate(
+        plainToInstance(UpdateChatDto, { [field]: '   ' }),
+      );
+      expect(errors.some((error) => error.property === field)).toBe(true);
+    }
+  });
+
+  it('rejects null chat update fields before repository trim/DB access', async () => {
+    for (const field of ['title', 'pagePath', 'moduleKey', 'metadata'] as const) {
+      const errors = await validate(
+        plainToInstance(UpdateChatDto, { [field]: null }),
+      );
+      expect(errors.some((error) => error.property === field)).toBe(true);
+    }
   });
 
   it('rejects blank-only display names', async () => {
