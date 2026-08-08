@@ -46,8 +46,11 @@ async function rawOwnChats(accessToken) {
       },
     },
   );
-  assert.equal(response.status, 200, `raw PostgREST chat list failed: ${await response.text()}`);
-  return response.json();
+  // Consume the Fetch body exactly once. Node/Undici does not allow calling
+  // text() for an assertion message and then json() on the same response.
+  const body = await response.text();
+  assert.equal(response.status, 200, `raw PostgREST chat list failed: ${body}`);
+  return body ? JSON.parse(body) : [];
 }
 
 const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
