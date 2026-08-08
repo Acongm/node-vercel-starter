@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const migration = readFileSync(
-  join(process.cwd(), 'supabase/migrations/20260808000000_user_chat_supabase_auth.sql'),
+  join(process.cwd(), 'supabase/migrations/20260808040630_user_chat_supabase_auth.sql'),
   'utf8',
 );
 
