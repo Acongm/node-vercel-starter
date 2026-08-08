@@ -47,7 +47,9 @@ export class SupabaseAuthService {
 
     return {
       userId: user.id,
-      role: this.extractRole(user),
+      // A Supabase anonymous identity is stable enough for auth.uid()/RLS, but
+      // it must not inherit viewer/editor/admin authorization from metadata.
+      role: isAnonymous ? 'anonymous' : this.extractRole(user),
       tier: isAnonymous ? 'anon' : 'user',
       email: user.email,
       name: this.extractDisplayName(user),
