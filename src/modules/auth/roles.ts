@@ -12,6 +12,8 @@ export interface AuthPrincipal {
   tier: AuthTier;
   email?: string;
   name?: string;
+  /** Display-only OAuth/avatar hint from user_metadata; never used for ACL. */
+  avatarUrl?: string;
   source: AuthTokenSource;
 }
 

@@ -71,6 +71,22 @@ describe('UserService contract', () => {
       tier: 'anon',
       isAnonymous: true,
       profile: null,
+      userInfo: {
+        id: 'anon-user-1',
+        displayName: '访客',
+        avatarUrl: null,
+        email: null,
+        accountLabel: '访客',
+        role: 'anonymous',
+        tier: 'anon',
+        isAnonymous: true,
+        source: 'fallback',
+      },
+      settings: {
+        language: 'zh-CN',
+        theme: 'system',
+        preferences: {},
+      },
     });
   });
 

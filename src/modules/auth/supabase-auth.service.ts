@@ -53,6 +53,7 @@ export class SupabaseAuthService {
       tier: isAnonymous ? 'anon' : 'user',
       email: user.email,
       name: this.extractDisplayName(user),
+      avatarUrl: this.extractAvatarUrl(user),
       source: 'supabase',
     };
   }
@@ -79,9 +80,21 @@ export class SupabaseAuthService {
 
   private extractDisplayName(user: User): string | undefined {
     const metadata = user.user_metadata || {};
-    const value = metadata.name || metadata.full_name || metadata.user_name;
+    const value =
+      metadata.display_name ||
+      metadata.name ||
+      metadata.full_name ||
+      metadata.user_name ||
+      metadata.preferred_username;
     return typeof value === 'string' && value.trim()
       ? value.trim()
       : user.email;
+  }
+
+  private extractAvatarUrl(user: User): string | undefined {
+    const metadata = user.user_metadata || {};
+    const value =
+      metadata.avatar_url || metadata.picture || metadata.avatar || metadata.profile_image;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 }
