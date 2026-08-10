@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -9,6 +10,9 @@ import { AiV1Service } from '../ai/v1/ai-v1.service';
 import { ChatV1Dto } from '../ai/v1/chat-v1.dto';
 import { AuthPrincipal } from '../auth/roles';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
+import { RequestWithId } from '../../common/request-id.middleware';
+import { logEvent } from '../logs';
+import { UserService } from '../user/user.service';
 import { ChatContractError } from './chat.errors';
 import { ChatRepository } from './chat.repository';
 import {
@@ -31,6 +35,7 @@ export class ChatService {
     private readonly repository: ChatRepository,
     private readonly aiV1Service: AiV1Service,
     private readonly chatLogWriter: ChatLogWriterService,
+    @Optional() private readonly userService?: UserService,
   ) {}
 
   list(request: Request, query: ChatPageQueryDto = {}) {
@@ -74,14 +79,23 @@ export class ChatService {
     signal?: AbortSignal,
   ) {
     const userId = this.requireUserId(principal);
-    await this.aiV1Service.enforceRateLimit(request);
+    await this.aiV1Service.enforceRateLimit(request, principal);
 
     const chat = await this.repository.get(request, id);
     // Model context is deliberately bounded and separate from persisted history
-    // pagination. The model only projects the latest selected branch below.
-    const priorMessages = await this.repository.listRecentMessages(request, id, 500);
+    // pagination. Fetch only what branch projection needs (~model window).
+    const priorMessages = await this.repository.listRecentMessages(
+      request,
+      id,
+      120,
+    );
     const parentMessage = dto.parentMessageId
-      ? await this.resolveParentMessage(request, id, dto.parentMessageId)
+      ? await this.resolveParentMessage(
+          request,
+          id,
+          dto.parentMessageId,
+          priorMessages,
+        )
       : priorMessages.at(-1) || null;
 
     const { message: userMessage, reused: userMessageReused } =
@@ -99,7 +113,20 @@ export class ChatService {
     });
 
     this.assertRunMatchesRequest(run, id, userId, userMessage.id);
-    if (!userMessageReused) await this.safeTouch(request, id);
+    // Touch is auxiliary — must not block provider first token.
+    if (!userMessageReused) {
+      void this.safeTouch(request, id);
+    }
+
+    const requestId = (request as RequestWithId).requestId;
+    logEvent({
+      event: 'chat.send.start',
+      module: 'chat',
+      requestId,
+      runId: run.id,
+      chatId: id,
+      userId,
+    });
 
     yield {
       type: 'user-persisted' as const,
@@ -119,7 +146,13 @@ export class ChatService {
       this.withCurrentMessage(priorMessages, userMessage),
       userMessage.id,
     );
-    const chatDto = this.toChatDto(chat, branchMessages, dto);
+    // Prefer in-process settings cache; do not block first token on a cold miss
+    // beyond a single bounded lookup (UserService caches by uid).
+    const userDefaultPrompt = await this.resolveUserDefaultPrompt(
+      request,
+      principal,
+    );
+    const chatDto = this.toChatDto(chat, branchMessages, dto, userDefaultPrompt);
 
     let assistantText = '';
     let reasoning = '';
@@ -130,12 +163,32 @@ export class ChatService {
     let completionTokens: number | undefined;
     let totalTokens: number | undefined;
     let streamDone = false;
+    let firstTokenLogged = false;
+    const streamStartedAt = Date.now();
 
     try {
       for await (const event of this.aiV1Service.stream(chatDto, {
         signal,
         principal,
       })) {
+        if (
+          !firstTokenLogged &&
+          (event.type === 'delta' ||
+            event.type === 'thinking' ||
+            event.type === 'meta')
+        ) {
+          firstTokenLogged = true;
+          logEvent({
+            event: 'chat.first_token',
+            module: 'chat',
+            requestId,
+            runId: run.id,
+            chatId: id,
+            userId,
+            durationMs: Date.now() - streamStartedAt,
+            tokenType: event.type,
+          });
+        }
         if (event.type === 'meta') {
           provider = event.provider;
           model = event.model;
@@ -303,7 +356,16 @@ export class ChatService {
     request: Request,
     chatId: string,
     reference: string,
+    priorMessages: ChatMessageRecord[] = [],
   ): Promise<ChatMessageRecord> {
+    const fromRecent = priorMessages.find(
+      (message) =>
+        message.id === reference || message.client_message_id === reference,
+    );
+    if (fromRecent) {
+      return fromRecent;
+    }
+
     const parent = await this.repository.findMessageByReference(
       request,
       chatId,
@@ -433,6 +495,7 @@ export class ChatService {
     },
     branchMessages: ChatMessageRecord[],
     dto: CreateChatMessageDto,
+    userDefaultPrompt?: string,
   ): ChatV1Dto {
     const history = branchMessages
       .filter((message) => message.role === 'user' || message.role === 'assistant')
@@ -450,6 +513,7 @@ export class ChatService {
       enableWebSearch: dto.enableWebSearch,
       maxTokens: dto.maxTokens,
       conversationId: chat.id,
+      userDefaultPrompt: userDefaultPrompt || undefined,
       context: {
         ...dto.context,
         scope: dto.context?.scope || 'article',
@@ -458,6 +522,24 @@ export class ChatService {
         title: dto.context?.title || chat.title || '通用对话',
       },
     };
+  }
+
+  private async resolveUserDefaultPrompt(
+    request: Request,
+    principal: AuthPrincipal,
+  ): Promise<string | undefined> {
+    if (!this.userService) return undefined;
+    try {
+      const settings = await this.userService.getSettingsCached(
+        request,
+        principal,
+      );
+      const prompt = settings.effective.chat.defaultPrompt?.trim();
+      return prompt || undefined;
+    } catch {
+      // Settings are preference-only; send must continue with server defaults.
+      return undefined;
+    }
   }
 
   private async finishRun(

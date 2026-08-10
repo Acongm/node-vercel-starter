@@ -9,7 +9,7 @@
     "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "test": "jest --runInBand",
-    "test:contracts": "jest --runInBand test/chat.contract.spec.ts test/chat.service.runs.edge.spec.ts test/chat.service.defense-in-depth.spec.ts test/chat.auxiliary-effects.contract.spec.ts test/chat.controller.contract.spec.ts test/chat.errors.spec.ts test/chat.branch.spec.ts test/chat.pagination.spec.ts test/chat.recent-history.contract.spec.ts test/chat.repository.runs.spec.ts test/chat.repository.runs.edge.spec.ts test/chat-runs-migration.spec.ts test/chat-pagination-migration.spec.ts test/user.contract.spec.ts test/user-chat.dto.contract.spec.ts test/user-info.contract.spec.ts",
+    "test:contracts": "jest --runInBand test/chat.contract.spec.ts test/chat.service.runs.edge.spec.ts test/chat.service.defense-in-depth.spec.ts test/chat.auxiliary-effects.contract.spec.ts test/chat.controller.contract.spec.ts test/chat.errors.spec.ts test/chat.branch.spec.ts test/chat.pagination.spec.ts test/chat.recent-history.contract.spec.ts test/chat.repository.runs.spec.ts test/chat.repository.runs.edge.spec.ts test/chat-runs-migration.spec.ts test/chat-pagination-migration.spec.ts test/user.contract.spec.ts test/user-chat.dto.contract.spec.ts test/user-info.contract.spec.ts test/user.service.spec.ts test/logs.contract.spec.ts test/ai-v1.principal-reuse.contract.spec.ts",
     "test:core": "jest --runInBand --config jest.core.config.js",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -24,6 +24,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "js-yaml": "^5.2.3",
+    "pino": "^9.14.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },

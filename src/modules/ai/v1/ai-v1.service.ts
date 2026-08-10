@@ -128,13 +128,18 @@ export class AiV1Service {
     });
   }
 
-  async enforceRateLimit(req: Request): Promise<AuthPrincipal> {
-    const principal = await this.jwtAuth.resolvePrincipal(req);
+  async enforceRateLimit(
+    req: Request,
+    principal?: AuthPrincipal,
+  ): Promise<AuthPrincipal> {
+    // Chat v2 already verified the bearer in SupabaseAuthGuard. Reuse that
+    // principal so send does not pay a second Auth round-trip before stream.
+    const resolved = principal ?? (await this.jwtAuth.resolvePrincipal(req));
     const meta = extractChatRequestMeta(req);
-    const limit = getChatLimitPerDay(this.siteConfig, principal.tier);
+    const limit = getChatLimitPerDay(this.siteConfig, resolved.tier);
     const decision = this.rateLimit.consume({
-      tier: principal.tier,
-      userId: principal.userId,
+      tier: resolved.tier,
+      userId: resolved.userId,
       clientId: meta.clientId,
       limit,
     });
@@ -153,7 +158,7 @@ export class AiV1Service {
       );
     }
 
-    return principal;
+    return resolved;
   }
 
   private async prepare(dto: ChatV1Dto) {

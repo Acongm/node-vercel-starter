@@ -46,6 +46,14 @@ function buildSystemPrompt(dto: ChatV1Dto): string {
     DOCUMENT_CONTENT_CHAR_BUDGET,
   );
   if (content) lines.push(`参考内容：\n${content}`);
+
+  // User default prompt is preference-only: appended after security/system
+  // policy and document context so it cannot override server instructions.
+  const userDefaultPrompt = normalize(dto.userDefaultPrompt);
+  if (userDefaultPrompt) {
+    lines.push(`用户偏好指令：\n${safeSlice(userDefaultPrompt, 4000)}`);
+  }
+
   return safeSlice(lines.join('\n'), SYSTEM_PROMPT_CHAR_BUDGET);
 }
 

@@ -1,4 +1,11 @@
-import { IsIn, IsObject, IsString, Length, ValidateIf } from 'class-validator';
+import {
+  IsIn,
+  IsObject,
+  IsString,
+  Length,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class UpdateUserSettingsDto {
   @ValidateIf((_, value) => value !== undefined)
@@ -10,9 +17,21 @@ export class UpdateUserSettingsDto {
   @IsIn(['system', 'light', 'dark'])
   theme?: 'system' | 'light' | 'dark';
 
+  /** null clears the override and restores platform default. */
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsString()
+  @Length(1, 80)
+  chatDefaultModel?: string | null;
+
+  /** null clears the override. */
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsString()
+  @MaxLength(4000)
+  chatDefaultPrompt?: string | null;
+
   /**
-   * Shallow-merge into preferences. Known keys (language/theme) may also be
-   * set via the top-level fields above; top-level wins when both are present.
+   * Shallow-merge into preferences. Known keys may also be set via top-level
+   * fields above; top-level wins when both are present.
    */
   @ValidateIf((_, value) => value !== undefined)
   @IsObject()

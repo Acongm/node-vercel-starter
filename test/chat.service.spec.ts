@@ -151,7 +151,7 @@ describe('ChatService', () => {
       ),
     );
 
-    expect(listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 500);
+    expect(listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 120);
     expect(events.map((event: any) => event.type)).toEqual([
       'user-persisted',
       'meta',

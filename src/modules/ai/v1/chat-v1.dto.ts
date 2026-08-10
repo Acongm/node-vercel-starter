@@ -113,4 +113,13 @@ export class ChatV1Dto {
   @IsString()
   @Length(1, 128)
   conversationId?: string;
+
+  /**
+   * User preference prompt from Settings (server-validated). Appended after
+   * the fixed security/system policy — never replaces it.
+   */
+  @IsOptional()
+  @IsString()
+  @Length(1, 4000)
+  userDefaultPrompt?: string;
 }
