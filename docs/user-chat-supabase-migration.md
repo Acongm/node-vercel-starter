@@ -41,9 +41,20 @@ Legacy local/admin JWTs remain available only through the old APIs during migrat
 ## New User API
 
 ```text
-GET   /api/user/me
+GET   /api/user/me          # canonical account snapshot
+GET   /api/user/info        # getUserInfo alias (same payload as /me)
+GET   /api/user/settings
+PATCH /api/user/settings
 PATCH /api/user/profile
 ```
+
+`GET /me` and `GET /info` return:
+
+- identity: `id`, `email`, `name`, `role`, `tier`, `isAnonymous`
+- raw `profile` row (snake_case columns for DB fidelity)
+- **`userInfo`**: UI-ready `{ displayName, avatarUrl, email, accountLabel, ... }`
+  for AuthAccountButton / nav / menus (profile fields win over Auth metadata)
+- **`settings`**: typed `{ language, theme, preferences }` derived from profile preferences
 
 Example profile update:
 
@@ -56,6 +67,18 @@ Example profile update:
   }
 }
 ```
+
+Example settings update:
+
+```json
+{
+  "language": "en",
+  "theme": "dark"
+}
+```
+
+> Note: `GET /api/auth/me` remains a legacy principal probe (optional token, no profile).
+> New clients should call `/api/user/me` or `/api/user/info` with a Supabase Bearer token.
 
 ## New Chat API
 

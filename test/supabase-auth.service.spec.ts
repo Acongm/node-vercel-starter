@@ -58,6 +58,7 @@ describe('SupabaseAuthService', () => {
       userId: 'user-1',
       email: 'u@example.com',
       name: 'User One',
+      avatarUrl: undefined,
       role: 'editor',
       tier: 'user',
       source: 'supabase',

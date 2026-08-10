@@ -108,8 +108,15 @@ Equal timestamps must not produce duplicate or missing rows across page boundari
 
 Supabase Auth remains the identity source. `public.profiles` stores only application profile data.
 
-`GET /api/user/me` exposes the verified Supabase identity plus application role/tier, `isAnonymous`, and nullable profile.
+`GET /api/user/me` (and alias `GET /api/user/info`) exposes the verified Supabase identity plus application role/tier, `isAnonymous`, nullable profile, UI-ready `userInfo`, and typed `settings`.
 
+`userInfo` resolution order:
+
+1. `profiles.display_name` / `profiles.avatar_url`
+2. Auth principal display name / OAuth avatar metadata
+3. email local-part / `访客` fallback for anonymous
+
+`GET/PATCH /api/user/settings` reads and merges typed preferences (`language`, `theme`) without requiring a full profile replace.
 Profile PATCH semantics are explicit:
 
 - owner id always comes from verified principal

@@ -66,6 +66,22 @@ describe('UserService', () => {
       tier: 'user',
       isAnonymous: false,
       profile: { id: 'user-1', display_name: 'Acongm', preferences: {} },
+      userInfo: {
+        id: 'user-1',
+        displayName: 'Acongm',
+        avatarUrl: null,
+        email: 'u@example.com',
+        accountLabel: 'u@example.com',
+        role: 'editor',
+        tier: 'user',
+        isAnonymous: false,
+        source: 'profile',
+      },
+      settings: {
+        language: 'zh-CN',
+        theme: 'system',
+        preferences: {},
+      },
     });
     expect(mocks.from).toHaveBeenCalledWith('profiles');
   });
@@ -187,5 +203,60 @@ describe('UserService', () => {
     await expect(service.me(request(), principal)).rejects.toThrow(
       'Failed to load user profile: rls denied',
     );
+  });
+
+  it('exposes getUserInfo as an alias of me for auth-state UI', async () => {
+    const mocks = profileClient({
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: 'https://example.com/a.png',
+        preferences: { theme: 'dark' },
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+    const withAvatar = {
+      ...principal,
+      avatarUrl: 'https://oauth.example/ignored.png',
+    };
+
+    await expect(service.getUserInfo(request(), withAvatar)).resolves.toMatchObject({
+      userInfo: {
+        displayName: 'Acongm',
+        avatarUrl: 'https://example.com/a.png',
+        source: 'profile',
+      },
+      settings: { theme: 'dark', language: 'zh-CN' },
+    });
+  });
+
+  it('updates typed settings by merging into preferences', async () => {
+    const mocks = profileClient({
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
+        preferences: { density: 'compact' },
+      },
+      updated: {
+        id: 'user-1',
+        preferences: { density: 'compact', theme: 'light', language: 'en' },
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(
+      service.updateSettings(request(), principal, {
+        theme: 'light',
+        language: 'en',
+      }),
+    ).resolves.toEqual({
+      language: 'en',
+      theme: 'light',
+      preferences: { density: 'compact', theme: 'light', language: 'en' },
+    });
+    expect(mocks.update).toHaveBeenCalledWith({
+      preferences: { density: 'compact', theme: 'light', language: 'en' },
+    });
   });
 });

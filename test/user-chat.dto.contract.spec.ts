@@ -7,6 +7,7 @@ import {
   UpdateChatDto,
 } from '../src/modules/chat/dto/chat.dto';
 import { UpdateUserProfileDto } from '../src/modules/user/dto/update-user-profile.dto';
+import { UpdateUserSettingsDto } from '../src/modules/user/dto/update-user-settings.dto';
 
 describe('User/Chat DTO contract', () => {
   it('rejects blank-only chat message content', async () => {
@@ -118,6 +119,22 @@ describe('User/Chat DTO contract', () => {
     });
     const errors = await validate(dto);
     expect(errors).not.toHaveLength(0);
+  });
+
+  it('accepts typed settings patches and rejects invalid theme values', async () => {
+    const valid = plainToInstance(UpdateUserSettingsDto, {
+      language: 'en',
+      theme: 'dark',
+      preferences: { sidebar: 'open' },
+    });
+    expect(await validate(valid)).toHaveLength(0);
+
+    const invalid = plainToInstance(UpdateUserSettingsDto, {
+      theme: 'neon',
+    });
+    expect(
+      (await validate(invalid)).some((error) => error.property === 'theme'),
+    ).toBe(true);
   });
 
   it('rejects message content above the public API limit', async () => {
