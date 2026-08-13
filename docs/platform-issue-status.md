@@ -9,7 +9,7 @@
 |--------|------|----------|------|
 | P0 | 非阻塞 Chat 启动 / 首屏 history | `Acongm/chat#40` | OPEN — Phase 1 ✅ shell + 渐进 history |
 | P0 | auth-client 唯一源、消除 fork 漂移 | `Acongm/auth#51` | OPEN — 模块文档 + sync 脚本；消费方只接入 |
-| P0 | chat 模块唯一源、portal 接入 | `Acongm/chat#39` | OPEN — SDK restore + `usePageBoundChat` + sync |
+| P0 | chat 模块唯一源、portal 接入 | `Acongm/chat#39` | OPEN — `useChatThreads`/`ChatAuthSlot` 已入 integration |
 | P0 | Send critical path / TTFT | `Acongm/node-vercel-starter#59` | OPEN — token cache + parallel history load ✅ |
 | P0 | 结构化请求/Chat 日志（Vercel 可见） | `Acongm/node-vercel-starter#58` / `#60` | **Phase 1 ✅** JSON `http.request` + `chat.send.*` |
 | P0 | Final Quality Gate（browser + RLS E2E） | `Acongm/node-vercel-starter#37` | OPEN |
