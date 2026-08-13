@@ -17,9 +17,9 @@
 
 | 优先级 | 方向 | 主 Issue | 状态 |
 |--------|------|----------|------|
-| P0 | 用户中心 API + 调试台 | `#56` | 进行中 — GET `/api/user/profile` + console User Center |
-| P0 | Chat 会话 API + 调试台 | `#57` | 进行中 — tail-first + console Chats v2 |
-| P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | 进行中 — 登录态必须能查到 userInfo |
+| P0 | 用户中心 API + 调试台 | `#56` | **main** — GET profile + console + `TOKEN_EXPIRED` |
+| P0 | Chat 会话 API + 调试台 | `#57` | **main** — tail-first + console Chats v2 |
+| P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | **main** — BFF + session 先于 userInfo 展示 |
 | P0 | 非阻塞 Chat 启动 / 首屏 history | `chat#40` | OPEN — tail-first + 解除 loading 卡死 |
 | P0 | auth-client 唯一源 | `auth#51` | OPEN — 已有 AuthAccountMenu；补 fetch timeout |
 | P0 | Send critical path / TTFT | `#59` | OPEN — token cache + parallel history |

@@ -34,7 +34,7 @@ describe('SupabaseAuthGuard', () => {
     );
   });
 
-  it('rejects invalid or expired Supabase tokens with the stable INVALID_TOKEN contract', async () => {
+  it('rejects invalid Supabase tokens with the stable INVALID_TOKEN contract', async () => {
     const verifyAccessToken = jest.fn().mockResolvedValue(null);
     const guard = new SupabaseAuthGuard({ verifyAccessToken } as never);
     const request = { header: () => 'Bearer bad-token' };
@@ -44,6 +44,26 @@ describe('SupabaseAuthGuard', () => {
       message: 'Invalid or expired Supabase access token.',
     });
     expect(verifyAccessToken).toHaveBeenCalledWith('bad-token');
+  });
+
+  it('rejects expired JWTs with TOKEN_EXPIRED', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString(
+      'base64url',
+    );
+    const payload = Buffer.from(JSON.stringify({ exp: 1, sub: 'user-1' })).toString(
+      'base64url',
+    );
+    const token = `${header}.${payload}.sig`;
+    const verifyAccessToken = jest.fn().mockResolvedValue(null);
+    const guard = new SupabaseAuthGuard({ verifyAccessToken } as never);
+
+    await expectUnauthorized(
+      guard.canActivate(context({ header: () => `Bearer ${token}` })),
+      {
+        code: 'TOKEN_EXPIRED',
+        message: 'Supabase access token has expired.',
+      },
+    );
   });
 
   it('rejects a verified result that has no stable auth.users id', async () => {
