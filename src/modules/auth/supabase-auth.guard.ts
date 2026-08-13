@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { extractBearerToken } from './bearer-token';
+import { extractBearerToken, isJwtExpired } from './bearer-token';
 import { AuthPrincipal } from './roles';
 import { SupabaseAuthService } from './supabase-auth.service';
 
@@ -32,9 +32,12 @@ export class SupabaseAuthGuard implements CanActivate {
 
     const principal = await this.supabaseAuth.verifyAccessToken(token);
     if (!principal?.userId) {
+      const expired = isJwtExpired(token);
       throw new UnauthorizedException({
-        code: 'INVALID_TOKEN',
-        message: 'Invalid or expired Supabase access token.',
+        code: expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
+        message: expired
+          ? 'Supabase access token has expired.'
+          : 'Invalid or expired Supabase access token.',
       });
     }
 
