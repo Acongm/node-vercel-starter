@@ -130,7 +130,7 @@ export class ChatThreadsService {
     req: Request,
     principal: AuthPrincipal,
   ) {
-    await this.aiV1Service.enforceRateLimit(req);
+    await this.aiV1Service.enforceRateLimit(req, principal);
     const { thread, messages } = await this.get(id, req, principal);
     await this.messages.create({
       threadId: thread.id,

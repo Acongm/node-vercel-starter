@@ -75,4 +75,20 @@ describe('ChatService CRUD', () => {
     });
     expect(repository.delete).toHaveBeenCalledWith(request, 'chat-1');
   });
+
+  it('rejects combining after and before cursors on message history', async () => {
+    const service = new ChatService({} as never, {} as never, {} as never);
+
+    await expect(
+      service.listMessages(request, 'chat-1', {
+        after: 'after-cursor',
+        before: 'before-cursor',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'CHAT_INVALID_CURSOR',
+        message: 'Use either after or before, not both.',
+      },
+    });
+  });
 });

@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { SupabaseClient, createClient, User } from '@supabase/supabase-js';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
+import { jwtExpiresAtMs } from './bearer-token';
 import { AuthPrincipal, PlatformRole, isPlatformRole } from './roles';
 
 const TOKEN_CACHE_TTL_MS = 60_000;
@@ -41,7 +42,7 @@ export class SupabaseAuthService {
     const client = this.getClient();
     const { data, error } = await client.auth.getUser(token);
     const principal = error || !data.user ? null : this.toPrincipal(data.user);
-    this.rememberToken(cacheKey, principal);
+    this.rememberToken(cacheKey, principal, token);
     return principal;
   }
 
@@ -68,7 +69,17 @@ export class SupabaseAuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private rememberToken(cacheKey: string, principal: AuthPrincipal | null): void {
+  private rememberToken(
+    cacheKey: string,
+    principal: AuthPrincipal | null,
+    token: string,
+  ): void {
+    const ttlMs = this.cacheTtlMs(token);
+    if (ttlMs <= 0) {
+      this.tokenCache.delete(cacheKey);
+      return;
+    }
+
     if (this.tokenCache.size >= TOKEN_CACHE_MAX_ENTRIES) {
       const oldestKey = this.tokenCache.keys().next().value;
       if (oldestKey) {
@@ -78,8 +89,14 @@ export class SupabaseAuthService {
 
     this.tokenCache.set(cacheKey, {
       principal,
-      expiresAt: Date.now() + TOKEN_CACHE_TTL_MS,
+      expiresAt: Date.now() + ttlMs,
     });
+  }
+
+  private cacheTtlMs(token: string): number {
+    const expMs = jwtExpiresAtMs(token);
+    if (expMs === undefined) return TOKEN_CACHE_TTL_MS;
+    return Math.max(0, Math.min(TOKEN_CACHE_TTL_MS, expMs - Date.now()));
   }
 
   private toPrincipal(user: User): AuthPrincipal {

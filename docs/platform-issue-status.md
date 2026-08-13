@@ -22,7 +22,7 @@
 | P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | **main** — BFF + session 先于 userInfo 展示 |
 | P0 | 非阻塞 Chat 启动 / 首屏 history | `chat#40` | OPEN — tail-first + 解除 loading 卡死 |
 | P0 | auth-client 唯一源 | `auth#51` | OPEN — 已有 AuthAccountMenu；补 fetch timeout |
-| P0 | Send critical path / TTFT | `#59` | OPEN — token cache + parallel history |
+| P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
 | P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
 | P1 | 完整 Settings 产品表 | `#61` | 等 #56 稳定 |
