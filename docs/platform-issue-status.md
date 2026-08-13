@@ -20,8 +20,8 @@
 | P0 | 用户中心 API + 调试台 | `#56` | **main** — GET profile + console + `TOKEN_EXPIRED` |
 | P0 | Chat 会话 API + 调试台 | `#57` | **main** — tail-first + console Chats v2 |
 | P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | **main** — BFF + session 先于 userInfo 展示 |
-| P0 | 非阻塞 Chat 启动 / 首屏 history | `chat#40` | OPEN — tail-first + 解除 loading 卡死 |
-| P0 | auth-client 唯一源 | `auth#51` | OPEN — 已有 AuthAccountMenu；补 fetch timeout |
+| P0 | 非阻塞 Chat 启动 / 首屏 history | `chat#40` | **main** — tail-first + 失败不清空 transcript |
+| P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
 | P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
