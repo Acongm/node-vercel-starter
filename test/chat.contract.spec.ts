@@ -612,7 +612,7 @@ describe('ChatService UI contract', () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(repository.listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 500);
+    expect(repository.listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 120);
     expect(receivedDto.messages).toHaveLength(100);
     expect(receivedDto.messages[0]).toEqual({
       role: 'assistant',

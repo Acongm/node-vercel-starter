@@ -1,5 +1,6 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { AuthPrincipal } from '../src/modules/auth/roles';
+import { AppConfig } from '../src/config/app-config';
 import { UserService } from '../src/modules/user/user.service';
 
 const request = { header: () => 'Bearer token' } as never;
@@ -13,6 +14,39 @@ const userPrincipal: AuthPrincipal = {
   source: 'supabase',
 };
 
+const appConfig = {
+  ai: { model: 'gpt-4.1-mini' },
+} as AppConfig;
+
+function expectedDefaultSettings(
+  preferences: Record<string, unknown> = {},
+  overrides: {
+    language?: string;
+    theme?: 'system' | 'light' | 'dark';
+  } = {},
+) {
+  const language = overrides.language || 'zh-CN';
+  const theme = overrides.theme || 'system';
+  return {
+    schemaVersion: 1,
+    defaults: {
+      language: 'zh-CN',
+      theme: 'system',
+      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
+    },
+    overrides: {
+      ...(overrides.language ? { language } : {}),
+      ...(overrides.theme ? { theme } : {}),
+    },
+    effective: {
+      language,
+      theme,
+      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
+    },
+    preferences,
+  };
+}
+
 function profileClient(options: {
   profile?: unknown;
   loadError?: unknown;
@@ -21,41 +55,62 @@ function profileClient(options: {
   inserted?: unknown;
   insertError?: unknown;
 } = {}) {
-  const loadMaybeSingle = jest.fn().mockResolvedValue({
-    data: options.profile ?? null,
-    error: options.loadError ?? null,
-  });
-  const loadEq = jest.fn().mockReturnValue({ maybeSingle: loadMaybeSingle });
-  const select = jest.fn().mockReturnValue({ eq: loadEq });
+  const updateEq = jest.fn();
+  const update = jest.fn();
+  const insert = jest.fn();
 
-  const updateMaybeSingle = jest.fn().mockResolvedValue({
-    data: Object.prototype.hasOwnProperty.call(options, 'updated')
-      ? options.updated
-      : { id: 'user-1' },
-    error: options.updateError ?? null,
-  });
-  const updateSelect = jest.fn().mockReturnValue({
-    maybeSingle: updateMaybeSingle,
-  });
-  const updateEq = jest.fn().mockReturnValue({ select: updateSelect });
-  const update = jest.fn().mockReturnValue({ eq: updateEq });
+  const from = jest.fn().mockImplementation((table: string) => {
+    if (table === 'user_settings') {
+      return {
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+        upsert: jest.fn().mockResolvedValue({ error: null }),
+      };
+    }
 
-  const insertSingle = jest.fn().mockResolvedValue({
-    data: options.inserted ?? { id: 'user-1' },
-    error: options.insertError ?? null,
-  });
-  const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
-  const insert = jest.fn().mockReturnValue({ select: insertSelect });
+    const loadMaybeSingle = jest.fn().mockResolvedValue({
+      data: options.profile ?? null,
+      error: options.loadError ?? null,
+    });
+    const loadEq = jest.fn().mockReturnValue({ maybeSingle: loadMaybeSingle });
+    const select = jest.fn().mockReturnValue({ eq: loadEq });
 
-  const from = jest.fn().mockReturnValue({ select, update, insert });
+    const updateMaybeSingle = jest.fn().mockResolvedValue({
+      data: Object.prototype.hasOwnProperty.call(options, 'updated')
+        ? options.updated
+        : { id: 'user-1' },
+      error: options.updateError ?? null,
+    });
+    const updateSelect = jest.fn().mockReturnValue({
+      maybeSingle: updateMaybeSingle,
+    });
+    updateEq.mockReturnValue({ select: updateSelect });
+    update.mockReturnValue({ eq: updateEq });
+
+    const insertSingle = jest.fn().mockResolvedValue({
+      data: options.inserted ?? { id: 'user-1' },
+      error: options.insertError ?? null,
+    });
+    const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
+    insert.mockReturnValue({ select: insertSelect });
+
+    return { select, update, insert };
+  });
 
   return { client: { from }, from, update, updateEq, insert };
+}
+
+function createService(mocks: ReturnType<typeof profileClient>) {
+  return new UserService({ create: () => mocks.client } as never, appConfig);
 }
 
 describe('UserService contract', () => {
   it('returns a stable anonymous Supabase identity without granting viewer role', async () => {
     const mocks = profileClient({ profile: null });
-    const service = new UserService({ create: () => mocks.client } as never);
+    const service = createService(mocks);
     const anonymous: AuthPrincipal = {
       userId: 'anon-user-1',
       role: 'anonymous',
@@ -82,11 +137,7 @@ describe('UserService contract', () => {
         isAnonymous: true,
         source: 'fallback',
       },
-      settings: {
-        language: 'zh-CN',
-        theme: 'system',
-        preferences: {},
-      },
+      settings: expectedDefaultSettings(),
     });
   });
 
@@ -99,7 +150,7 @@ describe('UserService contract', () => {
         preferences: { language: 'zh-CN' },
       },
     });
-    const service = new UserService({ create: () => mocks.client } as never);
+    const service = createService(mocks);
 
     await service.updateProfile(request, userPrincipal, {
       displayName: '  Only Name  ',
@@ -111,7 +162,7 @@ describe('UserService contract', () => {
 
   it('supports explicit null clear for nullable profile fields', async () => {
     const mocks = profileClient({ updated: { id: 'user-1' } });
-    const service = new UserService({ create: () => mocks.client } as never);
+    const service = createService(mocks);
 
     await service.updateProfile(request, userPrincipal, {
       displayName: null,
@@ -129,7 +180,7 @@ describe('UserService contract', () => {
       updated: null,
       inserted: { id: 'user-1', preferences: { language: 'zh-CN' } },
     });
-    const service = new UserService({ create: () => mocks.client } as never);
+    const service = createService(mocks);
 
     await expect(
       service.updateProfile(request, userPrincipal, {
@@ -148,7 +199,7 @@ describe('UserService contract', () => {
 
   it('rejects an empty PATCH instead of performing an ambiguous no-op', async () => {
     const mocks = profileClient();
-    const service = new UserService({ create: () => mocks.client } as never);
+    const service = createService(mocks);
 
     await expect(
       service.updateProfile(request, userPrincipal, {}),
@@ -160,7 +211,7 @@ describe('UserService contract', () => {
     const mocks = profileClient({
       updateError: { message: 'rls denied' },
     });
-    const service = new UserService({ create: () => mocks.client } as never);
+    const service = createService(mocks);
 
     await expect(
       service.updateProfile(request, userPrincipal, { displayName: 'New Name' }),
@@ -168,7 +219,7 @@ describe('UserService contract', () => {
   });
 
   it('rejects a Supabase-shaped principal without a stable user id', async () => {
-    const service = new UserService({ create: jest.fn() } as never);
+    const service = createService(profileClient());
     const invalid: AuthPrincipal = {
       ...userPrincipal,
       userId: null,

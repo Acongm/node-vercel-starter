@@ -3,6 +3,7 @@ import { AppConfig } from '../config/app-config';
 import { APP_CONFIG } from '../common/tokens';
 import { HttpExceptionFilter } from '../common/http-exception.filter';
 import { requestIdMiddleware } from '../common/request-id.middleware';
+import { requestLoggingMiddleware } from '../modules/logs';
 
 export function configureApp(app: INestApplication) {
   const config = app.get<AppConfig>(APP_CONFIG);
@@ -30,6 +31,7 @@ export function configureApp(app: INestApplication) {
   });
 
   app.use(requestIdMiddleware);
+  app.use(requestLoggingMiddleware);
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
