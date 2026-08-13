@@ -88,4 +88,22 @@ describe('ChatRepository tail-first message pagination (#57)', () => {
     ]);
     expect(page.prevCursor).toBeNull();
   });
+
+  it('surfaces tail-first history database failures', async () => {
+    const limit = jest.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'tail failed' },
+    });
+    const orderId = jest.fn().mockReturnValue({ limit });
+    const orderCreated = jest.fn().mockReturnValue({ order: orderId });
+    const eq = jest.fn().mockReturnValue({ order: orderCreated });
+    const select = jest.fn().mockReturnValue({ eq });
+    const repository = repositoryWith({
+      from: jest.fn().mockReturnValue({ select }),
+    });
+
+    await expect(
+      repository.listMessages(request, 'chat-1', { order: 'desc', limit: 10 }),
+    ).rejects.toThrow('Failed to list tail chat messages: tail failed');
+  });
 });

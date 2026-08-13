@@ -85,4 +85,68 @@ describe('AiV1Service', () => {
       { title: 'React docs', url: 'https://react.dev' },
     ]);
   });
+
+  it('does not re-resolve identity when a verified principal is already provided', async () => {
+    const service = new AiV1Service(
+      {
+        chat: async () => ({ provider: 'mock', model: 'mock', message: 'ok' }),
+        async *streamChat() {
+          yield { type: 'done' };
+        },
+        generateSummary: async () => ({
+          summary: '',
+          keyPoints: [],
+          keywords: [],
+          techStack: [],
+          difficulty: '',
+          contentType: '',
+        }),
+        createChatCompletion: async () => ({}),
+      },
+      { ai: { provider: 'mock', model: 'mock' } } as AppConfig,
+      DEFAULT_SITE_CONFIG,
+      chatLogWriter,
+      rateLimit,
+      jwtAuth,
+    );
+    const verified = {
+      userId: 'user-1',
+      role: 'viewer' as const,
+      tier: 'user' as const,
+      source: 'supabase' as const,
+    };
+
+    await expect(
+      service.enforceRateLimit(createMockRequest(), verified),
+    ).resolves.toEqual(verified);
+    expect(jwtAuth.resolvePrincipal).not.toHaveBeenCalled();
+  });
+
+  it('legacy callers without a principal still resolve identity from the request', async () => {
+    const service = new AiV1Service(
+      {
+        chat: async () => ({ provider: 'mock', model: 'mock', message: 'ok' }),
+        async *streamChat() {
+          yield { type: 'done' };
+        },
+        generateSummary: async () => ({
+          summary: '',
+          keyPoints: [],
+          keywords: [],
+          techStack: [],
+          difficulty: '',
+          contentType: '',
+        }),
+        createChatCompletion: async () => ({}),
+      },
+      { ai: { provider: 'mock', model: 'mock' } } as AppConfig,
+      DEFAULT_SITE_CONFIG,
+      chatLogWriter,
+      rateLimit,
+      jwtAuth,
+    );
+
+    await service.enforceRateLimit(createMockRequest());
+    expect(jwtAuth.resolvePrincipal).toHaveBeenCalledTimes(1);
+  });
 });

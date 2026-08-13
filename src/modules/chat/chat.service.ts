@@ -5,6 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { appLogger } from '../../common/app-logger';
+import { RequestWithId } from '../../common/request-id.middleware';
 import { AiV1Service } from '../ai/v1/ai-v1.service';
 import { ChatV1Dto } from '../ai/v1/chat-v1.dto';
 import { AuthPrincipal } from '../auth/roles';
@@ -24,6 +26,9 @@ import {
   CreateChatMessageDto,
   UpdateChatDto,
 } from './dto/chat.dto';
+
+/** Bounded model-context window; persisted history pagination is a separate API. */
+export const CHAT_MODEL_CONTEXT_LIMIT = 500;
 
 @Injectable()
 export class ChatService {
@@ -83,13 +88,14 @@ export class ChatService {
     signal?: AbortSignal,
   ) {
     const userId = this.requireUserId(principal);
-    await this.aiV1Service.enforceRateLimit(request);
+    const startedAt = Date.now();
+    await this.aiV1Service.enforceRateLimit(request, principal);
 
     const [chat, priorMessages] = await Promise.all([
       this.repository.get(request, id),
       // Model context is deliberately bounded and separate from persisted history
       // pagination. The model only projects the latest selected branch below.
-      this.repository.listRecentMessages(request, id, 500),
+      this.repository.listRecentMessages(request, id, CHAT_MODEL_CONTEXT_LIMIT),
     ]);
     const parentMessage = dto.parentMessageId
       ? await this.resolveParentMessage(request, id, dto.parentMessageId)
@@ -141,6 +147,19 @@ export class ChatService {
     let completionTokens: number | undefined;
     let totalTokens: number | undefined;
     let streamDone = false;
+    let firstTokenLogged = false;
+    const requestId = (request as RequestWithId).requestId;
+    const noteFirstToken = () => {
+      if (firstTokenLogged) return;
+      firstTokenLogged = true;
+      appLogger.info({
+        event: 'chat.first_token',
+        requestId,
+        chatId: id,
+        userId,
+        durationMs: Date.now() - startedAt,
+      });
+    };
 
     try {
       for await (const event of this.aiV1Service.stream(chatDto, {
@@ -154,8 +173,10 @@ export class ChatService {
           sources = event.sources;
         } else if (event.type === 'thinking') {
           reasoning += event.content;
+          if (event.content) noteFirstToken();
         } else if (event.type === 'delta') {
           assistantText += event.content;
+          if (event.content) noteFirstToken();
         } else if (event.type === 'usage') {
           promptTokens = event.promptTokens;
           completionTokens = event.completionTokens;

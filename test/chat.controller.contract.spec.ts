@@ -96,7 +96,7 @@ describe('ChatController contract', () => {
     await expect(
       controller.create(request as never, { title: 'New chat' }),
     ).resolves.toEqual({ id: 'chat-2' });
-    await expect(controller.get(request as never, 'chat-1')).resolves.toEqual({
+    await expect(controller.get(request as never, 'chat-1', {})).resolves.toEqual({
       chat: { id: 'chat-1' },
       messages: [],
       nextCursor: null,
@@ -113,7 +113,7 @@ describe('ChatController contract', () => {
     expect(create).toHaveBeenCalledWith(request, principal, {
       title: 'New chat',
     });
-    expect(get).toHaveBeenCalledWith(request, 'chat-1');
+    expect(get).toHaveBeenCalledWith(request, 'chat-1', {});
     expect(update).toHaveBeenCalledWith(request, 'chat-1', {
       title: 'Renamed',
     });

@@ -31,6 +31,9 @@ function mockGetUser(result: unknown) {
 
 describe('SupabaseAuthService', () => {
   beforeEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   it('returns null without Supabase configuration', async () => {
     const service = new SupabaseAuthService(
@@ -150,5 +153,35 @@ describe('SupabaseAuthService', () => {
 
     expect(getUser).toHaveBeenCalledTimes(1);
     expect(createClientMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not keep a cached principal past the JWT exp', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-13T00:00:00.000Z'));
+    const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString(
+      'base64url',
+    );
+    const payload = Buffer.from(
+      JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 2, sub: 'user-exp' }),
+    ).toString('base64url');
+    const token = `${header}.${payload}.sig`;
+    const getUser = mockGetUser({
+      data: {
+        user: {
+          id: 'user-exp',
+          email: 'exp@example.com',
+          app_metadata: {},
+          user_metadata: {},
+        },
+      },
+      error: null,
+    });
+    const service = new SupabaseAuthService(config());
+
+    await service.verifyAccessToken(token);
+    jest.advanceTimersByTime(2_001);
+    await service.verifyAccessToken(token);
+
+    expect(getUser).toHaveBeenCalledTimes(2);
   });
 });

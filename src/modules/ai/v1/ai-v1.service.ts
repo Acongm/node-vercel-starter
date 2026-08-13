@@ -128,13 +128,16 @@ export class AiV1Service {
     });
   }
 
-  async enforceRateLimit(req: Request): Promise<AuthPrincipal> {
-    const principal = await this.jwtAuth.resolvePrincipal(req);
+  async enforceRateLimit(
+    req: Request,
+    principal?: AuthPrincipal,
+  ): Promise<AuthPrincipal> {
+    const verified = principal ?? (await this.jwtAuth.resolvePrincipal(req));
     const meta = extractChatRequestMeta(req);
-    const limit = getChatLimitPerDay(this.siteConfig, principal.tier);
+    const limit = getChatLimitPerDay(this.siteConfig, verified.tier);
     const decision = this.rateLimit.consume({
-      tier: principal.tier,
-      userId: principal.userId,
+      tier: verified.tier,
+      userId: verified.userId,
       clientId: meta.clientId,
       limit,
     });
@@ -153,7 +156,7 @@ export class AiV1Service {
       );
     }
 
-    return principal;
+    return verified;
   }
 
   private async prepare(dto: ChatV1Dto) {
