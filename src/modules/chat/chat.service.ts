@@ -76,10 +76,12 @@ export class ChatService {
     const userId = this.requireUserId(principal);
     await this.aiV1Service.enforceRateLimit(request);
 
-    const chat = await this.repository.get(request, id);
-    // Model context is deliberately bounded and separate from persisted history
-    // pagination. The model only projects the latest selected branch below.
-    const priorMessages = await this.repository.listRecentMessages(request, id, 500);
+    const [chat, priorMessages] = await Promise.all([
+      this.repository.get(request, id),
+      // Model context is deliberately bounded and separate from persisted history
+      // pagination. The model only projects the latest selected branch below.
+      this.repository.listRecentMessages(request, id, 500),
+    ]);
     const parentMessage = dto.parentMessageId
       ? await this.resolveParentMessage(request, id, dto.parentMessageId)
       : priorMessages.at(-1) || null;

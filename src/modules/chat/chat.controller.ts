@@ -13,6 +13,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { appLogger } from '../../common/app-logger';
+import { RequestWithId } from '../../common/request-id.middleware';
 import {
   SupabaseAuthGuard,
   SupabaseAuthenticatedRequest,
@@ -105,6 +107,18 @@ export class ChatController {
     });
     response.flushHeaders();
 
+    const requestId = (request as RequestWithId).requestId;
+    const userId = request.auth?.userId;
+    const startedAt = Date.now();
+    appLogger.info({
+      event: 'chat.send.start',
+      requestId,
+      chatId: id,
+      userId,
+      clientMessageId: dto.clientMessageId,
+      runId: dto.runId,
+    });
+
     try {
       for await (const event of this.chatService.streamMessage(
         id,
@@ -115,8 +129,24 @@ export class ChatController {
       )) {
         writeEvent(response, event);
       }
+
+      appLogger.info({
+        event: 'chat.stream.done',
+        requestId,
+        chatId: id,
+        userId,
+        durationMs: Date.now() - startedAt,
+      });
     } catch (error) {
       if (!abortController.signal.aborted) {
+        appLogger.error({
+          event: 'chat.stream.error',
+          requestId,
+          chatId: id,
+          userId,
+          durationMs: Date.now() - startedAt,
+          message: error instanceof Error ? error.message : 'Chat stream failed',
+        });
         writeEvent(response, toChatErrorFrame(error));
       }
     } finally {

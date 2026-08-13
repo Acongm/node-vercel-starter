@@ -1,11 +1,23 @@
+import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { createClient, User } from '@supabase/supabase-js';
+import { SupabaseClient, createClient, User } from '@supabase/supabase-js';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { AuthPrincipal, PlatformRole, isPlatformRole } from './roles';
 
+const TOKEN_CACHE_TTL_MS = 60_000;
+const TOKEN_CACHE_MAX_ENTRIES = 1_000;
+
+type CachedPrincipal = {
+  principal: AuthPrincipal | null;
+  expiresAt: number;
+};
+
 @Injectable()
 export class SupabaseAuthService {
+  private client: SupabaseClient | null = null;
+  private readonly tokenCache = new Map<string, CachedPrincipal>();
+
   constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 
   isConfigured(): boolean {
@@ -20,7 +32,25 @@ export class SupabaseAuthService {
       return null;
     }
 
-    const client = createClient(
+    const cacheKey = this.hashToken(token);
+    const cached = this.tokenCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.principal;
+    }
+
+    const client = this.getClient();
+    const { data, error } = await client.auth.getUser(token);
+    const principal = error || !data.user ? null : this.toPrincipal(data.user);
+    this.rememberToken(cacheKey, principal);
+    return principal;
+  }
+
+  private getClient(): SupabaseClient {
+    if (this.client) {
+      return this.client;
+    }
+
+    this.client = createClient(
       this.config.supabase.url!,
       this.config.supabase.publicKey || this.config.supabase.apiKey!,
       {
@@ -31,13 +61,25 @@ export class SupabaseAuthService {
         },
       },
     );
+    return this.client;
+  }
 
-    const { data, error } = await client.auth.getUser(token);
-    if (error || !data.user) {
-      return null;
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private rememberToken(cacheKey: string, principal: AuthPrincipal | null): void {
+    if (this.tokenCache.size >= TOKEN_CACHE_MAX_ENTRIES) {
+      const oldestKey = this.tokenCache.keys().next().value;
+      if (oldestKey) {
+        this.tokenCache.delete(oldestKey);
+      }
     }
 
-    return this.toPrincipal(data.user);
+    this.tokenCache.set(cacheKey, {
+      principal,
+      expiresAt: Date.now() + TOKEN_CACHE_TTL_MS,
+    });
   }
 
   private toPrincipal(user: User): AuthPrincipal {
@@ -51,10 +93,10 @@ export class SupabaseAuthService {
       // it must not inherit viewer/editor/admin authorization from metadata.
       role: isAnonymous ? 'anonymous' : this.extractRole(user),
       tier: isAnonymous ? 'anon' : 'user',
+      source: 'supabase',
       email: user.email,
       name: this.extractDisplayName(user),
       avatarUrl: this.extractAvatarUrl(user),
-      source: 'supabase',
     };
   }
 

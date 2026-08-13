@@ -4,6 +4,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { configureApp } from './runtime/configure-app';
 import { APP_CONFIG } from './common/tokens';
+import { appLogger } from './common/app-logger';
 import { AppConfig } from './config/app-config';
 
 async function bootstrap() {
@@ -13,7 +14,11 @@ async function bootstrap() {
 
   const config = app.get<AppConfig>(APP_CONFIG);
   await app.listen(config.port);
-  console.log(`${config.appName} listening on http://localhost:${config.port}`);
+  appLogger.info({
+    event: 'app.start',
+    appName: config.appName,
+    port: config.port,
+  });
 }
 
 void bootstrap();

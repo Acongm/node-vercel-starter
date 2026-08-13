@@ -126,4 +126,29 @@ describe('SupabaseAuthService', () => {
       new SupabaseAuthService(config()).verifyAccessToken('bad'),
     ).resolves.toBeNull();
   });
+
+  it('caches verified principals for repeated token checks', async () => {
+    const getUser = mockGetUser({
+      data: {
+        user: {
+          id: 'user-cache',
+          email: 'cache@example.com',
+          app_metadata: {},
+          user_metadata: {},
+        },
+      },
+      error: null,
+    });
+    const service = new SupabaseAuthService(config());
+
+    await expect(service.verifyAccessToken('same-token')).resolves.toMatchObject({
+      userId: 'user-cache',
+    });
+    await expect(service.verifyAccessToken('same-token')).resolves.toMatchObject({
+      userId: 'user-cache',
+    });
+
+    expect(getUser).toHaveBeenCalledTimes(1);
+    expect(createClientMock).toHaveBeenCalledTimes(1);
+  });
 });

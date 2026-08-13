@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { AppConfig } from '../config/app-config';
 import { APP_CONFIG } from '../common/tokens';
 import { HttpExceptionFilter } from '../common/http-exception.filter';
+import { httpRequestLogMiddleware } from '../common/http-request-log.middleware';
 import { requestIdMiddleware } from '../common/request-id.middleware';
 
 export function configureApp(app: INestApplication) {
@@ -30,6 +31,7 @@ export function configureApp(app: INestApplication) {
   });
 
   app.use(requestIdMiddleware);
+  app.use(httpRequestLogMiddleware);
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
