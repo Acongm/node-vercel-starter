@@ -14,10 +14,12 @@ bodies live in `chats` / `messages` / `chat_runs` — not in these log lines.
 
 ## Useful events
 
-- `http.request.completed` — method/path/statusCode/durationMs
+- `http.request.completed` — method/path/statusCode/durationMs (`path` is
+  pathname only; query strings are stripped so OAuth `code`/`state` stay out)
 - `auth.verify.success` / `auth.verify.failure` — identity verification
 - `chat.send.start` — send accepted after rate-limit
-- `chat.first_token` — provider first useful stream event + `durationMs`
+- `chat.first_token` — first provider `delta` or `thinking` event + `durationMs`
+  (local `meta` is not counted)
 - `app.started` — bootstrap
 
 ## Vercel Runtime Logs examples

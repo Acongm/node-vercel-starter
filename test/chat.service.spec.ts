@@ -2,6 +2,15 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ChatService } from '../src/modules/chat/chat.service';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import type { ChatMessageRecord, ChatRunRecord } from '../src/modules/chat/chat.types';
+import { logEvent } from '../src/modules/logs';
+
+jest.mock('../src/modules/logs', () => {
+  const actual = jest.requireActual('../src/modules/logs');
+  return {
+    ...actual,
+    logEvent: jest.fn(),
+  };
+});
 
 const principal: AuthPrincipal = {
   userId: 'user-1',
@@ -264,5 +273,63 @@ describe('ChatService', () => {
       }),
     );
     expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it('records chat.first_token on the first provider content event, not local meta', async () => {
+    const mockedLog = logEvent as jest.MockedFunction<typeof logEvent>;
+    mockedLog.mockClear();
+
+    const repository = {
+      get: jest.fn().mockResolvedValue({
+        id: 'chat-1',
+        title: 'Existing',
+        page_path: null,
+        module_key: null,
+      }),
+      listRecentMessages: jest.fn().mockResolvedValue([]),
+      findMessageByClientId: jest.fn().mockResolvedValue(null),
+      findMessageByReference: jest.fn().mockResolvedValue(null),
+      createMessage: jest
+        .fn()
+        .mockImplementation(async (_request: unknown, input: { role: string; parts: ChatMessageRecord['parts'] }) =>
+          input.role === 'user'
+            ? message('msg-user', 'user', null, input.parts)
+            : message('msg-assistant', 'assistant', 'msg-user', input.parts),
+        ),
+      createRun: jest.fn().mockResolvedValue({
+        run: runningRun('msg-user'),
+        created: true,
+      }),
+      updateRun: jest.fn().mockResolvedValue({}),
+      touch: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue({}),
+    };
+    async function* modelStream() {
+      yield { type: 'meta', provider: 'openai', model: 'gpt-test' };
+      yield { type: 'delta', content: 'hello' };
+      yield { type: 'done' };
+    }
+    const service = new ChatService(
+      repository as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream: jest.fn(() => modelStream()),
+      } as never,
+      { logFromRequest: jest.fn() } as never,
+    );
+
+    await collect(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+
+    const firstTokenEvents = mockedLog.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.event === 'chat.first_token');
+    expect(firstTokenEvents).toEqual([
+      expect.objectContaining({
+        event: 'chat.first_token',
+        tokenType: 'delta',
+      }),
+    ]);
   });
 });

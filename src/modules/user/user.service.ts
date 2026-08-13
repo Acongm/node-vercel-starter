@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { BoundedTtlCache } from '../../common/bounded-ttl-cache';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { AuthPrincipal } from '../auth/roles';
@@ -24,9 +25,9 @@ const PROFILE_COLUMNS =
   'id, display_name, avatar_url, preferences, created_at, updated_at';
 
 const SETTINGS_CACHE_TTL_MS = 60_000;
+const SETTINGS_CACHE_MAX_SIZE = 500;
 
 type CachedSettings = {
-  expiresAt: number;
   preferences: Record<string, unknown> | null;
 };
 
@@ -46,7 +47,10 @@ export type UserMeResponse = {
 
 @Injectable()
 export class UserService {
-  private readonly settingsCache = new Map<string, CachedSettings>();
+  private readonly settingsCache = new BoundedTtlCache<CachedSettings>({
+    ttlMs: SETTINGS_CACHE_TTL_MS,
+    maxSize: SETTINGS_CACHE_MAX_SIZE,
+  });
 
   constructor(
     private readonly supabaseClients: SupabaseRequestClientService,
@@ -216,7 +220,7 @@ export class UserService {
     profileFallback: Record<string, unknown> | null = null,
   ): Promise<Record<string, unknown> | null> {
     const cached = this.settingsCache.get(userId);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (cached) {
       return cached.preferences;
     }
 
@@ -243,7 +247,6 @@ export class UserService {
     }
 
     this.settingsCache.set(userId, {
-      expiresAt: Date.now() + SETTINGS_CACHE_TTL_MS,
       preferences,
     });
     return preferences;

@@ -1,5 +1,6 @@
 -- Dedicated user settings table (API Product Target #61).
--- profiles.preferences remains as fallback during rollout; API prefers user_settings.
+-- Timestamp is after 20260808040630 so a fresh database has public.profiles
+-- before this backfill runs. profiles.preferences remains a rollout fallback.
 
 create table if not exists public.user_settings (
   user_id uuid primary key references auth.users (id) on delete cascade,

@@ -173,9 +173,7 @@ export class ChatService {
       })) {
         if (
           !firstTokenLogged &&
-          (event.type === 'delta' ||
-            event.type === 'thinking' ||
-            event.type === 'meta')
+          (event.type === 'delta' || event.type === 'thinking')
         ) {
           firstTokenLogged = true;
           logEvent({

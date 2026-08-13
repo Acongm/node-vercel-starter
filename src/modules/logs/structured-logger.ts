@@ -86,6 +86,20 @@ export function getRootLogger(): Logger {
   return rootLogger;
 }
 
+/**
+ * Persist only the pathname. Query strings can contain OAuth `code` / `state`
+ * and must not land in durable runtime logs.
+ */
+export function requestPathForLog(originalUrl?: string): string {
+  if (!originalUrl) return '';
+  const queryIndex = originalUrl.indexOf('?');
+  const hashIndex = originalUrl.indexOf('#');
+  let end = originalUrl.length;
+  if (queryIndex !== -1) end = Math.min(end, queryIndex);
+  if (hashIndex !== -1) end = Math.min(end, hashIndex);
+  return originalUrl.slice(0, end);
+}
+
 /** Test helper — exposes redaction without logging. */
 export function redactForTest(
   input: Record<string, unknown>,

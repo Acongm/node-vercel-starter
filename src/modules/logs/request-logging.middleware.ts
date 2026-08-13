@@ -1,6 +1,6 @@
 import { NextFunction, Response } from 'express';
 import { RequestWithId } from '../../common/request-id.middleware';
-import { logEvent } from './structured-logger';
+import { logEvent, requestPathForLog } from './structured-logger';
 
 /**
  * Complements requestIdMiddleware with structured HTTP completed events.
@@ -21,7 +21,7 @@ export function requestLoggingMiddleware(
       module: 'http',
       requestId: req.requestId,
       method: req.method,
-      path: req.originalUrl || req.url,
+      path: requestPathForLog(req.originalUrl || req.url),
       statusCode,
       durationMs: Date.now() - started,
     });

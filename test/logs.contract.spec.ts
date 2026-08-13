@@ -2,6 +2,7 @@ import {
   createRequestId,
   logEvent,
   redactForTest,
+  requestPathForLog,
 } from '../src/modules/logs';
 
 describe('operational logs foundation', () => {
@@ -43,5 +44,15 @@ describe('operational logs foundation', () => {
         authorization: 'Bearer should-redact',
       }),
     ).not.toThrow();
+  });
+
+  it('strips query strings so OAuth codes are not logged as request paths', () => {
+    expect(
+      requestPathForLog(
+        '/api/auth/oauth/github/callback?code=SECRET&state=signed',
+      ),
+    ).toBe('/api/auth/oauth/github/callback');
+    expect(requestPathForLog('/api/user/me')).toBe('/api/user/me');
+    expect(requestPathForLog('')).toBe('');
   });
 });
