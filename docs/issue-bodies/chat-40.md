@@ -18,11 +18,12 @@ Chat 启动与历史加载不阻塞 shell/composer；长会话渐进恢复历史
 - [x] 移除侧栏默认「返回文档站」链接
 - [x] contract：`chat-nonblocking-startup.test.mjs`
 
-### Phase 2 ⏳
-- [ ] API tail-first / 最新一页 history（#57）
-- [ ] composer 真正 disabled（非仅 placeholder）
-- [ ] 向上滚动 lazy load older messages
-- [ ] 行为 E2E（#37）
+### Phase 2 ✅（main 2026-08-13）
+- [x] API tail-first / 最新一页 history（#57）
+- [x] composer 真正 disabled（非仅 placeholder）
+- [x] 向上滚动 lazy load older messages
+- [x] API quality-gate E2E（#37 子集：`platform-v2-quality-gate.e2e-spec.ts`）
+- [ ] Browser smoke E2E（#37 全量）
 
 ## Out of scope
 - TTFT 后端（#59）
