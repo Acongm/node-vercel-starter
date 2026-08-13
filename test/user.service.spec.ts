@@ -152,8 +152,14 @@ describe('UserService', () => {
         preferences: { language: 'zh-CN' },
       }),
     ).resolves.toEqual({
-      id: 'user-1',
-      preferences: { language: 'zh-CN' },
+      profile: {
+        id: 'user-1',
+        preferences: { language: 'zh-CN' },
+      },
+      userInfo: expect.objectContaining({
+        displayName: 'User One',
+        source: 'auth',
+      }),
     });
     expect(mocks.insert).toHaveBeenCalledWith({
       id: 'user-1',
@@ -240,6 +246,8 @@ describe('UserService', () => {
       },
       updated: {
         id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
         preferences: { density: 'compact', theme: 'light', language: 'en' },
       },
     });
@@ -251,9 +259,15 @@ describe('UserService', () => {
         language: 'en',
       }),
     ).resolves.toEqual({
-      language: 'en',
-      theme: 'light',
-      preferences: { density: 'compact', theme: 'light', language: 'en' },
+      settings: {
+        language: 'en',
+        theme: 'light',
+        preferences: { density: 'compact', theme: 'light', language: 'en' },
+      },
+      userInfo: expect.objectContaining({
+        displayName: 'Acongm',
+        source: 'profile',
+      }),
     });
     expect(mocks.update).toHaveBeenCalledWith({
       preferences: { density: 'compact', theme: 'light', language: 'en' },

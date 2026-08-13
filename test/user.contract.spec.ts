@@ -136,8 +136,14 @@ describe('UserService contract', () => {
         preferences: { language: 'zh-CN' },
       }),
     ).resolves.toEqual({
-      id: 'user-1',
-      preferences: { language: 'zh-CN' },
+      profile: {
+        id: 'user-1',
+        preferences: { language: 'zh-CN' },
+      },
+      userInfo: expect.objectContaining({
+        displayName: 'User One',
+        source: 'auth',
+      }),
     });
 
     expect(mocks.insert).toHaveBeenCalledWith({

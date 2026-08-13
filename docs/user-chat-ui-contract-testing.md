@@ -116,7 +116,9 @@ Supabase Auth remains the identity source. `public.profiles` stores only applica
 2. Auth principal display name / OAuth avatar metadata
 3. email local-part / `访客` fallback for anonymous
 
-`GET/PATCH /api/user/settings` reads and merges typed preferences (`language`, `theme`) without requiring a full profile replace.
+`GET/PATCH /api/user/settings` reads and merges typed preferences (`language`, `theme`) without requiring a full profile replace. PATCH responses include refreshed `userInfo` for display sync.
+
+`PATCH /api/user/profile` returns `{ profile, userInfo }` so clients can refresh nav/avatar without a second `/info` round trip.
 Profile PATCH semantics are explicit:
 
 - owner id always comes from verified principal

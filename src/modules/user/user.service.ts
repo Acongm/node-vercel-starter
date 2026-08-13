@@ -84,7 +84,10 @@ export class UserService {
     const updated = await this.writeProfile(request, userId, {
       preferences: nextPreferences,
     });
-    return resolveUserSettings(updated.preferences);
+    return {
+      settings: resolveUserSettings(updated.preferences),
+      userInfo: resolveUserInfo(principal, updated),
+    };
   }
 
   async updateProfile(
@@ -113,7 +116,11 @@ export class UserService {
       });
     }
 
-    return this.writeProfile(request, userId, patch);
+    const profile = await this.writeProfile(request, userId, patch);
+    return {
+      profile,
+      userInfo: resolveUserInfo(principal, profile),
+    };
   }
 
   private toMeResponse(
