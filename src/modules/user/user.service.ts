@@ -56,6 +56,15 @@ export class UserService {
     return this.me(request, principal);
   }
 
+  async getProfile(request: Request, principal: AuthPrincipal) {
+    const userId = this.requireUserId(principal);
+    const profile = await this.loadProfile(request, userId);
+    return {
+      profile,
+      userInfo: resolveUserInfo(principal, profile),
+    };
+  }
+
   async getSettings(request: Request, principal: AuthPrincipal) {
     const userId = this.requireUserId(principal);
     const profile = await this.loadProfile(request, userId);

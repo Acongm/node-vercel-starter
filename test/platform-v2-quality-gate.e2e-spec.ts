@@ -16,6 +16,7 @@ import type {
   ChatRunRecord,
 } from '../src/modules/chat/chat.types';
 import { SupabaseAuthService } from '../src/modules/auth/supabase-auth.service';
+import { UserService } from '../src/modules/user/user.service';
 import { configureApp } from '../src/runtime/configure-app';
 
 type MemoryStore = {
@@ -236,6 +237,27 @@ describe('Platform v2 quality gate (#37 API path)', () => {
 
     store = createMemoryStore();
     jwtService = new JwtService();
+    const userSnapshot = {
+      id: userId,
+      email: 'quality@example.com',
+      name: 'Quality User',
+      role: 'viewer' as const,
+      tier: 'user' as const,
+      isAnonymous: false,
+      profile: null,
+      userInfo: {
+        id: userId,
+        displayName: 'Quality User',
+        avatarUrl: null,
+        email: 'quality@example.com',
+        accountLabel: 'quality@example.com',
+        role: 'viewer' as const,
+        tier: 'user' as const,
+        isAnonymous: false,
+        source: 'auth' as const,
+      },
+      settings: { language: 'zh-CN', theme: 'system' as const, preferences: {} },
+    };
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -250,6 +272,8 @@ describe('Platform v2 quality gate (#37 API path)', () => {
             });
             return {
               userId: payload.sub,
+              email: 'quality@example.com',
+              name: 'Quality User',
               role: 'viewer' as const,
               tier: 'user' as const,
               source: 'supabase' as const,
@@ -258,6 +282,18 @@ describe('Platform v2 quality gate (#37 API path)', () => {
             return null;
           }
         },
+      })
+      .overrideProvider(UserService)
+      .useValue({
+        me: jest.fn().mockResolvedValue(userSnapshot),
+        getUserInfo: jest.fn().mockResolvedValue(userSnapshot),
+        getProfile: jest.fn().mockResolvedValue({
+          profile: null,
+          userInfo: userSnapshot.userInfo,
+        }),
+        getSettings: jest.fn().mockResolvedValue(userSnapshot.settings),
+        updateSettings: jest.fn(),
+        updateProfile: jest.fn(),
       })
       .overrideProvider(ChatRepository)
       .useValue(createInMemoryChatRepository(store))
@@ -281,6 +317,28 @@ describe('Platform v2 quality gate (#37 API path)', () => {
       { secret: 'supabase-test-secret', expiresIn: '1h' },
     );
   }
+
+  it('returns userInfo from /api/user/info and /api/user/profile', async () => {
+    const token = await bearerToken();
+
+    const info = await request(app.getHttpServer())
+      .get('/api/user/info')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(info.body.userInfo).toMatchObject({
+      displayName: 'Quality User',
+      email: 'quality@example.com',
+      isAnonymous: false,
+    });
+
+    const profile = await request(app.getHttpServer())
+      .get('/api/user/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(profile.body.userInfo.displayName).toBe('Quality User');
+  });
 
   it('creates a chat, returns tail-first history, and pages older messages with before', async () => {
     const token = await bearerToken();

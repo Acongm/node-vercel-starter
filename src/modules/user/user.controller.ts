@@ -27,6 +27,11 @@ export class UserController {
     return this.userService.getUserInfo(request, request.auth!);
   }
 
+  @Get('profile')
+  getProfile(@Req() request: SupabaseAuthenticatedRequest) {
+    return this.userService.getProfile(request, request.auth!);
+  }
+
   @Get('settings')
   getSettings(@Req() request: SupabaseAuthenticatedRequest) {
     return this.userService.getSettings(request, request.auth!);

@@ -15,6 +15,8 @@
         <a href="#openai">OpenAI Compatible</a>
         <a href="#comments">Comments CRUD</a>
         <a href="#auth">Auth</a>
+        <a href="#user">User Center</a>
+        <a href="#chats">Chats v2</a>
         <a href="#oauth">OAuth</a>
         <a href="#site-config">Site Config</a>
         <a href="#upload">Upload</a>
@@ -112,6 +114,63 @@
             <button id="auth-me-btn" type="button" class="secondary">查询 Me</button>
           </div>
           <pre id="auth-output">尚未请求。</pre>
+        </section>
+
+        <section id="user">
+          <h2>User Center</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/user/info</div>
+          <div class="path"><span class="method method-get">GET</span>/api/user/me</div>
+          <div class="path"><span class="method method-get">GET</span>/api/user/profile</div>
+          <div class="path"><span class="method method-patch">PATCH</span>/api/user/profile</div>
+          <div class="path"><span class="method method-get">GET</span>/api/user/settings</div>
+          <div class="path"><span class="method method-patch">PATCH</span>/api/user/settings</div>
+          <p class="hint">
+            需要 <strong>Supabase access_token</strong>（浏览器登录后的 session.access_token）。
+            本地 <code>/api/auth/login</code> JWT 不能调用这组接口。
+          </p>
+          <label for="supabase-token">Supabase Access Token</label>
+          <input id="supabase-token" type="text" placeholder="eyJhbGciOi...（粘贴后 User / Chats 共用）" />
+          <label for="user-display-name">displayName（PATCH profile）</label>
+          <input id="user-display-name" type="text" placeholder="Acongm" />
+          <label for="user-theme">theme（PATCH settings）</label>
+          <input id="user-theme" type="text" placeholder="system | light | dark" value="system" />
+          <div class="actions">
+            <button id="user-info-btn" type="button">GET info</button>
+            <button id="user-me-btn" type="button" class="secondary">GET me</button>
+            <button id="user-profile-btn" type="button" class="secondary">GET profile</button>
+            <button id="user-profile-patch-btn" type="button">PATCH profile</button>
+            <button id="user-settings-btn" type="button" class="secondary">GET settings</button>
+            <button id="user-settings-patch-btn" type="button">PATCH settings</button>
+          </div>
+          <pre id="user-output">尚未请求。</pre>
+        </section>
+
+        <section id="chats">
+          <h2>Chats v2</h2>
+          <div class="path"><span class="method method-get">GET</span>/api/chats</div>
+          <div class="path"><span class="method method-post">POST</span>/api/chats</div>
+          <div class="path"><span class="method method-get">GET</span>/api/chats/:id?order=desc</div>
+          <div class="path"><span class="method method-get">GET</span>/api/chats/:id/messages</div>
+          <div class="path"><span class="method method-post">POST</span>/api/chats/:id/messages/stream</div>
+          <p class="hint">
+            使用上方 User Center 的 Supabase token。列表不带全文；详情默认 tail-first（最新一页 + prevCursor）。
+          </p>
+          <label for="chat-title">Title（创建）</label>
+          <input id="chat-title" type="text" value="API console chat" />
+          <label for="chat-id">Chat ID（创建后自动填入）</label>
+          <input id="chat-id" type="text" placeholder="uuid" />
+          <label for="chat-before">before cursor（翻更早消息）</label>
+          <input id="chat-before" type="text" placeholder="prevCursor" />
+          <label for="chat-content">Message content（stream）</label>
+          <textarea id="chat-content" rows="2">hello from api console</textarea>
+          <div class="actions">
+            <button id="chats-list-btn" type="button" class="secondary">GET list</button>
+            <button id="chats-create-btn" type="button">POST create</button>
+            <button id="chats-get-btn" type="button" class="secondary">GET :id desc</button>
+            <button id="chats-messages-btn" type="button" class="secondary">GET messages</button>
+            <button id="chats-stream-btn" type="button">POST stream</button>
+          </div>
+          <pre id="chats-output">尚未请求。</pre>
         </section>
 
         <section id="oauth">

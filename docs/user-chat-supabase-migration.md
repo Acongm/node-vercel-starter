@@ -43,9 +43,10 @@ Legacy local/admin JWTs remain available only through the old APIs during migrat
 ```text
 GET   /api/user/me          # canonical account snapshot
 GET   /api/user/info        # getUserInfo alias (same payload as /me)
+GET   /api/user/profile     # { profile, userInfo }
 GET   /api/user/settings
 PATCH /api/user/settings
-PATCH /api/user/profile
+PATCH /api/user/profile     # returns { profile, userInfo }
 ```
 
 `GET /me` and `GET /info` return:

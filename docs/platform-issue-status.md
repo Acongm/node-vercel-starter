@@ -3,18 +3,30 @@
 > 最后更新：2026-08-13  
 > 本文档是各仓 GitHub Issues 的**单一真相源**；当 CI token 无法写 Issue 时，以本文为准，并手动同步到 GitHub。
 
+## 方向修正（2026-08-13）
+
+线上登录后不显示用户名、对话卡住、会话列表不确定是否保存，**根因不是前端菜单/滚动优化**，而是：
+
+1. `https://api.acongm.com/` 调试台没有 `/api/user` 与 `/api/chats`，无法验证核心接口。
+2. Chat/Portal 缺 `/api/user` BFF，`getUserInfo` 同源 404。
+3. Chat composer 在 identity/history 未完成时会一直 disabled。
+
+**正确执行顺序**：先完成用户中心 + Chat 会话 API，在调试台和单测验证 → 再给前端接 BFF → 最后才做 UI 打磨。KB / DocHub / Stage 3–6 **不抢主线**。
+
 ## 执行主线（当前 P0 顺序）
 
 | 优先级 | 方向 | 主 Issue | 状态 |
 |--------|------|----------|------|
-| P0 | 非阻塞 Chat 启动 / 首屏 history | `Acongm/chat#40` | OPEN — Phase 1 ✅ shell + 渐进 history |
-| P0 | auth-client 唯一源、消除 fork 漂移 | `Acongm/auth#51` | OPEN — AuthAccountMenu 用户菜单 ✅ |
-| P0 | chat 模块唯一源、portal 接入 | `Acongm/chat#39` | OPEN — integration 层 + #41 菜单 ✅ |
-| P0 | Send critical path / TTFT | `Acongm/node-vercel-starter#59` | OPEN — token cache + parallel history load ✅ |
-| P0 | 结构化请求/Chat 日志（Vercel 可见） | `Acongm/node-vercel-starter#58` / `#60` | **Phase 1 ✅** JSON `http.request` + `chat.send.*` |
-| P0 | Final Quality Gate（browser + RLS E2E） | `Acongm/node-vercel-starter#37` | OPEN |
-| P1 | 完整 Settings 产品（独立表/model/prompt） | `Acongm/node-vercel-starter#61` | OPEN |
-| P2 | DocHub Stage 4 启动 | `Acongm/dochub#9` | OPEN（gate 未满足，不抢主线） |
+| P0 | 用户中心 API + 调试台 | `#56` | 进行中 — GET `/api/user/profile` + console User Center |
+| P0 | Chat 会话 API + 调试台 | `#57` | 进行中 — tail-first + console Chats v2 |
+| P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | 进行中 — 登录态必须能查到 userInfo |
+| P0 | 非阻塞 Chat 启动 / 首屏 history | `chat#40` | OPEN — tail-first + 解除 loading 卡死 |
+| P0 | auth-client 唯一源 | `auth#51` | OPEN — 已有 AuthAccountMenu；补 fetch timeout |
+| P0 | Send critical path / TTFT | `#59` | OPEN — token cache + parallel history |
+| P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
+| P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
+| P1 | 完整 Settings 产品表 | `#61` | 等 #56 稳定 |
+| P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
 ---
 

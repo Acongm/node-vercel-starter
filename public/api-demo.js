@@ -52,7 +52,7 @@
     };
   }
 
-  function bindClick(id, handler) {
+  function bindClick(id, handler, outputId) {
     const el = document.getElementById(id);
     if (!el) {
       console.error(`Missing button: #${id}`);
@@ -64,8 +64,7 @@
       try {
         await handler();
       } catch (error) {
-        const outputId = id.replace(/-btn$/, '-output');
-        renderResponse(outputId, {
+        renderResponse(outputId || id.replace(/-btn$/, '-output'), {
           ok: false,
           status: 0,
           statusText: 'Client Error',
@@ -195,6 +194,118 @@
       const headers = token ? { authorization: `Bearer ${token}` } : {};
       renderResponse('auth-output', await apiFetch('/api/auth/me', { headers }));
     });
+
+    function supabaseHeaders() {
+      const token = readValue('supabase-token');
+      return token ? { authorization: `Bearer ${token}` } : {};
+    }
+
+    bindClick('user-info-btn', async () => {
+      renderResponse('user-output', await apiFetch('/api/user/info', {
+        headers: supabaseHeaders(),
+      }));
+    }, 'user-output');
+
+    bindClick('user-me-btn', async () => {
+      renderResponse('user-output', await apiFetch('/api/user/me', {
+        headers: supabaseHeaders(),
+      }));
+    }, 'user-output');
+
+    bindClick('user-profile-btn', async () => {
+      renderResponse('user-output', await apiFetch('/api/user/profile', {
+        headers: supabaseHeaders(),
+      }));
+    }, 'user-output');
+
+    bindClick('user-profile-patch-btn', async () => {
+      const displayName = readValue('user-display-name');
+      renderResponse('user-output', await apiFetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: supabaseHeaders(),
+        body: { displayName: displayName || undefined },
+      }));
+    }, 'user-output');
+
+    bindClick('user-settings-btn', async () => {
+      renderResponse('user-output', await apiFetch('/api/user/settings', {
+        headers: supabaseHeaders(),
+      }));
+    }, 'user-output');
+
+    bindClick('user-settings-patch-btn', async () => {
+      const theme = readValue('user-theme') || 'system';
+      renderResponse('user-output', await apiFetch('/api/user/settings', {
+        method: 'PATCH',
+        headers: supabaseHeaders(),
+        body: { theme },
+      }));
+    }, 'user-output');
+
+    bindClick('chats-list-btn', async () => {
+      const result = await apiFetch('/api/chats?limit=20', {
+        headers: supabaseHeaders(),
+      });
+      renderResponse('chats-output', result);
+      const first = Array.isArray(result.body?.chats) ? result.body.chats[0] : null;
+      if (first?.id) {
+        document.getElementById('chat-id').value = first.id;
+      }
+    }, 'chats-output');
+
+    bindClick('chats-create-btn', async () => {
+      const result = await apiFetch('/api/chats', {
+        method: 'POST',
+        headers: supabaseHeaders(),
+        body: { title: readValue('chat-title') || 'API console chat' },
+      });
+      renderResponse('chats-output', result);
+      if (result.body?.id) {
+        document.getElementById('chat-id').value = result.body.id;
+      }
+    }, 'chats-output');
+
+    bindClick('chats-get-btn', async () => {
+      const id = readValue('chat-id');
+      const result = await apiFetch(
+        `/api/chats/${encodeURIComponent(id)}?order=desc&limit=50`,
+        { headers: supabaseHeaders() },
+      );
+      renderResponse('chats-output', result);
+      if (result.body?.prevCursor) {
+        document.getElementById('chat-before').value = result.body.prevCursor;
+      }
+    }, 'chats-output');
+
+    bindClick('chats-messages-btn', async () => {
+      const id = readValue('chat-id');
+      const before = readValue('chat-before');
+      const query = new URLSearchParams({ order: 'desc', limit: '50' });
+      if (before) query.set('before', before);
+      renderResponse(
+        'chats-output',
+        await apiFetch(
+          `/api/chats/${encodeURIComponent(id)}/messages?${query.toString()}`,
+          { headers: supabaseHeaders() },
+        ),
+      );
+    }, 'chats-output');
+
+    bindClick('chats-stream-btn', async () => {
+      const id = readValue('chat-id');
+      const result = await apiFetch(
+        `/api/chats/${encodeURIComponent(id)}/messages/stream`,
+        {
+          method: 'POST',
+          headers: supabaseHeaders(),
+          body: {
+            content: readValue('chat-content') || 'hello from api console',
+            enableThinking: true,
+          },
+        },
+      );
+      renderResponse('chats-output', result);
+    }, 'chats-output');
 
     bindClick('oauth-providers-btn', async () => {
       renderResponse('oauth-output', await apiFetch('/api/auth/oauth/providers'));
