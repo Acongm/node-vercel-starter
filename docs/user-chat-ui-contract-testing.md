@@ -14,24 +14,25 @@ The chat application currently uses:
 - `@acongm/auth-client`
 - Supabase Auth
 
-The visible UI exposes send, stop/cancel, edit, reload/regenerate, reasoning and thread navigation. The production persistence client still needs Stage 1.3 (#43) migration from legacy `/api/chat/threads` to `/api/chats`; therefore a backend capability is not considered product-complete until the consumer is migrated or the UI capability is explicitly disabled.
+The visible UI exposes send, stop/cancel, edit, reload/regenerate, reasoning and thread navigation. Primary consumers (`Acongm/chat`, `Acongm/portal` embedded Drawer, `Acongm/auth` account chrome) migrated to `/api/chats` and `/api/user/info` on main (Aug 2026). Remaining product gaps are browser E2E proof (#37) and capability items still gated in contract todos.
 
 ## Stage 1.2 capability matrix
 
 | Capability | Durable backend contract | Consumer status |
 | --- | --- | --- |
-| list/create/get/rename/delete chats | supported + tested | migrate in #43 |
-| message history | persisted + stable cursor pagination | migrate in #43 |
-| send + stream | durable state-machine contract | migrate in #43 |
-| text/reasoning/source parts | persisted + tested | adapter in #43 |
-| retry delivery | `clientMessageId` idempotency | adapter in #43 |
-| reload/regenerate | reuses persisted user turn; new run/assistant result | enable after #43 fixture/E2E |
-| stop/cancel | upstream abort + durable cancelled run | enable after #43 fixture/E2E |
+| list/create/get/rename/delete chats | supported + tested | migrated (`Acongm/chat#36`, `Acongm/portal#128`) |
+| message history | persisted + stable cursor pagination | migrated; lazy first-screen still #40 |
+| send + stream | durable state-machine contract | migrated |
+| text/reasoning/source parts | persisted + tested | migrated |
+| retry delivery | `clientMessageId` idempotency | migrated |
+| reload/regenerate | reuses persisted user turn; new run/assistant result | migrated; browser E2E pending #37 |
+| stop/cancel | upstream abort + durable cancelled run | migrated; browser E2E pending #37 |
 | provider/persistence failure | durable error state; no fake completion | supported |
-| edit/branch parent relation | `parentMessageId` durable relation + branch-aware model context | UI update/delete semantics still gated in #43/Stage 6 |
+| edit/branch parent relation | `parentMessageId` durable relation + branch-aware model context | UI update/delete semantics still gated |
 | resume/reconnect interrupted run | unsupported | capability=false until future implementation |
-| ThreadHistoryAdapter update/delete | not a complete public durable API yet | capability=false unless #43 implements a safe adapter |
+| ThreadHistoryAdapter update/delete | not a complete public durable API yet | capability=false |
 | attachments/tools | parts schema is extensible; end-to-end contract not implemented | future capability |
+| login-state display (`userInfo`) | `GET /api/user/info` + profile/settings PATCH | migrated (`Acongm/auth#52`, chat/portal auth-client sync) |
 
 The UI must never imply durable support for a capability that is only local runtime behavior.
 
@@ -167,6 +168,6 @@ Supabase Auth (including anonymous identity)
   -> assistant-ui thread/history adapters
 ```
 
-Stage 1.2 proves the durable backend core. Stage 1.3 (#43) must then migrate `Acongm/chat`, portal embedded chat and auth-client consumers, and gate any capability that still lacks a durable public adapter.
+Stage 1.2 proves the durable backend core. Stage 1.3 consumer migration (`Acongm/node-vercel-starter#43`) merged on main for Chat, Portal embedded Drawer, and auth-client `getUserInfo` consumers. Remaining work: browser E2E (#37), non-blocking startup (#40), auth-client single source (#51), and capabilities still marked false in contract todos.
 
 See #32 for the Stage 1 sequence and #37 for the final quality gate.
