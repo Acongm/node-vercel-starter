@@ -7,7 +7,7 @@
 
 | 优先级 | 方向 | 主 Issue | 状态 |
 |--------|------|----------|------|
-| P0 | 非阻塞 Chat 启动 / 首屏 history | `Acongm/chat#40` | OPEN |
+| P0 | 非阻塞 Chat 启动 / 首屏 history | `Acongm/chat#40` | OPEN — Phase 1 ✅ shell + 渐进 history |
 | P0 | auth-client 唯一源、消除 fork 漂移 | `Acongm/auth#51` | OPEN |
 | P0 | Send critical path / TTFT | `Acongm/node-vercel-starter#59` | OPEN |
 | P0 | Final Quality Gate（browser + RLS E2E） | `Acongm/node-vercel-starter#37` | OPEN |
