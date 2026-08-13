@@ -41,9 +41,14 @@ export class ChatService {
     return this.repository.create(request, this.requireUserId(principal), dto);
   }
 
-  async get(request: Request, id: string) {
+  async get(request: Request, id: string, query: ChatPageQueryDto = {}) {
     const chat = await this.repository.get(request, id);
-    const page = await this.repository.listMessages(request, id, { limit: 100 });
+    const page = await this.repository.listMessages(request, id, {
+      limit: query.limit ?? 100,
+      order: query.order ?? 'desc',
+      before: query.before,
+      after: query.order === 'asc' ? query.after : undefined,
+    });
     return { chat, ...page };
   }
 
@@ -60,8 +65,12 @@ export class ChatService {
     id: string,
     query: ChatPageQueryDto = {},
   ) {
-    // RLS can make an inaccessible chat indistinguishable from an empty
-    // message result. Load the chat first so the public contract is stable 404.
+    if (query.after && query.before) {
+      throw new BadRequestException({
+        code: 'CHAT_INVALID_CURSOR',
+        message: 'Use either after or before, not both.',
+      });
+    }
     await this.repository.get(request, id);
     return this.repository.listMessages(request, id, query);
   }

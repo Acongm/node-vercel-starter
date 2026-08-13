@@ -148,6 +148,26 @@ export class ChatRepository {
   async listMessages(
     request: Request,
     chatId: string,
+    options: {
+      limit?: number;
+      after?: string;
+      before?: string;
+      order?: 'asc' | 'desc';
+    } = {},
+  ): Promise<{
+    messages: ChatMessageRecord[];
+    nextCursor: string | null;
+    prevCursor?: string | null;
+  }> {
+    if (options.order === 'desc') {
+      return this.listMessagesTailFirst(request, chatId, options);
+    }
+    return this.listMessagesAscending(request, chatId, options);
+  }
+
+  private async listMessagesAscending(
+    request: Request,
+    chatId: string,
     options: { limit?: number; after?: string } = {},
   ): Promise<{ messages: ChatMessageRecord[]; nextCursor: string | null }> {
     const client = this.supabaseClients.create(request);
@@ -179,6 +199,52 @@ export class ChatRepository {
       nextCursor:
         hasMore && last
           ? encodeChatCursor({ timestamp: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /** Latest page first; `before` walks backward to older messages. */
+  private async listMessagesTailFirst(
+    request: Request,
+    chatId: string,
+    options: { limit?: number; before?: string } = {},
+  ): Promise<{
+    messages: ChatMessageRecord[];
+    nextCursor: null;
+    prevCursor: string | null;
+  }> {
+    const client = this.supabaseClients.create(request);
+    const limit = normalizePageLimit(options.limit, 100, 100);
+    const before = decodeChatCursor(options.before);
+    let query = client
+      .from('messages')
+      .select(MESSAGE_SELECT)
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(limit + 1);
+
+    if (before) {
+      query = query.or(
+        `created_at.lt.${before.timestamp},and(created_at.eq.${before.timestamp},id.lt.${before.id})`,
+      );
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`Failed to list tail chat messages: ${error.message}`);
+    }
+
+    const rows = (data || []) as ChatMessageRecord[];
+    const hasMore = rows.length > limit;
+    const window = rows.slice(0, limit).reverse();
+    const oldest = window[0];
+    return {
+      messages: window,
+      nextCursor: null,
+      prevCursor:
+        hasMore && oldest
+          ? encodeChatCursor({ timestamp: oldest.created_at, id: oldest.id })
           : null,
     };
   }

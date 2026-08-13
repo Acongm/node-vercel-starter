@@ -236,6 +236,32 @@ describe('UserService', () => {
     });
   });
 
+  it('returns profile snapshot without requiring a PATCH', async () => {
+    const mocks = profileClient({
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: 'https://example.com/a.png',
+        preferences: {},
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(service.getProfile(request(), principal)).resolves.toEqual({
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: 'https://example.com/a.png',
+        preferences: {},
+      },
+      userInfo: expect.objectContaining({
+        displayName: 'Acongm',
+        avatarUrl: 'https://example.com/a.png',
+        source: 'profile',
+      }),
+    });
+  });
+
   it('updates typed settings by merging into preferences', async () => {
     const mocks = profileClient({
       profile: {

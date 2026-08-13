@@ -10,6 +10,10 @@ describe('API debug console assets', () => {
       '/v1/chat/completions',
       '/api/comments',
       '/api/auth',
+      '/api/user/info',
+      '/api/user/profile',
+      '/api/chats',
+      '/api/chats/:id/messages/stream',
       '/api/auth/oauth/providers',
       '/api/config/site',
       '/api/upload',
@@ -48,6 +52,9 @@ describe('API debug console assets', () => {
   it('ships browser-safe api-demo.js without module exports', () => {
     const script = readFileSync(join(process.cwd(), 'public/api-demo.js'), 'utf8');
     expect(script).toContain('function boot()');
+    expect(script).toContain('/api/user/info');
+    expect(script).toContain('/api/chats');
+    expect(script).toContain('supabase-token');
     expect(script).not.toMatch(/^\s*export\s/m);
     expect(script).not.toContain('exports.');
   });

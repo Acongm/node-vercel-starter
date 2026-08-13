@@ -60,6 +60,9 @@ describe('ChatService CRUD', () => {
     expect(repository.get).toHaveBeenNthCalledWith(2, request, 'chat-1');
     expect(repository.listMessages).toHaveBeenNthCalledWith(1, request, 'chat-1', {
       limit: 100,
+      order: 'desc',
+      before: undefined,
+      after: undefined,
     });
     expect(repository.listMessages).toHaveBeenNthCalledWith(
       2,

@@ -56,8 +56,12 @@ export class ChatController {
   }
 
   @Get(':id')
-  get(@Req() request: SupabaseAuthenticatedRequest, @Param('id') id: string) {
-    return this.chatService.get(request, id);
+  get(
+    @Req() request: SupabaseAuthenticatedRequest,
+    @Param('id') id: string,
+    @Query() query: ChatPageQueryDto,
+  ) {
+    return this.chatService.get(request, id, query);
   }
 
   @Patch(':id')

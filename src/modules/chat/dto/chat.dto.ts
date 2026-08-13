@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -27,6 +28,17 @@ export class ChatPageQueryDto {
   @IsString()
   @Length(1, 1000)
   after?: string;
+
+  /** Tail-first pagination: load messages older than this cursor. */
+  @IsOptional()
+  @IsString()
+  @Length(1, 1000)
+  before?: string;
+
+  /** `desc` returns the latest page first (tail-first). Default `asc`. */
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  order?: 'asc' | 'desc';
 }
 
 export class CreateChatDto {
