@@ -1,9 +1,13 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { APP_CONFIG } from '../../common/tokens';
+import { AppConfig } from '../../config/app-config';
 import { AuthPrincipal } from '../auth/roles';
 import { SupabaseRequestClientService } from '../auth/supabase-request-client.service';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
@@ -14,6 +18,13 @@ import {
   resolveUserInfo,
   resolveUserSettings,
 } from './user-info';
+import {
+  assertSettingsPatch,
+  readSettingsOverrides,
+  resolveSettingsDocument,
+  settingsPolicyFromModel,
+  type UserSettingsDocument,
+} from './user-settings';
 
 const PROFILE_COLUMNS =
   'id, display_name, avatar_url, preferences, created_at, updated_at';
@@ -34,8 +45,11 @@ export type UserMeResponse = {
 
 @Injectable()
 export class UserService {
+  private readonly settingsCache = new Map<string, UserSettingsDocument>();
+
   constructor(
     private readonly supabaseClients: SupabaseRequestClientService,
+    @Optional() @Inject(APP_CONFIG) private readonly appConfig?: AppConfig,
   ) {}
 
   /**
@@ -67,8 +81,13 @@ export class UserService {
 
   async getSettings(request: Request, principal: AuthPrincipal) {
     const userId = this.requireUserId(principal);
+    const cached = this.settingsCache.get(userId);
+    if (cached) return cached;
+
     const profile = await this.loadProfile(request, userId);
-    return resolveUserSettings(profile?.preferences ?? null);
+    const document = this.toSettingsDocument(profile?.preferences);
+    this.settingsCache.set(userId, document);
+    return document;
   }
 
   async updateSettings(
@@ -79,7 +98,9 @@ export class UserService {
     if (
       dto.language === undefined &&
       dto.theme === undefined &&
-      dto.preferences === undefined
+      dto.preferences === undefined &&
+      dto.defaultModel === undefined &&
+      dto.defaultPrompt === undefined
     ) {
       throw new BadRequestException({
         code: 'SETTINGS_PATCH_EMPTY',
@@ -87,14 +108,18 @@ export class UserService {
       });
     }
 
+    const policy = this.settingsPolicy();
+    assertSettingsPatch(dto, policy);
     const userId = this.requireUserId(principal);
     const profile = await this.loadProfile(request, userId);
     const nextPreferences = mergeSettingsPreferences(profile?.preferences, dto);
     const updated = await this.writeProfile(request, userId, {
       preferences: nextPreferences,
     });
+    const document = this.toSettingsDocument(updated.preferences);
+    this.settingsCache.set(userId, document);
     return {
-      settings: resolveUserSettings(updated.preferences),
+      settings: document,
       userInfo: resolveUserInfo(principal, updated),
     };
   }
@@ -126,6 +151,9 @@ export class UserService {
     }
 
     const profile = await this.writeProfile(request, userId, patch);
+    if (dto.preferences !== undefined) {
+      this.settingsCache.delete(userId);
+    }
     return {
       profile,
       userInfo: resolveUserInfo(principal, profile),
@@ -145,8 +173,24 @@ export class UserService {
       isAnonymous: principal.tier === 'anon',
       profile,
       userInfo: resolveUserInfo(principal, profile),
-      settings: resolveUserSettings(profile?.preferences ?? null),
+      settings: resolveUserSettings(
+        profile?.preferences ?? null,
+        this.settingsPolicy().defaultModel,
+      ),
     };
+  }
+
+  private toSettingsDocument(
+    preferences: Record<string, unknown> | null | undefined,
+  ): UserSettingsDocument {
+    return resolveSettingsDocument(
+      readSettingsOverrides(preferences),
+      this.settingsPolicy(),
+    );
+  }
+
+  private settingsPolicy() {
+    return settingsPolicyFromModel(this.appConfig?.ai.model || 'gpt-4.1-mini');
   }
 
   private async loadProfile(

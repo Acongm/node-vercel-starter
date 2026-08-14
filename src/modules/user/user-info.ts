@@ -1,4 +1,10 @@
 import { AuthPrincipal } from '../auth/roles';
+import {
+  readSettingsOverrides,
+  resolveSettingsDocument,
+  settingsPolicyFromModel,
+  type SettingsPatch,
+} from './user-settings';
 
 export type ProfileRow = {
   id: string;
@@ -28,12 +34,13 @@ export type UserInfoView = {
 export type UserSettingsView = {
   language: string;
   theme: 'system' | 'light' | 'dark';
+  chat: {
+    defaultModel: string;
+    defaultPrompt: string;
+  };
   /** Full preferences object; known keys are also mirrored above. */
   preferences: Record<string, unknown>;
 };
-
-const DEFAULT_LANGUAGE = 'zh-CN';
-const DEFAULT_THEME = 'system' as const;
 
 function asNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -76,29 +83,27 @@ export function resolveUserInfo(
 
 export function resolveUserSettings(
   preferences: Record<string, unknown> | null | undefined,
+  defaultModel = 'gpt-4.1-mini',
 ): UserSettingsView {
   const prefs =
     preferences && typeof preferences === 'object' && !Array.isArray(preferences)
       ? { ...preferences }
       : {};
-
-  const language = asNonEmptyString(prefs.language) || DEFAULT_LANGUAGE;
-  const themeRaw = asNonEmptyString(prefs.theme);
-  const theme =
-    themeRaw === 'light' || themeRaw === 'dark' || themeRaw === 'system'
-      ? themeRaw
-      : DEFAULT_THEME;
-
+  const document = resolveSettingsDocument(
+    readSettingsOverrides(prefs),
+    settingsPolicyFromModel(defaultModel),
+  );
   return {
-    language,
-    theme,
-    preferences: prefs,
+    language: document.language,
+    theme: document.theme,
+    chat: document.effective.chat,
+    preferences: { ...prefs, ...document.preferences },
   };
 }
 
 export function mergeSettingsPreferences(
   current: Record<string, unknown> | null | undefined,
-  patch: { language?: string; theme?: 'system' | 'light' | 'dark'; preferences?: Record<string, unknown> },
+  patch: SettingsPatch & { preferences?: Record<string, unknown> },
 ): Record<string, unknown> {
   const base =
     current && typeof current === 'object' && !Array.isArray(current)
@@ -113,6 +118,24 @@ export function mergeSettingsPreferences(
   }
   if (patch.theme !== undefined) {
     base.theme = patch.theme;
+  }
+
+  const chat =
+    base.chat && typeof base.chat === 'object' && !Array.isArray(base.chat)
+      ? { ...(base.chat as Record<string, unknown>) }
+      : {};
+  if (patch.defaultModel !== undefined) {
+    chat.defaultModel = patch.defaultModel;
+  }
+  if (patch.defaultPrompt === null) {
+    delete chat.defaultPrompt;
+  } else if (patch.defaultPrompt !== undefined) {
+    chat.defaultPrompt = patch.defaultPrompt;
+  }
+  if (Object.keys(chat).length) {
+    base.chat = chat;
+  } else {
+    delete base.chat;
   }
   return base;
 }

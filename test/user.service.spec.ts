@@ -80,6 +80,7 @@ describe('UserService', () => {
       settings: {
         language: 'zh-CN',
         theme: 'system',
+        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
         preferences: {},
       },
     });
@@ -285,11 +286,14 @@ describe('UserService', () => {
         language: 'en',
       }),
     ).resolves.toEqual({
-      settings: {
+      settings: expect.objectContaining({
         language: 'en',
         theme: 'light',
-        preferences: { density: 'compact', theme: 'light', language: 'en' },
-      },
+        effective: expect.objectContaining({
+          language: 'en',
+          theme: 'light',
+        }),
+      }),
       userInfo: expect.objectContaining({
         displayName: 'Acongm',
         source: 'profile',
@@ -297,6 +301,43 @@ describe('UserService', () => {
     });
     expect(mocks.update).toHaveBeenCalledWith({
       preferences: { density: 'compact', theme: 'light', language: 'en' },
+    });
+  });
+
+  it('returns defaults/overrides/effective and caches GET settings by uid', async () => {
+    const mocks = profileClient({
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
+        preferences: { theme: 'dark' },
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    const first = await service.getSettings(request(), principal);
+    const second = await service.getSettings(request(), principal);
+
+    expect(first).toMatchObject({
+      schemaVersion: 1,
+      overrides: { theme: 'dark' },
+      effective: { theme: 'dark', language: 'zh-CN' },
+    });
+    expect(second).toBe(first);
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a default model that is not on the server allow-list', async () => {
+    const service = new UserService({ create: () => profileClient().client } as never);
+
+    await expect(
+      service.updateSettings(request(), principal, {
+        defaultModel: 'not-a-real-model',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'SETTINGS_MODEL_NOT_ALLOWED',
+      },
     });
   });
 });

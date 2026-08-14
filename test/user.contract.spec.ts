@@ -85,6 +85,7 @@ describe('UserService contract', () => {
       settings: {
         language: 'zh-CN',
         theme: 'system',
+        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
         preferences: {},
       },
     });

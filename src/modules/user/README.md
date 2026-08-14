@@ -20,8 +20,12 @@ GET   /api/user/info      # getUserInfo — UI display snapshot
 GET   /api/user/me        # same payload as /info
 GET   /api/user/profile   # { profile, userInfo }
 PATCH /api/user/profile   # { displayName, avatarUrl, preferences }
-GET   /api/user/settings
-PATCH /api/user/settings  # { language, theme, preferences }
+GET   /api/user/settings  # { schemaVersion, defaults, overrides, effective }
+PATCH /api/user/settings  # { language, theme, defaultModel, defaultPrompt }
 ```
+
+`GET /api/user/settings` returns platform `defaults`, user `overrides`, and
+`effective` so clients do not merge defaults themselves. `defaultModel` must be
+on the server allow-list (`AI_MODEL`). `defaultPrompt: null` resets to default.
 
 Try these on https://api.acongm.com/ → User Center.
