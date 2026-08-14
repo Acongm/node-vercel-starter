@@ -19,7 +19,7 @@
 |--------|------|----------|------|
 | P0 | 用户中心 API + 调试台 | `#56` | **main** — GET profile + console + `TOKEN_EXPIRED` |
 | P0 | Chat 会话 API + 调试台 | `#57` | **main** — tail-first + console Chats v2 |
-| P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | **main** — BFF + session 先于 userInfo 展示 |
+| P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | **main** — BFF + Portal 非阻塞 embed + `/account#settings` |
 | P0 | 非阻塞 Chat 启动 / 首屏 history | `chat#40` | **main** — tail-first + 失败不清空 transcript |
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
@@ -72,8 +72,9 @@
 |----|------|
 | 顶栏 userInfo displayName/avatar | ✅ main `39d1142` |
 | 未登录/loading/匿名 | ✅ |
-| 账号/设置菜单（auth 跳转） | ⏳ Phase 2（待 shadcn #15） |
-| 与 Chat/Auth 语义一致 | ✅ 三态对齐 |
+| 账号/设置菜单（auth 跳转） | ✅ AuthAccountMenu + `/account#settings`（`portal` `490c773`）；shadcn Avatar 仍可选 |
+| 与 Chat/Auth 语义一致 | ✅ 三态对齐 + auth error retry |
+| 嵌入 Chat 非阻塞 | ✅ FAB 始终挂载；composer 仅准备期/恢复失败禁用；tail-first history |
 
 ### `Acongm/auth#28` Account Profile
 
