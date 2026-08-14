@@ -1,39 +1,27 @@
+import { CHAT_V2_CAPABILITIES } from '../src/modules/chat/chat.capabilities';
+
 describe('assistant-ui durable backend capability backlog', () => {
   /**
-   * These are deliberately executable TODOs, not skipped happy-path tests.
-   * Implemented capabilities are removed only after a real contract test is
-   * green. Remaining entries are still not claimed by coverage percentages.
+   * Production-visible capabilities are locked by
+   * `test/chat.capabilities.contract.spec.ts`. Remaining entries are
+   * authorization-gated production proofs, not UI-visible Stage 6 features.
    */
 
+  it('does not leave history update/delete or resume as unimplemented UI todos', () => {
+    expect(CHAT_V2_CAPABILITIES.historyUpdate).toBe(false);
+    expect(CHAT_V2_CAPABILITIES.historyDelete).toBe(false);
+    expect(CHAT_V2_CAPABILITIES.resume).toBe(false);
+  });
+
   it.todo(
-    'history load returns the active branch in assistant-ui ThreadHistoryAdapter-compatible order',
+    'live Supabase RLS prevents authenticated user A from reading or mutating user B chats/messages/profile on the production Data API',
   );
 
   it.todo(
-    'history update behaves as an upsert by stable message id for assistant-ui ThreadHistoryAdapter.update',
+    'live Supabase RLS isolates two production anonymous users by auth.uid() after Anonymous Auth is enabled',
   );
 
   it.todo(
-    'history delete removes the intended durable branch/message without corrupting sibling branches',
-  );
-
-  it.todo(
-    'interrupted runs can be resumed or are explicitly reported as non-resumable through a stable capability contract',
-  );
-
-  it.todo(
-    'thread listing supports cursor pagination without duplicate or missing chats across pages',
-  );
-
-  it.todo(
-    'real Supabase RLS prevents authenticated user A from reading or mutating user B chats/messages/profile',
-  );
-
-  it.todo(
-    'real Supabase RLS isolates two Supabase anonymous users by auth.uid()',
-  );
-
-  it.todo(
-    'anonymous Supabase identity upgrade preserves owned chats without legacy x-client-id claiming',
+    'anonymous Supabase identity upgrade preserves owned chats without legacy x-client-id claiming after Manual Linking is enabled',
   );
 });

@@ -30,6 +30,27 @@ const mutants = [
     replacement: 'if (false && !runCreated) {',
     test: 'test/chat.service.runs.edge.spec.ts',
   },
+  {
+    name: 'missing bearer must stay AUTH_REQUIRED',
+    file: 'src/modules/auth/supabase-auth.guard.ts',
+    search: "code: 'AUTH_REQUIRED',",
+    replacement: "code: 'UNAUTHORIZED',",
+    test: 'test/supabase-auth.guard.spec.ts',
+  },
+  {
+    name: 'User Center must reject non-Supabase principals',
+    file: 'src/modules/user/user.service.ts',
+    search: "code: 'SUPABASE_AUTH_REQUIRED',",
+    replacement: "code: 'AUTH_OPTIONAL',",
+    test: 'test/user.contract.spec.ts',
+  },
+  {
+    name: 'unsupported resume must stay capability=false',
+    file: 'src/modules/chat/chat.capabilities.ts',
+    search: 'resume: false,',
+    replacement: 'resume: true,',
+    test: 'test/chat.capabilities.contract.spec.ts',
+  },
 ];
 
 function replaceExactlyOnce(source, search, replacement, name) {

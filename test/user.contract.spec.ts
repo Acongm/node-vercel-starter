@@ -194,4 +194,23 @@ describe('UserService contract', () => {
       UnauthorizedException,
     );
   });
+
+  it('rejects a local principal so User Center cannot be spoofed without Supabase', async () => {
+    const service = new UserService({ create: jest.fn() } as never);
+    const localPrincipal: AuthPrincipal = {
+      ...userPrincipal,
+      source: 'local',
+    };
+
+    try {
+      await service.me(request, localPrincipal);
+      throw new Error('Expected local principal to be rejected');
+    } catch (error) {
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect((error as UnauthorizedException).getResponse()).toEqual({
+        code: 'SUPABASE_AUTH_REQUIRED',
+        message: 'A verified Supabase user is required.',
+      });
+    }
+  });
 });

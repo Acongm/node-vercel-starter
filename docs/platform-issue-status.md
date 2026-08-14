@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
+| P0 | Final Quality Gate | `#37` | OPEN — capabilities 契约 + public smoke；仍缺 authenticated browser E2E / anon+linking |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
@@ -91,8 +91,8 @@
 |------|------|
 | Chat #36 / Portal #128 / Auth profile | ✅ 源码已合入 |
 | getUserInfo 全端消费 | ✅ 2026-08-13 |
-| Live OAuth same-UID E2E | ⏳ |
-| Browser smoke（Chat/Portal/Account） | ⏳ → #37 |
+| Live OAuth same-UID E2E | ⏳ 生产 Anonymous Auth / Manual Linking 仍关 |
+| Browser smoke（Chat/Portal/Account） | ⏳ 未登录 public smoke 已脚本化；登录后 Send/Retry/Cancel 仍缺 |
 
 **建议**：源码迁移完成后可将 #43 标为 `completed`，live proof  sole 跟踪 #37。
 

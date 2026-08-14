@@ -36,6 +36,8 @@ The visible UI exposes send, stop/cancel, edit, reload/regenerate, reasoning and
 
 The UI must never imply durable support for a capability that is only local runtime behavior.
 
+The API publishes the same matrix at `GET /api/chat/capabilities` (no auth). `Acongm/chat` `CHAT_V2_CAPABILITIES` must stay identical.
+
 ## Durable message and run identity
 
 Stage 1.2 introduces explicit persistence semantics:
@@ -155,7 +157,7 @@ Stage 1.2 includes real schema/RLS workflow fixtures that execute migrations aga
 
 ### Mutation testing
 
-A focused mutation smoke workflow targets high-value Chat decision points. #37 remains responsible for the final mutation threshold and survivor review across the production consumer path.
+A focused mutation smoke workflow targets high-value Chat, auth, and User Center decision points (7 targeted mutants). #37 still owns a broader Stryker threshold and survivor review; the smoke is a CI-cheap gate, not a substitute for that suite.
 
 ## Migration target
 
@@ -168,6 +170,6 @@ Supabase Auth (including anonymous identity)
   -> assistant-ui thread/history adapters
 ```
 
-Stage 1.2 proves the durable backend core. Stage 1.3 consumer migration (`Acongm/node-vercel-starter#43`) merged on main for Chat, Portal embedded Drawer, and auth-client `getUserInfo` consumers. Remaining work: browser E2E (#37), non-blocking startup (#40), auth-client single source (#51), and capabilities still marked false in contract todos.
+Stage 1.2 proves the durable backend core. Stage 1.3 consumer migration (`Acongm/node-vercel-starter#43`) merged on main for Chat, Portal embedded Drawer, and auth-client `getUserInfo` consumers. Remaining #37 work: authenticated browser E2E (Send/Retry/Reload/Edit/Cancel), live Anonymous Auth + Manual Linking proofs, and a broader mutation threshold. Unsupported adapters are now `capability=false` rather than UI todos.
 
 See #32 for the Stage 1 sequence and #37 for the final quality gate.
