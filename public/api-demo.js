@@ -168,6 +168,10 @@
       }));
     });
 
+    bindClick('auth-public-config-btn', async () => {
+      renderResponse('auth-output', await apiFetch('/api/auth/public-config'));
+    });
+
     bindClick('auth-mode-btn', async () => {
       renderResponse('auth-output', await apiFetch('/api/auth/mode'));
     });

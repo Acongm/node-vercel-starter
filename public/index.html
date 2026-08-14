@@ -97,6 +97,7 @@
           <h2>Auth</h2>
           <div class="path"><span class="method method-get">GET</span>/api/auth/mode</div>
           <div class="path"><span class="method method-post">POST</span>/api/auth/login</div>
+          <div class="path"><span class="method method-get">GET</span>/api/auth/public-config</div>
           <div class="path"><span class="method method-get">GET</span>/api/auth/me</div>
           <p class="hint">
             本地账号需先用 <code>npm run seed:auth-user</code> 注入（注册未开放）。也可用
@@ -109,6 +110,7 @@
           <label for="auth-token">Access Token（登录后自动填入，用于 /me）</label>
           <input id="auth-token" type="text" placeholder="Bearer access token" />
           <div class="actions">
+            <button id="auth-public-config-btn" type="button" class="secondary">GET public-config</button>
             <button id="auth-mode-btn" type="button" class="secondary">查询 Mode</button>
             <button id="auth-login-btn" type="button">登录 Login</button>
             <button id="auth-me-btn" type="button" class="secondary">查询 Me</button>

@@ -24,6 +24,11 @@ export class AuthController {
     return this.authService.mode();
   }
 
+  @Get('public-config')
+  publicConfig() {
+    return this.authService.publicConfig();
+  }
+
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
