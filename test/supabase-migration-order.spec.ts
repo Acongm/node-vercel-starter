@@ -23,6 +23,7 @@ const required = [
   // Read-only parity audit found the live comments table lacks the two length
   // CHECKs from the historical baseline, so history repair alone is not enough.
   '20260808050000_comments_constraints_repair.sql',
+  '20260814010000_user_settings.sql',
 ] as const;
 
 const stale = [
@@ -68,5 +69,8 @@ describe('Supabase migration history ordering', () => {
     expect(runs).toBeGreaterThan(foundation);
     expect(pagination).toBeGreaterThan(runs);
     expect(commentsRepair).toBeGreaterThan(pagination);
+    expect(files.indexOf('20260814010000_user_settings.sql')).toBeGreaterThan(
+      foundation,
+    );
   });
 });

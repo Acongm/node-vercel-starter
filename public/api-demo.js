@@ -235,10 +235,16 @@
 
     bindClick('user-settings-patch-btn', async () => {
       const theme = readValue('user-theme') || 'system';
+      const defaultModel = readValue('user-default-model');
+      const defaultPrompt = readValue('user-default-prompt');
+      const body = { theme };
+      if (defaultModel) body.defaultModel = defaultModel;
+      if (defaultPrompt === '') body.defaultPrompt = null;
+      else if (defaultPrompt) body.defaultPrompt = defaultPrompt;
       renderResponse('user-output', await apiFetch('/api/user/settings', {
         method: 'PATCH',
         headers: supabaseHeaders(),
-        body: { theme },
+        body,
       }));
     }, 'user-output');
 

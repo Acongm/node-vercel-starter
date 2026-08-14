@@ -1,6 +1,6 @@
 # Platform Issue Status（统一跟踪）
 
-> 最后更新：2026-08-13  
+> 最后更新：2026-08-14  
 > 本文档是各仓 GitHub Issues 的**单一真相源**；当 CI token 无法写 Issue 时，以本文为准，并手动同步到 GitHub。
 
 ## 方向修正（2026-08-13）
@@ -25,7 +25,7 @@
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
 | P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
-| P1 | 完整 Settings 产品表 | `#61` | 等 #56 稳定 |
+| P1 | 完整 Settings 产品表 | `#61` | **Phase 1** — defaults/overrides/effective + model/prompt 校验；`user_settings` 表尚未被 UserService 读写 |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
 ---
@@ -103,7 +103,7 @@
 | profile PATCH + semantics | ✅ |
 | settings GET/PATCH (preferences) | ✅ Phase 1 |
 | PATCH 返回 refreshed `userInfo` | ✅ `5fad8cd` |
-| 独立 settings 表 / cache / model prompt | ⏳ → #61 |
+| 独立 settings 表 / cache / model prompt | ⏳ contract + cache + migration 已就绪；UserService 仍写 `profiles.preferences` |
 
 ---
 
