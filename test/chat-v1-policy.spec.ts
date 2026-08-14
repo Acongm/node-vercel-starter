@@ -78,4 +78,24 @@ describe('AI chat v1 message policy', () => {
     });
     expect(result.at(-1)).toEqual({ role: 'user', content: latest });
   });
+
+  it('injects defaultPrompt as a user preference and never merges it into the system policy', () => {
+    const result = prepareChatV1Messages(
+      {
+        messages: [{ role: 'user', content: 'hello' }],
+        context: { title: 'React Fiber', scope: 'article' },
+      },
+      { defaultPrompt: 'Be concise.' },
+    );
+    const system = result.find((message) => message.role === 'system');
+    const preference = result.find(
+      (message) => message.role === 'user' && message.content.startsWith('用户偏好：'),
+    );
+
+    expect(result.filter((message) => message.role === 'system')).toHaveLength(1);
+    expect(system?.content).toContain('AI 阅读助手');
+    expect(system?.content).not.toContain('Be concise.');
+    expect(preference?.content).toBe('用户偏好：Be concise.');
+    expect(result.at(-1)).toEqual({ role: 'user', content: 'hello' });
+  });
 });

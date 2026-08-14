@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -9,8 +10,10 @@ import { appLogger } from '../../common/app-logger';
 import { RequestWithId } from '../../common/request-id.middleware';
 import { AiV1Service } from '../ai/v1/ai-v1.service';
 import { ChatV1Dto } from '../ai/v1/chat-v1.dto';
+import type { ChatSettingsInjection } from '../ai/v1/chat-v1.policy';
 import { AuthPrincipal } from '../auth/roles';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
+import { UserService } from '../user/user.service';
 import { ChatContractError } from './chat.errors';
 import { ChatRepository } from './chat.repository';
 import {
@@ -36,6 +39,7 @@ export class ChatService {
     private readonly repository: ChatRepository,
     private readonly aiV1Service: AiV1Service,
     private readonly chatLogWriter: ChatLogWriterService,
+    @Optional() private readonly userService?: UserService,
   ) {}
 
   list(request: Request, query: ChatPageQueryDto = {}) {
@@ -91,11 +95,12 @@ export class ChatService {
     const startedAt = Date.now();
     await this.aiV1Service.enforceRateLimit(request, principal);
 
-    const [chat, priorMessages] = await Promise.all([
+    const [chat, priorMessages, settings] = await Promise.all([
       this.repository.get(request, id),
       // Model context is deliberately bounded and separate from persisted history
       // pagination. The model only projects the latest selected branch below.
       this.repository.listRecentMessages(request, id, CHAT_MODEL_CONTEXT_LIMIT),
+      this.loadSendSettings(request, principal),
     ]);
     const parentMessage = dto.parentMessageId
       ? await this.resolveParentMessage(request, id, dto.parentMessageId)
@@ -165,6 +170,7 @@ export class ChatService {
       for await (const event of this.aiV1Service.stream(chatDto, {
         signal,
         principal,
+        settings,
       })) {
         if (event.type === 'meta') {
           provider = event.provider;
@@ -571,6 +577,23 @@ export class ChatService {
 
   private errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'Chat run failed.';
+  }
+
+  private async loadSendSettings(
+    request: Request,
+    principal: AuthPrincipal,
+  ): Promise<ChatSettingsInjection | undefined> {
+    if (!this.userService) return undefined;
+    try {
+      const document = await this.userService.getSettings(request, principal);
+      const defaultPrompt = document.effective.chat.defaultPrompt?.trim();
+      return {
+        defaultModel: document.effective.chat.defaultModel,
+        defaultPrompt: defaultPrompt || undefined,
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   private requireUserId(principal: AuthPrincipal): string {

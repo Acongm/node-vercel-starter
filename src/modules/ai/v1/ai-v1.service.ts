@@ -20,7 +20,10 @@ import { AuthPrincipal } from '../../auth/roles';
 import { ChatLogWriterService } from '../../chat-logs/chat-log-writer.service';
 import { ChatRateLimitService } from '../chat-rate-limit.service';
 import { ChatV1Dto } from './chat-v1.dto';
-import { prepareChatV1Messages } from './chat-v1.policy';
+import {
+  prepareChatV1Messages,
+  type ChatSettingsInjection,
+} from './chat-v1.policy';
 
 export type AiV1StreamEvent =
   | {
@@ -104,16 +107,20 @@ export class AiV1Service {
 
   async *stream(
     dto: ChatV1Dto,
-    options: { signal?: AbortSignal; principal?: AuthPrincipal } = {},
+    options: {
+      signal?: AbortSignal;
+      principal?: AuthPrincipal;
+      settings?: ChatSettingsInjection;
+    } = {},
   ): AsyncGenerator<AiV1StreamEvent> {
-    const { messages, sources } = await this.prepare(dto);
+    const { messages, sources } = await this.prepare(dto, options.settings);
     yield {
       type: 'meta',
       provider: this.appConfig.ai.provider,
       model:
         this.appConfig.ai.provider === 'mock'
           ? 'mock-local'
-          : this.appConfig.ai.model,
+          : options.settings?.defaultModel || this.appConfig.ai.model,
       conversationId: dto.conversationId,
       enableThinking: Boolean(dto.enableThinking),
     };
@@ -159,8 +166,8 @@ export class AiV1Service {
     return verified;
   }
 
-  private async prepare(dto: ChatV1Dto) {
-    const messages = prepareChatV1Messages(dto);
+  private async prepare(dto: ChatV1Dto, settings?: ChatSettingsInjection) {
+    const messages = prepareChatV1Messages(dto, settings);
     if (!messages.some((message) => message.role === 'user')) {
       throw new BadRequestException('Provide prompt or messages.');
     }
