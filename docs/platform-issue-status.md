@@ -25,7 +25,7 @@
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
 | P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
-| P1 | 完整 Settings 产品表 | `#61` | **Phase 3** — send 注入 cached effective model/prompt；prompt 不覆盖 system policy |
+| P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
 ---
@@ -62,9 +62,9 @@
 |----|------|
 | 侧栏 displayName/avatar 来自 `/api/user/info` | ✅ main `d7cf211` |
 | 匿名/登录 CTA | ✅ |
-| 用户菜单（账号/设置/退出） | ⏳ Phase 2 |
-| Settings 入口（theme + auth account） | ⏳ Phase 2 |
-| 不阻塞 #40 | ⏳ 待 #40 |
+| 用户菜单（账号/设置/退出） | ✅ AuthAccountMenu |
+| Settings 入口（theme + auth account） | ✅ theme 本地；model/prompt 走 Auth `/account#settings` |
+| 不阻塞 #40 | ✅ |
 
 ### `Acongm/portal#130` 顶栏账号态
 
