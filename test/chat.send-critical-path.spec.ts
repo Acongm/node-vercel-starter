@@ -209,4 +209,77 @@ describe('Chat v2 send critical path (#59)', () => {
     expect(limit).toBeGreaterThan(0);
     expect(limit).toBeLessThanOrEqual(500);
   });
+
+  it('injects cached effective settings once and does not fetch settings again during the stream', async () => {
+    const getSettings = jest.fn().mockResolvedValue({
+      schemaVersion: 1,
+      effective: {
+        language: 'zh-CN',
+        theme: 'system',
+        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: 'Be concise.' },
+      },
+    });
+    const stream = jest.fn(async function* () {
+      yield { type: 'delta', content: 'answer' };
+      yield { type: 'done' };
+    });
+    const service = new ChatService(
+      repository() as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream,
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+      { getSettings } as never,
+    );
+
+    await collect(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+
+    expect(getSettings).toHaveBeenCalledTimes(1);
+    expect(getSettings).toHaveBeenCalledWith(request, principal);
+    expect(stream).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        settings: {
+          defaultModel: 'gpt-4.1-mini',
+          defaultPrompt: 'Be concise.',
+        },
+      }),
+    );
+  });
+
+  it('continues the send with platform defaults when settings lookup fails', async () => {
+    const stream = jest.fn(async function* () {
+      yield { type: 'delta', content: 'answer' };
+      yield { type: 'done' };
+    });
+    const service = new ChatService(
+      repository() as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream,
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+      { getSettings: jest.fn().mockRejectedValue(new Error('settings down')) } as never,
+    );
+
+    const events = await collect(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      'user-persisted',
+      'delta',
+      'persisted',
+      'done',
+    ]);
+    expect(stream).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({
+        settings: expect.anything(),
+      }),
+    );
+  });
 });

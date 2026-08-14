@@ -25,7 +25,7 @@
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
 | P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
-| P1 | 完整 Settings 产品表 | `#61` | **Phase 2** — UserService 读写 `user_settings`；缺行时回退 `profiles.preferences` |
+| P1 | 完整 Settings 产品表 | `#61` | **Phase 3** — send 注入 cached effective model/prompt；prompt 不覆盖 system policy |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
 ---

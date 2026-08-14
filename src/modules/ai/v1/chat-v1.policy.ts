@@ -7,6 +7,12 @@ export const LONG_HISTORY_MESSAGE_LIMIT = 40;
 export const LONG_HISTORY_CHAR_BUDGET = 80000;
 export const DOCUMENT_CONTENT_CHAR_BUDGET = 8000;
 export const SYSTEM_PROMPT_CHAR_BUDGET = 10000;
+export const USER_PREFERENCE_PREFIX = '用户偏好：';
+
+export type ChatSettingsInjection = {
+  defaultModel?: string;
+  defaultPrompt?: string;
+};
 
 function normalize(value: string | undefined): string {
   return (value || '').replace(/\s+/g, ' ').trim();
@@ -99,9 +105,16 @@ function prepareConversation(dto: ChatV1Dto): ChatMessage[] {
   return bounded;
 }
 
-export function prepareChatV1Messages(dto: ChatV1Dto): ChatMessage[] {
+export function prepareChatV1Messages(
+  dto: ChatV1Dto,
+  settings: ChatSettingsInjection = {},
+): ChatMessage[] {
+  const preference = normalize(settings.defaultPrompt);
   return [
     { role: 'system', content: buildSystemPrompt(dto) },
+    ...(preference
+      ? [{ role: 'user' as const, content: `${USER_PREFERENCE_PREFIX}${preference}` }]
+      : []),
     ...prepareConversation(dto),
   ];
 }
