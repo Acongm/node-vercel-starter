@@ -375,6 +375,42 @@ describe('Platform v2 quality gate (#37 API path)', () => {
     expect(older.body.prevCursor).toBeNull();
   });
 
+  it('rejects unauthenticated user API calls with AUTH_REQUIRED', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/user/info')
+      .expect(401);
+
+    expect(response.body).toMatchObject({
+      code: 'AUTH_REQUIRED',
+      message: 'Missing Supabase access token.',
+    });
+  });
+
+  it('rejects invalid bearer tokens with INVALID_TOKEN', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/user/info')
+      .set('Authorization', 'Bearer not-a-valid-jwt')
+      .expect(401);
+
+    expect(response.body).toMatchObject({
+      code: 'INVALID_TOKEN',
+      message: 'Invalid or expired Supabase access token.',
+    });
+  });
+
+  it('returns 404 for missing chats without leaking ownership details', async () => {
+    const token = await bearerToken();
+    const missingChatId = randomUUID();
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/chats/${missingChatId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404);
+
+    expect(response.body.message).toBe('Chat not found.');
+    expect(JSON.stringify(response.body)).not.toMatch(/password|secret|service_role/i);
+  });
+
   it('streams a message after chat creation in memory mode', async () => {
     const token = await bearerToken();
     const created = await request(app.getHttpServer())

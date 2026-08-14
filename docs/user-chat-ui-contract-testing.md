@@ -141,7 +141,7 @@ Stage 1.1 also locks stable auth errors:
 
 `npm run test:contracts`
 
-These verify observable behavior and side-effect ordering. They are intentionally independent from coverage reporting.
+These verify observable behavior and side-effect ordering, including the #37 API-path quality gate (`test/platform-v2-quality-gate.e2e-spec.ts`). They are intentionally independent from coverage reporting.
 
 ### Core coverage
 

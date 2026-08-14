@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
+| P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats；`platform-v2-quality-gate.e2e-spec.ts` 已纳入 `test:contracts` |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
@@ -60,21 +60,23 @@
 
 | AC | 状态 |
 |----|------|
-| 侧栏 displayName/avatar 来自 `/api/user/info` | ✅ main `d7cf211` |
+| 侧栏 displayName/avatar 来自 `/api/user/info` | ✅ main |
 | 匿名/登录 CTA | ✅ |
 | 用户菜单（账号/设置/退出） | ✅ AuthAccountMenu |
-| Settings 入口（theme + auth account） | ✅ theme 本地；model/prompt 走 Auth `/account#settings` |
+| Settings 入口（theme + auth account） | ✅ ChatSettingsSlot → `/account#settings` |
 | 不阻塞 #40 | ✅ |
+| **Issue 可关闭** | ✅ 剩 browser smoke → #37 |
 
 ### `Acongm/portal#130` 顶栏账号态
 
 | AC | 状态 |
 |----|------|
-| 顶栏 userInfo displayName/avatar | ✅ main `39d1142` |
+| 顶栏 userInfo displayName/avatar | ✅ main |
 | 未登录/loading/匿名 | ✅ |
-| 账号/设置菜单（auth 跳转） | ✅ AuthAccountMenu + `/account#settings`（`portal` `490c773`）；shadcn Avatar 仍可选 |
-| 与 Chat/Auth 语义一致 | ✅ 三态对齐 + auth error retry |
-| 嵌入 Chat 非阻塞 | ✅ FAB 始终挂载；composer 仅准备期/恢复失败禁用；tail-first history |
+| 账号/设置菜单（auth 跳转） | ✅ AuthAccountMenu + `/account#settings` |
+| 与 Chat/Auth 语义一致 | ✅ |
+| 嵌入 Chat 非阻塞 | ✅ |
+| **Issue 可关闭** | ✅ 剩 browser smoke → #37 |
 
 ### `Acongm/auth#28` Account Profile
 
