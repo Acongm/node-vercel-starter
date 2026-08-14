@@ -27,7 +27,12 @@
       }
     }
 
-    const response = await fetch(url, { ...options, headers, body });
+    const response = await fetch(url, {
+      credentials: 'include',
+      ...options,
+      headers,
+      body,
+    });
     const durationMs = Math.round(performance.now() - started);
     const contentType = response.headers.get('content-type') || '';
 
@@ -197,6 +202,18 @@
       const token = readValue('auth-token');
       const headers = token ? { authorization: `Bearer ${token}` } : {};
       renderResponse('auth-output', await apiFetch('/api/auth/me', { headers }));
+    });
+
+    bindClick('auth-session-btn', async () => {
+      const token = readValue('auth-token') || readValue('supabase-token');
+      const headers = token ? { authorization: `Bearer ${token}` } : {};
+      renderResponse('auth-output', await apiFetch('/api/auth/session', { headers }));
+    });
+
+    bindClick('auth-userinfo-btn', async () => {
+      const token = readValue('auth-token') || readValue('supabase-token');
+      const headers = token ? { authorization: `Bearer ${token}` } : {};
+      renderResponse('auth-output', await apiFetch('/api/auth/userinfo', { headers }));
     });
 
     function supabaseHeaders() {

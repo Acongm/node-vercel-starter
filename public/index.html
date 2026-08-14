@@ -99,9 +99,13 @@
           <div class="path"><span class="method method-post">POST</span>/api/auth/login</div>
           <div class="path"><span class="method method-get">GET</span>/api/auth/public-config</div>
           <div class="path"><span class="method method-get">GET</span>/api/auth/me</div>
+          <div class="path"><span class="method method-get">GET</span>/api/auth/session</div>
+          <div class="path"><span class="method method-get">GET</span>/api/auth/userinfo</div>
           <p class="hint">
             本地账号需先用 <code>npm run seed:auth-user</code> 注入（注册未开放）。也可用
             <code>AUTH_ADMIN_*</code> 管理员账号。
+            <code>/session</code> 与 <code>/userinfo</code> 同时接受 Bearer 和
+            <code>.acongm.com</code> 共享 cookie（邮箱登录与第三方登录同一套）。
           </p>
           <label for="auth-username">Username / Email</label>
           <input id="auth-username" type="text" value="demo" />
@@ -114,6 +118,8 @@
             <button id="auth-mode-btn" type="button" class="secondary">查询 Mode</button>
             <button id="auth-login-btn" type="button">登录 Login</button>
             <button id="auth-me-btn" type="button" class="secondary">查询 Me</button>
+            <button id="auth-session-btn" type="button" class="secondary">GET session</button>
+            <button id="auth-userinfo-btn" type="button" class="secondary">GET userinfo</button>
           </div>
           <pre id="auth-output">尚未请求。</pre>
         </section>
@@ -127,8 +133,8 @@
           <div class="path"><span class="method method-get">GET</span>/api/user/settings</div>
           <div class="path"><span class="method method-patch">PATCH</span>/api/user/settings</div>
           <p class="hint">
-            需要 <strong>Supabase access_token</strong>（浏览器登录后的 session.access_token）。
-            本地 <code>/api/auth/login</code> JWT 不能调用这组接口。
+            需要 <strong>Supabase access_token</strong> 或已登录写入的
+            <code>.acongm.com</code> cookie。本地 <code>/api/auth/login</code> JWT 不能调用这组接口。
           </p>
           <label for="supabase-token">Supabase Access Token</label>
           <input id="supabase-token" type="text" placeholder="eyJhbGciOi...（粘贴后 User / Chats 共用）" />

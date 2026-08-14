@@ -84,6 +84,25 @@ describe('SupabaseAuthGuard', () => {
     );
   });
 
+  it('accepts the shared acongm session cookie when Bearer is absent', async () => {
+    const principal = {
+      userId: 'user-1',
+      role: 'viewer',
+      tier: 'user',
+      source: 'supabase',
+    };
+    const verifyAccessToken = jest.fn().mockResolvedValue(principal);
+    const guard = new SupabaseAuthGuard({ verifyAccessToken } as never);
+    const request: { header: (name: string) => string | undefined; auth?: unknown } = {
+      header: (name) =>
+        name.toLowerCase() === 'cookie' ? 'acongm_access_token=cookie-token' : undefined,
+    };
+
+    await expect(guard.canActivate(context(request))).resolves.toBe(true);
+    expect(verifyAccessToken).toHaveBeenCalledWith('cookie-token');
+    expect(request.auth).toBe(principal);
+  });
+
   it('attaches the verified principal to the request', async () => {
     const principal = {
       userId: 'user-1',

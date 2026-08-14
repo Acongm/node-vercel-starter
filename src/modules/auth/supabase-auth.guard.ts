@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { extractBearerToken, isJwtExpired } from './bearer-token';
+import { extractAccessToken, isJwtExpired } from './bearer-token';
 import { AuthPrincipal } from './roles';
 import { SupabaseAuthService } from './supabase-auth.service';
 
@@ -21,7 +21,7 @@ export class SupabaseAuthGuard implements CanActivate {
     const request = context
       .switchToHttp()
       .getRequest<SupabaseAuthenticatedRequest>();
-    const token = extractBearerToken(request);
+    const token = extractAccessToken(request);
 
     if (!token) {
       throw new UnauthorizedException({
