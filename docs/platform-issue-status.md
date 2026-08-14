@@ -92,7 +92,7 @@
 | Chat #36 / Portal #128 / Auth profile | ✅ 源码已合入 |
 | getUserInfo 全端消费 | ✅ 2026-08-13 |
 | Live OAuth same-UID E2E | ⏳ 生产 Anonymous Auth / Manual Linking 仍关 |
-| Browser smoke（Chat/Portal/Account） | ⏳ 未登录 public smoke 已脚本化；登录后 Send/Retry/Cancel 仍缺 |
+| Browser smoke（Chat/Portal/Account） | ⏳ 2026-08-14 未登录走查：Chat 有「登录」但 composer 停在「正在准备安全会话」；Portal 顶栏有账号图标、首页无 FAB；Auth SSO 页可用。登录后 Send/Retry/Cancel 仍缺 |
 
 **建议**：源码迁移完成后可将 #43 标为 `completed`，live proof  sole 跟踪 #37。
 
