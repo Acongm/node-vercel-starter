@@ -67,10 +67,10 @@ export class UserService {
    */
   async me(request: Request, principal: AuthPrincipal): Promise<UserMeResponse> {
     const userId = this.requireUserId(principal);
-    const [profile, settings] = await Promise.all([
-      this.loadProfile(request, userId),
-      this.getSettings(request, principal),
-    ]);
+    const [profile, settings] = await this.loadProfileAndSettings(
+      request,
+      userId,
+    );
     return this.toMeResponse(principal, profile, settings);
   }
 
@@ -198,6 +198,30 @@ export class UserService {
 
   private settingsCacheKey(userId: string): string {
     return `${userId}:${USER_SETTINGS_SCHEMA_VERSION}`;
+  }
+
+  private async loadProfileAndSettings(
+    request: Request,
+    userId: string,
+  ): Promise<readonly [ProfileRow | null, UserSettingsDocument]> {
+    const cacheKey = this.settingsCacheKey(userId);
+    const cachedSettings = this.settingsCache.get(cacheKey);
+    if (cachedSettings) {
+      return [await this.loadProfile(request, userId), cachedSettings];
+    }
+
+    const [profile, settingsRow] = await Promise.all([
+      this.loadProfile(request, userId),
+      this.loadSettingsRow(request, userId),
+    ]);
+    const document = resolveSettingsDocument(
+      settingsRow
+        ? overridesFromSettingsRow(settingsRow)
+        : readSettingsOverrides(profile?.preferences),
+      this.settingsPolicy(),
+    );
+    this.settingsCache.set(cacheKey, document);
+    return [profile, document];
   }
 
   private async loadSettingsDocument(
