@@ -47,8 +47,28 @@ function profileClient(options: {
   const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
   const insert = jest.fn().mockReturnValue({ select: insertSelect });
 
-  const from = jest.fn().mockReturnValue({ select, update, insert });
-  return { client: { from }, from, update, updateEq, insert };
+  const settingsMaybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+  const settingsFrom = {
+    select: jest.fn().mockReturnValue({
+      eq: jest.fn().mockReturnValue({ maybeSingle: settingsMaybeSingle }),
+    }),
+    update: jest.fn().mockReturnValue({
+      eq: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }),
+    }),
+    insert: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        single: jest.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    }),
+  };
+  const from = jest.fn((table?: string) =>
+    table === 'user_settings' ? settingsFrom : { select, update, insert },
+  );
+  return { client: { from }, from, update, updateEq, insert, settingsFrom };
 }
 
 describe('UserService', () => {
@@ -264,18 +284,21 @@ describe('UserService', () => {
   });
 
   it('updates typed settings by merging into preferences', async () => {
-    const mocks = profileClient({
+    const mocks = settingsTableClient({
+      settings: null,
       profile: {
         id: 'user-1',
         display_name: 'Acongm',
         avatar_url: null,
         preferences: { density: 'compact' },
       },
-      updated: {
-        id: 'user-1',
-        display_name: 'Acongm',
-        avatar_url: null,
-        preferences: { density: 'compact', theme: 'light', language: 'en' },
+      insertedSettings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: 'en',
+        theme: 'light',
+        default_model: null,
+        default_prompt: null,
       },
     });
     const service = new UserService({ create: () => mocks.client } as never);
@@ -299,13 +322,19 @@ describe('UserService', () => {
         source: 'profile',
       }),
     });
-    expect(mocks.update).toHaveBeenCalledWith({
-      preferences: { density: 'compact', theme: 'light', language: 'en' },
-    });
+    expect(mocks.settingsInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        language: 'en',
+        theme: 'light',
+      }),
+    );
+    expect(mocks.profileUpdate).not.toHaveBeenCalled();
   });
 
   it('returns defaults/overrides/effective and caches GET settings by uid', async () => {
-    const mocks = profileClient({
+    const mocks = settingsTableClient({
+      settings: null,
       profile: {
         id: 'user-1',
         display_name: 'Acongm',
@@ -324,7 +353,7 @@ describe('UserService', () => {
       effective: { theme: 'dark', language: 'zh-CN' },
     });
     expect(second).toBe(first);
-    expect(mocks.from).toHaveBeenCalledTimes(1);
+    expect(mocks.from.mock.calls.filter((call) => call[0] === 'user_settings')).toHaveLength(1);
   });
 
   it('rejects a default model that is not on the server allow-list', async () => {
@@ -339,5 +368,259 @@ describe('UserService', () => {
         code: 'SETTINGS_MODEL_NOT_ALLOWED',
       },
     });
+  });
+});
+
+function settingsTableClient(
+  options: {
+    profile?: unknown;
+    settings?: unknown;
+    updatedSettings?: unknown;
+    insertedSettings?: unknown;
+  } = {},
+) {
+  const profileMaybeSingle = jest.fn().mockResolvedValue({
+    data: options.profile ?? null,
+    error: null,
+  });
+  const profileSelect = jest.fn().mockReturnValue({
+    eq: jest.fn().mockReturnValue({ maybeSingle: profileMaybeSingle }),
+  });
+  const profileUpdate = jest.fn().mockReturnValue({
+    eq: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        maybeSingle: jest.fn().mockResolvedValue({ data: options.profile ?? null, error: null }),
+      }),
+    }),
+  });
+
+  const settingsMaybeSingle = jest.fn().mockResolvedValue({
+    data: Object.prototype.hasOwnProperty.call(options, 'settings')
+      ? options.settings
+      : null,
+    error: null,
+  });
+  const settingsSelect = jest.fn().mockReturnValue({
+    eq: jest.fn().mockReturnValue({ maybeSingle: settingsMaybeSingle }),
+  });
+  const settingsUpdateMaybeSingle = jest.fn().mockResolvedValue({
+    data: Object.prototype.hasOwnProperty.call(options, 'updatedSettings')
+      ? options.updatedSettings
+      : null,
+    error: null,
+  });
+  const settingsUpdate = jest.fn().mockReturnValue({
+    eq: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({ maybeSingle: settingsUpdateMaybeSingle }),
+    }),
+  });
+  const settingsInsert = jest.fn().mockReturnValue({
+    select: jest.fn().mockReturnValue({
+      single: jest.fn().mockResolvedValue({
+        data: options.insertedSettings ?? {
+          user_id: 'user-1',
+          schema_version: 1,
+          language: 'en',
+          theme: 'light',
+          default_model: null,
+          default_prompt: null,
+        },
+        error: null,
+      }),
+    }),
+  });
+
+  const from = jest.fn((table: string) => {
+    if (table === 'user_settings') {
+      return {
+        select: settingsSelect,
+        update: settingsUpdate,
+        insert: settingsInsert,
+      };
+    }
+    return {
+      select: profileSelect,
+      update: profileUpdate,
+      insert: jest.fn(),
+    };
+  });
+
+  return { client: { from }, from, settingsUpdate, settingsInsert, profileUpdate };
+}
+
+describe('UserService user_settings table (#61)', () => {
+  it('reads overrides from user_settings and returns platform defaults when no row exists', async () => {
+    const mocks = settingsTableClient({
+      settings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: null,
+        theme: 'dark',
+        default_model: 'gpt-4.1-mini',
+        default_prompt: 'Be concise.',
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(service.getSettings(request(), principal)).resolves.toMatchObject({
+      schemaVersion: 1,
+      overrides: {
+        theme: 'dark',
+        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: 'Be concise.' },
+      },
+      effective: {
+        language: 'zh-CN',
+        theme: 'dark',
+        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: 'Be concise.' },
+      },
+    });
+    expect(mocks.from).toHaveBeenCalledWith('user_settings');
+  });
+
+  it('falls back to profiles.preferences when user_settings has no row', async () => {
+    const mocks = settingsTableClient({
+      settings: null,
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
+        preferences: { theme: 'light', chat: { defaultPrompt: 'Legacy prompt' } },
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(service.getSettings(request(), principal)).resolves.toMatchObject({
+      overrides: {
+        theme: 'light',
+        chat: { defaultPrompt: 'Legacy prompt' },
+      },
+      effective: {
+        theme: 'light',
+        chat: { defaultPrompt: 'Legacy prompt' },
+      },
+    });
+  });
+
+  it('writes PATCH settings to user_settings instead of profiles.preferences', async () => {
+    const mocks = settingsTableClient({
+      settings: null,
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
+        preferences: { density: 'compact' },
+      },
+      updatedSettings: null,
+      insertedSettings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: 'en',
+        theme: 'light',
+        default_model: 'gpt-4.1-mini',
+        default_prompt: null,
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(
+      service.updateSettings(request(), principal, {
+        theme: 'light',
+        language: 'en',
+        defaultModel: 'gpt-4.1-mini',
+      }),
+    ).resolves.toMatchObject({
+      settings: {
+        overrides: { language: 'en', theme: 'light', chat: { defaultModel: 'gpt-4.1-mini' } },
+        effective: { language: 'en', theme: 'light' },
+      },
+    });
+    expect(mocks.from).toHaveBeenCalledWith('user_settings');
+    expect(mocks.settingsInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        language: 'en',
+        theme: 'light',
+        default_model: 'gpt-4.1-mini',
+      }),
+    );
+    expect(mocks.profileUpdate).not.toHaveBeenCalled();
+  });
+
+  it('caches GET settings by uid and schemaVersion', async () => {
+    const mocks = settingsTableClient({
+      settings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: null,
+        theme: 'dark',
+        default_model: null,
+        default_prompt: null,
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    const first = await service.getSettings(request(), principal);
+    const second = await service.getSettings(request(), principal);
+
+    expect(second).toBe(first);
+    expect(mocks.from.mock.calls.filter((call) => call[0] === 'user_settings')).toHaveLength(1);
+  });
+
+  it('exposes user_settings on /me even when preferences still have a legacy theme', async () => {
+    const mocks = settingsTableClient({
+      settings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: 'en',
+        theme: 'light',
+        default_model: null,
+        default_prompt: 'Be concise.',
+      },
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
+        preferences: { theme: 'dark' },
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(service.me(request(), principal)).resolves.toMatchObject({
+      settings: {
+        language: 'en',
+        theme: 'light',
+        chat: { defaultPrompt: 'Be concise.' },
+      },
+    });
+  });
+
+  it('lets an anonymous Supabase UID persist settings', async () => {
+    const anonymous: AuthPrincipal = {
+      userId: 'anon-1',
+      role: 'anonymous',
+      tier: 'anon',
+      source: 'supabase',
+    };
+    const mocks = settingsTableClient({
+      settings: null,
+      insertedSettings: {
+        user_id: 'anon-1',
+        schema_version: 1,
+        language: null,
+        theme: 'dark',
+        default_model: null,
+        default_prompt: null,
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(
+      service.updateSettings(request(), anonymous, { theme: 'dark' }),
+    ).resolves.toMatchObject({
+      settings: { overrides: { theme: 'dark' }, effective: { theme: 'dark' } },
+    });
+    expect(mocks.settingsInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: 'anon-1', theme: 'dark' }),
+    );
   });
 });

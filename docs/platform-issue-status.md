@@ -25,7 +25,7 @@
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
 | P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
-| P1 | 完整 Settings 产品表 | `#61` | **Phase 1** — defaults/overrides/effective + model/prompt 校验；`user_settings` 表尚未被 UserService 读写 |
+| P1 | 完整 Settings 产品表 | `#61` | **Phase 2** — UserService 读写 `user_settings`；缺行时回退 `profiles.preferences` |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
 ---
@@ -103,7 +103,7 @@
 | profile PATCH + semantics | ✅ |
 | settings GET/PATCH (preferences) | ✅ Phase 1 |
 | PATCH 返回 refreshed `userInfo` | ✅ `5fad8cd` |
-| 独立 settings 表 / cache / model prompt | ⏳ contract + cache + migration 已就绪；UserService 仍写 `profiles.preferences` |
+| 独立 settings 表 / cache / model prompt | ✅ UserService 读写 `user_settings` + uid/schemaVersion cache；缺行回退 preferences |
 
 ---
 

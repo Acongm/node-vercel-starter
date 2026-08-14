@@ -174,7 +174,45 @@ export function settingsPolicyFromModel(defaultModel: string): SettingsPolicy {
   };
 }
 
-function toPreferences(overrides: SettingsOverrides): Record<string, unknown> {
+export type UserSettingsRow = {
+  user_id: string;
+  schema_version: number;
+  language: string | null;
+  theme: string | null;
+  default_model: string | null;
+  default_prompt: string | null;
+};
+
+export function overridesFromSettingsRow(
+  row: UserSettingsRow,
+): SettingsOverrides {
+  return readSettingsOverrides({
+    language: row.language ?? undefined,
+    theme: row.theme ?? undefined,
+    chat: {
+      defaultModel: row.default_model ?? undefined,
+      defaultPrompt: row.default_prompt ?? undefined,
+    },
+  });
+}
+
+export function settingsRowPatch(overrides: SettingsOverrides): {
+  schema_version: number;
+  language: string | null;
+  theme: string | null;
+  default_model: string | null;
+  default_prompt: string | null;
+} {
+  return {
+    schema_version: USER_SETTINGS_SCHEMA_VERSION,
+    language: overrides.language ?? null,
+    theme: overrides.theme ?? null,
+    default_model: overrides.chat?.defaultModel ?? null,
+    default_prompt: overrides.chat?.defaultPrompt ?? null,
+  };
+}
+
+export function toPreferences(overrides: SettingsOverrides): Record<string, unknown> {
   const prefs: Record<string, unknown> = {};
   if (overrides.language) prefs.language = overrides.language;
   if (overrides.theme) prefs.theme = overrides.theme;
