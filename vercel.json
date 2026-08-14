@@ -24,6 +24,14 @@
       "dest": "/public/index.html"
     },
     {
+      "src": "/favicon.ico",
+      "dest": "/public/favicon.ico"
+    },
+    {
+      "src": "/icon.png",
+      "dest": "/public/icon.png"
+    },
+    {
       "src": "/(.*)",
       "dest": "/public/$1"
     }
