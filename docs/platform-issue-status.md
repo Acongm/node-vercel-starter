@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
+| P0 | Final Quality Gate | `#37` | OPEN — API path ✅；Chat Playwright smoke ✅；剩 preview/live OAuth proof |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
