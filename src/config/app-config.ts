@@ -1,3 +1,5 @@
+import { knownPublicKeyForSupabaseUrl } from './acongm-supabase-public';
+
 export type RuntimeTarget = 'node' | 'vercel';
 export type DataMode =
   | 'none'
@@ -104,6 +106,37 @@ function parseAllowlist(raw: string | undefined): Record<string, string> {
   }, {});
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const json = Buffer.from(parts[1], 'base64url').toString('utf8');
+    const payload = JSON.parse(json) as unknown;
+    return payload && typeof payload === 'object'
+      ? (payload as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True only for publishable/anon keys. Service-role / secret keys stay server-only. */
+export function isBrowserSafeSupabaseKey(value: string | undefined): boolean {
+  const key = value?.trim();
+  if (!key) return false;
+  if (key.startsWith('sb_secret_')) return false;
+  if (key.startsWith('sb_publishable_')) return true;
+  if (!key.startsWith('eyJ')) return false;
+  const role = decodeJwtPayload(key)?.role;
+  return role === 'anon';
+}
+
+function firstBrowserSafeKey(
+  ...values: Array<string | undefined>
+): string | undefined {
+  return values.find((value) => isBrowserSafeSupabaseKey(value))?.trim();
+}
+
 function parseList(raw: string | undefined): string[] {
   if (!raw) {
     return [];
@@ -162,9 +195,13 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     supabase: {
       url: env.SUPABASE_URL,
       publicKey:
-        env.SUPABASE_PUBLISHABLE_KEY ||
-        env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-        env.SUPABASE_ANON_KEY,
+        firstBrowserSafeKey(
+          env.SUPABASE_PUBLISHABLE_KEY,
+          env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+          env.SUPABASE_ANON_KEY,
+          env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          env.SUPABASE_API_KEY,
+        ) || knownPublicKeyForSupabaseUrl(env.SUPABASE_URL),
       apiKey: env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_API_KEY,
       requestSecret: env.SUPABASE_REQUEST_SECRET,
       commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
