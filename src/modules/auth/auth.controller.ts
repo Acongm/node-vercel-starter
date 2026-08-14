@@ -6,6 +6,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { extractAccessToken } from './bearer-token';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RequireRoles } from './roles.decorator';
@@ -14,6 +15,7 @@ import {
   OptionalAuthGuard,
   RolesGuard,
 } from './roles.guard';
+import { SupabaseAuthGuard, SupabaseAuthenticatedRequest } from './supabase-auth.guard';
 
 @Controller('api/auth')
 export class AuthController {
@@ -39,6 +41,26 @@ export class AuthController {
   @UseGuards(OptionalAuthGuard)
   me(@Req() request: AuthenticatedRequest) {
     return this.authService.principalResponse(request.auth!);
+  }
+
+  /**
+   * Keycloak-like session: cookie on .acongm.com or Bearer.
+   * Email and OAuth logins both surface the same user / userInfo.
+   */
+  @Get('session')
+  @UseGuards(OptionalAuthGuard)
+  session(@Req() request: AuthenticatedRequest) {
+    return this.authService.sessionResponse(
+      request.auth!,
+      extractAccessToken(request),
+    );
+  }
+
+  /** OIDC-style userinfo. 401 when the shared session cookie / Bearer is missing. */
+  @Get('userinfo')
+  @UseGuards(SupabaseAuthGuard)
+  userinfo(@Req() request: SupabaseAuthenticatedRequest) {
+    return this.authService.userInfoResponse(request.auth!);
   }
 
   /**

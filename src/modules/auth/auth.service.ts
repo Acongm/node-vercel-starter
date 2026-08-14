@@ -10,6 +10,7 @@ import { AccessTokenService } from './access-token.service';
 import { AdminSessionService } from './admin-session.service';
 import { AuthUsersService } from './auth-users.service';
 import { LoginDto } from './dto/login.dto';
+import { resolveUserInfo } from '../user/user-info';
 import { AuthPrincipal } from './roles';
 
 @Injectable()
@@ -123,6 +124,52 @@ export class AuthService {
             roles: ['anonymous'],
             tier: 'anon',
           },
+    };
+  }
+
+  /**
+   * Keycloak-like session check. Email and OAuth both resolve through the
+   * same principal (cookie or Bearer). Does not require public-config.
+   */
+  sessionResponse(principal: AuthPrincipal, accessToken?: string | null) {
+    const publicConfig = this.publicConfig();
+    const authenticated = principal.tier === 'user' && Boolean(principal.userId);
+    const userInfo =
+      principal.userId && principal.source === 'supabase'
+        ? resolveUserInfo(principal, null)
+        : null;
+
+    return {
+      authenticated,
+      configured: publicConfig.configured,
+      isAnonymous: principal.tier === 'anon' && Boolean(principal.userId),
+      user: principal.userId
+        ? {
+            id: principal.userId,
+            email: principal.email ?? null,
+            name: principal.name ?? null,
+            avatarUrl: principal.avatarUrl ?? null,
+          }
+        : null,
+      userInfo,
+      accessToken: accessToken ?? null,
+    };
+  }
+
+  /** OIDC-style userinfo: same identity for email and third-party login. */
+  userInfoResponse(principal: AuthPrincipal) {
+    if (!principal.userId) {
+      throw new UnauthorizedException({
+        code: 'AUTH_REQUIRED',
+        message: 'Missing Supabase access token.',
+      });
+    }
+    return {
+      sub: principal.userId,
+      email: principal.email ?? null,
+      name: principal.name ?? null,
+      picture: principal.avatarUrl ?? null,
+      userInfo: resolveUserInfo(principal, null),
     };
   }
 }

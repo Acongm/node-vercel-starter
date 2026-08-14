@@ -10,6 +10,8 @@ describe('API debug console assets', () => {
       '/v1/chat/completions',
       '/api/comments',
       '/api/auth',
+      '/api/auth/session',
+      '/api/auth/userinfo',
       '/api/user/info',
       '/api/user/profile',
       '/api/chats',
@@ -53,6 +55,9 @@ describe('API debug console assets', () => {
     const script = readFileSync(join(process.cwd(), 'public/api-demo.js'), 'utf8');
     expect(script).toContain('function boot()');
     expect(script).toContain('/api/user/info');
+    expect(script).toContain('/api/auth/session');
+    expect(script).toContain('/api/auth/userinfo');
+    expect(script).toContain("credentials: 'include'");
     expect(script).toContain('/api/chats');
     expect(script).toContain('supabase-token');
     expect(script).not.toMatch(/^\s*export\s/m);

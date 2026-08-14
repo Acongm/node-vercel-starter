@@ -3,14 +3,14 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Request } from 'express';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
-import { extractBearerToken } from './bearer-token';
+import { extractAccessToken } from './bearer-token';
 
 @Injectable()
 export class SupabaseRequestClientService {
   constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 
   create(request: Request): SupabaseClient {
-    const token = extractBearerToken(request);
+    const token = extractAccessToken(request);
     if (!token) {
       throw new UnauthorizedException({
         code: 'AUTH_REQUIRED',

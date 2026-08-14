@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
-import { extractBearerToken } from './bearer-token';
+import { extractAccessToken } from './bearer-token';
 import {
   AuthPrincipal,
   PlatformRole,
@@ -37,7 +37,7 @@ export class JwtAuthService {
   ) {}
 
   async resolvePrincipal(request: Request): Promise<AuthPrincipal> {
-    const token = extractBearerToken(request);
+    const token = extractAccessToken(request);
     if (!token) {
       return createAnonymousPrincipal();
     }
