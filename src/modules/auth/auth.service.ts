@@ -21,6 +21,20 @@ export class AuthService {
     private readonly accessTokens: AccessTokenService,
   ) {}
 
+  /**
+   * Browser-safe Supabase publishable config. Never includes service_role.
+   * Chat/Portal fetch this when NEXT_PUBLIC_SUPABASE_* was not baked at build.
+   */
+  publicConfig() {
+    const supabaseUrl = this.config.supabase.url?.trim() || null;
+    const supabaseAnonKey = this.config.supabase.publicKey?.trim() || null;
+    return {
+      supabaseUrl,
+      supabaseAnonKey,
+      configured: Boolean(supabaseUrl && supabaseAnonKey),
+    };
+  }
+
   mode() {
     const adminConfigured = this.adminSession.isConfigured();
     const oauth = this.config.auth.oauth;
