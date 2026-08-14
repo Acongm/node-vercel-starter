@@ -3,8 +3,10 @@ import {
   USER_SETTINGS_SCHEMA_VERSION,
   assertSettingsPatch,
   mergeSettingsOverrides,
+  overridesFromSettingsRow,
   platformSettingsDefaults,
   resolveSettingsDocument,
+  settingsRowPatch,
 } from '../src/modules/user/user-settings';
 
 const policy = {
@@ -68,5 +70,29 @@ describe('User Settings document (#61)', () => {
     expect(resolveSettingsDocument(merged, policy).effective.chat.defaultPrompt).toBe(
       '',
     );
+  });
+
+  it('maps user_settings rows to overrides and back', () => {
+    const overrides = overridesFromSettingsRow({
+      user_id: 'user-1',
+      schema_version: 1,
+      language: 'en',
+      theme: 'dark',
+      default_model: 'gpt-4.1',
+      default_prompt: 'Be concise.',
+    });
+
+    expect(overrides).toEqual({
+      language: 'en',
+      theme: 'dark',
+      chat: { defaultModel: 'gpt-4.1', defaultPrompt: 'Be concise.' },
+    });
+    expect(settingsRowPatch(overrides)).toEqual({
+      schema_version: 1,
+      language: 'en',
+      theme: 'dark',
+      default_model: 'gpt-4.1',
+      default_prompt: 'Be concise.',
+    });
   });
 });

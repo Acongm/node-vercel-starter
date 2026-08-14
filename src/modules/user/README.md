@@ -25,7 +25,9 @@ PATCH /api/user/settings  # { language, theme, defaultModel, defaultPrompt }
 ```
 
 `GET /api/user/settings` returns platform `defaults`, user `overrides`, and
-`effective` so clients do not merge defaults themselves. `defaultModel` must be
-on the server allow-list (`AI_MODEL`). `defaultPrompt: null` resets to default.
+`effective` so clients do not merge defaults themselves. Overrides live in
+`user_settings` (owner-only RLS). If that row is missing, the API falls back to
+`profiles.preferences` once. `defaultModel` must be on the server allow-list
+(`AI_MODEL`). `defaultPrompt: null` resets to default.
 
 Try these on https://api.acongm.com/ → User Center.

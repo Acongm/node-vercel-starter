@@ -47,7 +47,16 @@ function profileClient(options: {
   const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
   const insert = jest.fn().mockReturnValue({ select: insertSelect });
 
-  const from = jest.fn().mockReturnValue({ select, update, insert });
+  const settingsFrom = {
+    select: jest.fn().mockReturnValue({
+      eq: jest.fn().mockReturnValue({
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    }),
+  };
+  const from = jest.fn((table?: string) =>
+    table === 'user_settings' ? settingsFrom : { select, update, insert },
+  );
 
   return { client: { from }, from, update, updateEq, insert };
 }
