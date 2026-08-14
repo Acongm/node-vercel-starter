@@ -9,3 +9,8 @@ uploads/
 *.tsbuildinfo
 .DS_Store
 .vercel
+task_plan.md
+findings.md
+progress.md
+__pycache__/
+*.pyc

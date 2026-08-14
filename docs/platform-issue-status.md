@@ -24,8 +24,8 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
-| P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
+| P0 | Final Quality Gate | `#37` | **live API+schema ✅** — 剩 anonymous / Manual Linking / browser OAuth / mutation |
+| P1 | 完整 Settings 产品表 | `#61` | **Phase 4 + live table ✅** — `user_settings` 已应用到 nest；Account 可写 model/prompt |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
 ---
@@ -105,6 +105,52 @@
 | settings GET/PATCH (preferences) | ✅ Phase 1 |
 | PATCH 返回 refreshed `userInfo` | ✅ `5fad8cd` |
 | 独立 settings 表 / cache / model prompt | ✅ UserService 读写 `user_settings` + uid/schemaVersion cache；缺行回退 preferences |
+| **live `user_settings` 表** | ✅ 2026-08-14 已应用到 nest；PATCH theme/defaultPrompt 落表 |
+
+---
+
+## Live evidence（2026-08-14，#37）
+
+对生产项目 `nest`（`ejprvntpxlyydkzsjqnv`）与 `https://api.acongm.com` 的只读审计 + 加性迁移 + 临时用户验收。复跑：
+
+```bash
+ACONGM_SUPABASE_ACCESS_TOKEN=... python3 scripts/live-quality-gate.py
+```
+
+详见 `docs/live-quality-gate.md`。
+
+### 已落地（加性，未做 historical tracking repair）
+
+- `20260808050000_comments_constraints_repair`：`comments_author_check` / `comments_content_check` 已 VALIDATE；既有 4 行 comments 全部合规
+- `20260814010000_user_settings`：`public.user_settings` + owner-only RLS
+- **未执行** `20260606000000_create_comments` 的 history repair（#37 仍要求显式授权）
+
+### 已证明的生产 API 路径
+
+| 检查 | 结果 |
+|------|------|
+| `GET /api/health` | `dataMode=supabase` |
+| `GET /api/user/info` 无 token | 401 `AUTH_REQUIRED` |
+| `GET /api/chats` 无 token | 401 `AUTH_REQUIRED` |
+| `GET /api/user/info` 非法 token | 401 `INVALID_TOKEN` |
+| 临时用户 `GET /api/user/info` | 200，`userInfo` 有 display 字段 |
+| `GET/PATCH /api/user/settings` | 200，`effective.theme=dark`，`user_settings` 行存在 |
+| `POST/GET/DELETE /api/chats` | 201 / 200 / 204 |
+| 用户 B 读用户 A 的 chat | 404（不泄漏） |
+| 临时用户清理 | 2 个 admin user 已删除 |
+
+### 仍阻塞 #37 关闭的生产项
+
+| 项 | 现状 | 为何还不能关 |
+|----|------|----------------|
+| Anonymous Auth | `external_anonymous_users_enabled=false` | Chat/Portal guest bootstrap 无法在生产走 `signInAnonymously()` |
+| Manual Linking | `security_manual_linking_enabled=false` | `auth#48` same-uid OAuth upgrade 无法 live 证明 |
+| Redirect allow-list | `uri_allow_list` 为空 | OAuth 回跳只靠 `site_url=https://auth.acongm.com/callback` |
+| Browser E2E | 未跑真实 GitHub/Google 登录 | 需要浏览器 + 真人 OAuth；本 run 不改 Auth 开关 |
+| Mutation suite | 代码侧 sibling 分支在补 contracts | 不替代 live Auth/JWT 证明 |
+| History repair | `20260606000000` 仍缺 tracking | 按 #37 评论：约束修复之后仍需显式授权 |
+
+本 run **没有**打开 anonymous / Manual Linking，也没有改 OAuth client 配置。
 
 ---
 
