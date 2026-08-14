@@ -105,6 +105,9 @@ describe('UserService', () => {
       },
     });
     expect(mocks.from).toHaveBeenCalledWith('profiles');
+    expect(
+      mocks.from.mock.calls.filter((call) => call[0] === 'profiles'),
+    ).toHaveLength(1);
   });
 
   it('returns isAnonymous for stable Supabase anonymous identities', async () => {

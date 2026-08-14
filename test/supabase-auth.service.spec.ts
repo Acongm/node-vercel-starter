@@ -155,6 +155,39 @@ describe('SupabaseAuthService', () => {
     expect(createClientMock).toHaveBeenCalledTimes(1);
   });
 
+  it('reuses a verified principal for several minutes within the JWT exp', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-08-13T00:00:00.000Z'));
+    const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString(
+      'base64url',
+    );
+    const payload = Buffer.from(
+      JSON.stringify({
+        exp: Math.floor(Date.now() / 1000) + 3_600,
+        sub: 'user-ttl',
+      }),
+    ).toString('base64url');
+    const token = `${header}.${payload}.sig`;
+    const getUser = mockGetUser({
+      data: {
+        user: {
+          id: 'user-ttl',
+          email: 'ttl@example.com',
+          app_metadata: {},
+          user_metadata: {},
+        },
+      },
+      error: null,
+    });
+    const service = new SupabaseAuthService(config());
+
+    await service.verifyAccessToken(token);
+    jest.advanceTimersByTime(4 * 60_000);
+    await service.verifyAccessToken(token);
+
+    expect(getUser).toHaveBeenCalledTimes(1);
+  });
+
   it('does not keep a cached principal past the JWT exp', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-08-13T00:00:00.000Z'));

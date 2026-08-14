@@ -51,13 +51,15 @@ export class ChatService {
   }
 
   async get(request: Request, id: string, query: ChatPageQueryDto = {}) {
-    const chat = await this.repository.get(request, id);
-    const page = await this.repository.listMessages(request, id, {
-      limit: query.limit ?? 100,
-      order: query.order ?? 'desc',
-      before: query.before,
-      after: query.order === 'asc' ? query.after : undefined,
-    });
+    const [chat, page] = await Promise.all([
+      this.repository.get(request, id),
+      this.repository.listMessages(request, id, {
+        limit: query.limit ?? 100,
+        order: query.order ?? 'desc',
+        before: query.before,
+        after: query.order === 'asc' ? query.after : undefined,
+      }),
+    ]);
     return { chat, ...page };
   }
 
@@ -80,8 +82,11 @@ export class ChatService {
         message: 'Use either after or before, not both.',
       });
     }
-    await this.repository.get(request, id);
-    return this.repository.listMessages(request, id, query);
+    const [, page] = await Promise.all([
+      this.repository.get(request, id),
+      this.repository.listMessages(request, id, query),
+    ]);
+    return page;
   }
 
   async *streamMessage(
@@ -103,7 +108,8 @@ export class ChatService {
       this.loadSendSettings(request, principal),
     ]);
     const parentMessage = dto.parentMessageId
-      ? await this.resolveParentMessage(request, id, dto.parentMessageId)
+      ? this.parentFromRecent(priorMessages, dto.parentMessageId) ||
+        (await this.resolveParentMessage(request, id, dto.parentMessageId))
       : priorMessages.at(-1) || null;
 
     const { message: userMessage, reused: userMessageReused } =
@@ -121,7 +127,7 @@ export class ChatService {
     });
 
     this.assertRunMatchesRequest(run, id, userId, userMessage.id);
-    if (!userMessageReused) await this.safeTouch(request, id);
+    if (!userMessageReused) void this.safeTouch(request, id);
 
     yield {
       type: 'user-persisted' as const,
@@ -335,6 +341,18 @@ export class ChatService {
       parentMessageId: parentMessage?.id || null,
     });
     return { message, reused: false };
+  }
+
+  private parentFromRecent(
+    priorMessages: ChatMessageRecord[],
+    reference: string,
+  ): ChatMessageRecord | null {
+    const trimmed = reference.trim();
+    return (
+      priorMessages.find(
+        (row) => row.id === trimmed || row.client_message_id === trimmed,
+      ) ?? null
+    );
   }
 
   private async resolveParentMessage(

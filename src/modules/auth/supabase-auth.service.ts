@@ -6,7 +6,7 @@ import { AppConfig } from '../../config/app-config';
 import { jwtExpiresAtMs } from './bearer-token';
 import { AuthPrincipal, PlatformRole, isPlatformRole } from './roles';
 
-const TOKEN_CACHE_TTL_MS = 60_000;
+const TOKEN_CACHE_TTL_MS = 300_000;
 const TOKEN_CACHE_MAX_ENTRIES = 1_000;
 
 type CachedPrincipal = {

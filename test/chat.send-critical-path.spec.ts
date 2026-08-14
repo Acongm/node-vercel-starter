@@ -250,6 +250,80 @@ describe('Chat v2 send critical path (#59)', () => {
     );
   });
 
+  it('does not wait for pre-stream touch before the first model token', async () => {
+    let releaseTouch: () => void = () => undefined;
+    const touchGate = new Promise<void>((resolve) => {
+      releaseTouch = resolve;
+    });
+    const repo = repository();
+    repo.touch = jest.fn(() => touchGate);
+    const info = jest.spyOn(appLogger, 'info').mockImplementation(() => undefined);
+    const service = new ChatService(
+      repo as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream: jest.fn(async function* () {
+          yield { type: 'delta', content: 'answer' };
+          yield { type: 'done' };
+        }),
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    const events: Array<{ type: string }> = [];
+    const consume = (async () => {
+      for await (const event of service.streamMessage(
+        'chat-1',
+        { content: 'hello' },
+        request,
+        principal,
+      )) {
+        events.push(event);
+      }
+    })();
+
+    await waitUntil(() => events.some((event) => event.type === 'delta'));
+    expect(events.map((event) => event.type)).toContain('delta');
+    expect(
+      info.mock.calls.some(([fields]) => fields.event === 'chat.first_token'),
+    ).toBe(true);
+
+    releaseTouch();
+    await consume;
+  });
+
+  it('resolves parentMessageId from the already-loaded context window', async () => {
+    const parent = message('parent-1', 'assistant', null, 'earlier');
+    const repo = repository();
+    repo.listRecentMessages = jest.fn().mockResolvedValue([parent]);
+    const service = new ChatService(
+      repo as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream: jest.fn(async function* () {
+          yield { type: 'delta', content: 'answer' };
+          yield { type: 'done' };
+        }),
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    await collect(
+      service.streamMessage(
+        'chat-1',
+        { content: 'hello', parentMessageId: 'parent-1' },
+        request,
+        principal,
+      ),
+    );
+
+    expect(repo.findMessageByReference).not.toHaveBeenCalled();
+    expect(repo.createMessage).toHaveBeenCalledWith(
+      request,
+      expect.objectContaining({ parentMessageId: 'parent-1' }),
+    );
+  });
+
   it('continues the send with platform defaults when settings lookup fails', async () => {
     const stream = jest.fn(async function* () {
       yield { type: 'delta', content: 'answer' };
