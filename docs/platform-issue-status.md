@@ -1,6 +1,6 @@
 # Platform Issue Status（统一跟踪）
 
-> 最后更新：2026-08-14  
+> 最后更新：2026-08-15  
 > 本文档是各仓 GitHub Issues 的**单一真相源**；当 CI token 无法写 Issue 时，以本文为准，并手动同步到 GitHub。
 
 ## 方向修正（2026-08-13）
@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | OPEN — API path 覆盖 user+chats |
+| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API path ✅；缺 live JWT + browser smoke |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
@@ -106,13 +106,28 @@
 | PATCH 返回 refreshed `userInfo` | ✅ `5fad8cd` |
 | 独立 settings 表 / cache / model prompt | ✅ UserService 读写 `user_settings` + uid/schemaVersion cache；缺行回退 preferences |
 
+### `Acongm/node-vercel-starter#37` Final Quality Gate（当前唯一 P0）
+
+| AC | 状态 | 阻塞 |
+|----|------|------|
+| API path：user + chats quality-gate | ✅ `platform-v2-quality-gate.e2e-spec.ts` | — |
+| 线上 `/api/user` `/api/chats` 有 token 冒烟 | ⏳ | 本 VM 未注入 `ACONGM_*` Runtime Secret；需新开 Cloud Agent |
+| 生产 `user_settings` migration | ⏳ | 同上 + `#61` |
+| 生产 migration-history 修复 | ⏳ | Supabase 项目权限 |
+| Manual Linking + 匿名→OAuth 同 uid | ⏳ | `auth#48` + Dashboard |
+| Browser：Account 显示用户名 / settings | ⏳ | 真实登录 |
+| Browser：Chat Send / Retry / Reload / Edit / Cancel | ⏳ | 真实登录 |
+| Browser：Portal 顶栏登录态 + Drawer 会话持久化 | ⏳ | 真实登录 |
+
+**不要做**：KB / DocHub / Stage 3–6 / Portal shadcn Avatar 换皮（不阻塞）。
+
 ---
 
 ## Epic 子项快照
 
 | Epic | Issue | 备注 |
 |------|-------|------|
-| Portal Stage 1 | `portal#117` | 1.3 代码完成；剩 #40/#37 |
+| Portal Stage 1 | `portal#117` | 1.3 代码完成；剩 #37 |
 | Chat 产品 | `chat#39` | 依赖 #40 |
 | Auth 产品 | `auth#50` | 依赖 #51 |
 | API Stage 1 | `node-vercel-starter#32` | 等待 #37 gate |
