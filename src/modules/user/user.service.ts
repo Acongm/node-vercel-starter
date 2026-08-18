@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { APP_CONFIG } from '../../common/tokens';
-import { AppConfig } from '../../config/app-config';
+import { AppConfig, DEFAULT_AI_MODEL } from '../../config/app-config';
 import { AuthPrincipal } from '../auth/roles';
 import { SupabaseRequestClientService } from '../auth/supabase-request-client.service';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
@@ -365,7 +365,7 @@ export class UserService {
   }
 
   private settingsPolicy() {
-    return settingsPolicyFromModel(this.appConfig?.ai.model || 'gpt-4.1-mini');
+    return settingsPolicyFromModel(this.appConfig?.ai.model || DEFAULT_AI_MODEL);
   }
 
   private async loadProfile(

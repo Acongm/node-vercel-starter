@@ -20,7 +20,7 @@ AUTH_SESSION_TTL=7d
 # AUTH_OAUTH_REDIRECT_BASE=https://api.acongm.com
 AI_PROVIDER=custom
 AI_BASE_URL=https://api.deepseek.com
-AI_MODEL=deepseek-v4-pro
+AI_MODEL=deepseek-v4-flash
 AI_API_KEY=as-xxx
 CORS_ORIGINS=https://acongm.com,https://*.acongm.com
 SUPABASE_URL=https://your-project-ref.supabase.co
@@ -82,7 +82,7 @@ the API without exposing Supabase credentials.
 ## OpenAI-Compatible AI
 
 Set `AI_PROVIDER=custom`, `AI_BASE_URL=https://api.deepseek.com`,
-`AI_MODEL=deepseek-v4-pro`, and `AI_API_KEY` to the DeepSeek key. The placeholder
+`AI_MODEL=deepseek-v4-flash`, and `AI_API_KEY` to the DeepSeek key. The placeholder
 `as-xxx` is useful for deployment plumbing tests: the public endpoint should call
 the upstream provider and return its authentication error, proving the request is
 not served by the local mock provider.

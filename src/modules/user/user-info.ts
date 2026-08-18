@@ -1,3 +1,4 @@
+import { DEFAULT_AI_MODEL } from '../../config/app-config';
 import { AuthPrincipal } from '../auth/roles';
 import {
   readSettingsOverrides,
@@ -85,7 +86,7 @@ export function resolveUserInfo(
 
 export function resolveUserSettings(
   preferences: Record<string, unknown> | null | undefined,
-  defaultModel = 'gpt-4.1-mini',
+  defaultModel = DEFAULT_AI_MODEL,
 ): UserSettingsView {
   const prefs =
     preferences && typeof preferences === 'object' && !Array.isArray(preferences)

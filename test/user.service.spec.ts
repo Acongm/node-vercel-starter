@@ -100,7 +100,7 @@ describe('UserService', () => {
       settings: {
         language: 'zh-CN',
         theme: 'system',
-        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '', skills: [] },
+        chat: { defaultModel: 'deepseek-v4-flash', defaultPrompt: '', skills: [] },
         preferences: {},
       },
     });
@@ -519,7 +519,7 @@ describe('UserService user_settings table (#61)', () => {
         schema_version: 1,
         language: 'en',
         theme: 'light',
-        default_model: 'gpt-4.1-mini',
+        default_model: 'deepseek-v4-flash',
         default_prompt: null,
       },
     });
@@ -529,11 +529,11 @@ describe('UserService user_settings table (#61)', () => {
       service.updateSettings(request(), principal, {
         theme: 'light',
         language: 'en',
-        defaultModel: 'gpt-4.1-mini',
+        defaultModel: 'deepseek-v4-flash',
       }),
     ).resolves.toMatchObject({
       settings: {
-        overrides: { language: 'en', theme: 'light', chat: { defaultModel: 'gpt-4.1-mini' } },
+        overrides: { language: 'en', theme: 'light', chat: { defaultModel: 'deepseek-v4-flash' } },
         effective: { language: 'en', theme: 'light' },
       },
     });
@@ -543,7 +543,7 @@ describe('UserService user_settings table (#61)', () => {
         user_id: 'user-1',
         language: 'en',
         theme: 'light',
-        default_model: 'gpt-4.1-mini',
+        default_model: 'deepseek-v4-flash',
       }),
     );
     expect(mocks.profileUpdate).not.toHaveBeenCalled();

@@ -94,7 +94,7 @@ describe('UserService contract', () => {
       settings: {
         language: 'zh-CN',
         theme: 'system',
-        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '', skills: [] },
+        chat: { defaultModel: 'deepseek-v4-flash', defaultPrompt: '', skills: [] },
         preferences: {},
       },
     });
