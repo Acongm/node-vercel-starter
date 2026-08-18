@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API + mock browser ✅；live JWT API ✅；缺生产 browser |
+| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API + mock + live JWT chrome ✅；缺生产 cookie / OAuth |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
@@ -119,9 +119,9 @@
 | 生产 `user_settings` migration | ⏳ | 同上 + `#61` |
 | 生产 migration-history 修复 | ⏳ | Supabase 项目权限 |
 | Manual Linking + 匿名→OAuth 同 uid | ⏳ | `auth#48` + Dashboard |
-| Browser：Account 显示用户名 / settings | 🔄 mock ✅；生产 ⏳ | mock 在 auth e2e；生产需真登录 |
-| Browser：Chat Send / Retry / Reload / Edit / Cancel | 🔄 mock ✅；生产 ⏳ | mock 在 chat e2e；生产需真登录 |
-| Browser：Portal 顶栏登录态 + Drawer 会话持久化 | 🔄 mock ✅；生产 ⏳ | mock 在 portal e2e；生产需真登录 |
+| Browser：Account 显示用户名 / settings | 🔄 mock ✅；live JWT ✅ | `auth` `pnpm test:e2e:live` 真实邮箱登录；缺生产 cookie |
+| Browser：Chat Send / Retry / Reload / Edit / Cancel | 🔄 mock ✅；live JWT chrome ✅ | `chat` `pnpm test:e2e:live` 注入 session；缺生产 cookie / 真 LLM send |
+| Browser：Portal 顶栏登录态 + Drawer 会话持久化 | 🔄 mock ✅；live JWT chrome ✅ | `portal` `pnpm test:e2e:live` 顶栏账号；缺生产 cookie |
 
 **不要做**：KB / DocHub / Stage 3–6 / Portal shadcn Avatar 换皮（不阻塞）。
 
