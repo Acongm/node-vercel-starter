@@ -1,6 +1,6 @@
 # Platform Issue Status（统一跟踪）
 
-> 最后更新：2026-08-15  
+> 最后更新：2026-08-18  
 > 本文档是各仓 GitHub Issues 的**单一真相源**；当 CI token 无法写 Issue 时，以本文为准，并手动同步到 GitHub。
 
 ## 方向修正（2026-08-13）
@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API path ✅；Chat Playwright mock smoke ✅；缺 live JWT + 生产 browser |
+| P0 | Final Quality Gate | `#37` | **OPEN** — live API+schema ✅ `scripts/live-quality-gate.py`（2026-08-18）；剩生产 browser / Anonymous Auth / Manual Linking |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
@@ -114,10 +114,11 @@
 | Chat Playwright mock smoke（composer / send / reload / edit） | ✅ `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Portal Playwright mock smoke（登录 chrome / FAB / send） | ✅ `portal` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Keycloak 式 `/api/auth/session` + cookie userinfo | 🔄 源码进行中 | API `31c7e98` + auth/chat public-config/session BFF |
-| 线上 `/api/user` `/api/chats` 有 token 冒烟 | ⏳ | 本 VM 未注入 `ACONGM_*` Runtime Secret；需新开 Cloud Agent |
-| 生产 `user_settings` migration | ⏳ | 同上 + `#61` |
-| 生产 migration-history 修复 | ⏳ | Supabase 项目权限 |
-| Manual Linking + 匿名→OAuth 同 uid | ⏳ | `auth#48` + Dashboard |
+| 线上 `/api/user` `/api/chats` 有 token 冒烟 | ✅ 2026-08-18 | `scripts/live-quality-gate.py` exit 0；见 `docs/live-quality-gate.md` |
+| 生产 `user_settings` migration | ✅ 已在线上 | history 已有 `20260814010000`；PATCH 写入 `user_settings` |
+| 生产 comments CHECK migration | ✅ 已在线上 | history 已有 `20260808050000` |
+| 生产 migration-history 修复 | ⏳ | 历史 `20260606000000_create_comments` 仍未入账，不阻塞 User/Chat |
+| Manual Linking + 匿名→OAuth 同 uid | ⏳ | Dashboard：Anonymous Auth=false，Manual Linking=false |
 | Browser：Account 显示用户名 / settings | ⏳ | 真实登录 |
 | Browser：Chat Send / Retry / Reload / Edit / Cancel | ⏳ | 真实登录 |
 | Browser：Portal 顶栏登录态 + Drawer 会话持久化 | 🔄 mock ✅；生产 ⏳ | mock 在 portal e2e；生产需真登录 |

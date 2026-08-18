@@ -9,3 +9,5 @@ uploads/
 *.tsbuildinfo
 .DS_Store
 .vercel
+__pycache__/
+*.pyc

@@ -13,7 +13,8 @@
     "test:core": "jest --runInBand --config jest.core.config.js",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "seed:auth-user": "ts-node scripts/seed-auth-user.ts"
+    "seed:auth-user": "ts-node scripts/seed-auth-user.ts",
+    "test:live-quality-gate": "python3 scripts/live-quality-gate.py"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
