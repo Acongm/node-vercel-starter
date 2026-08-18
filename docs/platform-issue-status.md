@@ -1,6 +1,6 @@
 # Platform Issue Status（统一跟踪）
 
-> 最后更新：2026-08-15  
+> 最后更新：2026-08-18  
 > 本文档是各仓 GitHub Issues 的**单一真相源**；当 CI token 无法写 Issue 时，以本文为准，并手动同步到 GitHub。
 
 ## 方向修正（2026-08-13）
@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API path ✅；Chat Playwright mock smoke ✅；缺 live JWT + 生产 browser |
+| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API + mock browser ✅；live JWT API ✅；缺生产 browser |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
@@ -114,8 +114,8 @@
 | Chat Playwright mock smoke（composer / send / reload / edit / cancel / persist） | ✅ `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Portal Playwright mock smoke（登录 chrome / FAB / send / restore / reload+edit） | ✅ `portal` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Auth Playwright mock smoke（登录 chrome / Account 资料+偏好） | ✅ `auth` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
-| Keycloak 式 `/api/auth/session` + cookie userinfo | 🔄 源码进行中 | API `31c7e98` + auth/chat public-config/session BFF |
-| 线上 `/api/user` `/api/chats` 有 token 冒烟 | ⏳ | 本 VM 未注入 `ACONGM_*` Runtime Secret；需新开 Cloud Agent |
+| Keycloak 式 `/api/auth/session` + cookie userinfo | 🔄 Bearer live ✅；cookie 仍待生产 browser | `scripts/live-quality-gate.mjs` 已证 session + userInfo |
+| 线上 `/api/user` `/api/chats` 有 token 冒烟 | ✅ `scripts/live-quality-gate.mjs` | Management token 铸造临时用户 JWT，跑完删除 |
 | 生产 `user_settings` migration | ⏳ | 同上 + `#61` |
 | 生产 migration-history 修复 | ⏳ | Supabase 项目权限 |
 | Manual Linking + 匿名→OAuth 同 uid | ⏳ | `auth#48` + Dashboard |
