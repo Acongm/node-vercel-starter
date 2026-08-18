@@ -1,4 +1,5 @@
-import { IsIn, IsObject, IsString, Length, ValidateIf } from 'class-validator';
+import { IsArray, IsIn, IsObject, IsString, Length, ValidateIf } from 'class-validator';
+import type { AgentSkill } from '../user-settings';
 
 export class UpdateUserSettingsDto {
   @ValidateIf((_, value) => value !== undefined)
@@ -19,6 +20,10 @@ export class UpdateUserSettingsDto {
   @IsString()
   @Length(0, 2000)
   defaultPrompt?: string | null;
+
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsArray()
+  skills?: AgentSkill[] | null;
 
   /**
    * Shallow-merge into preferences. Known keys (language/theme) may also be

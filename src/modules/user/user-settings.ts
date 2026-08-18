@@ -4,8 +4,19 @@ export const USER_SETTINGS_SCHEMA_VERSION = 1;
 export const DEFAULT_PROMPT_MAX_LENGTH = 2000;
 export const DEFAULT_LANGUAGE = 'zh-CN';
 export const DEFAULT_THEME = 'system' as const;
+export const AGENT_SKILLS_MAX_COUNT = 8;
+export const AGENT_SKILL_NAME_MAX_LENGTH = 80;
+export const AGENT_SKILL_CONTENT_MAX_LENGTH = 2000;
+export const AGENT_SKILL_ID_MAX_LENGTH = 80;
 
 export type SettingsTheme = 'system' | 'light' | 'dark';
+
+export type AgentSkill = {
+  id: string;
+  name: string;
+  content: string;
+  enabled: boolean;
+};
 
 export type SettingsPolicy = {
   defaultModel: string;
@@ -15,6 +26,7 @@ export type SettingsPolicy = {
 export type SettingsChatOverrides = {
   defaultModel?: string;
   defaultPrompt?: string;
+  skills?: AgentSkill[];
 };
 
 export type SettingsOverrides = {
@@ -28,6 +40,7 @@ export type SettingsPatch = {
   theme?: SettingsTheme;
   defaultModel?: string;
   defaultPrompt?: string | null;
+  skills?: AgentSkill[] | null;
 };
 
 export type UserSettingsEffective = {
@@ -36,6 +49,7 @@ export type UserSettingsEffective = {
   chat: {
     defaultModel: string;
     defaultPrompt: string;
+    skills: AgentSkill[];
   };
 };
 
@@ -58,6 +72,7 @@ export function platformSettingsDefaults(
     chat: {
       defaultModel: policy.defaultModel,
       defaultPrompt: '',
+      skills: [],
     },
   };
 }
@@ -72,13 +87,15 @@ export function readSettingsOverrides(
   const chat = asObject(prefs.chat);
   const defaultModel = asNonEmptyString(chat.defaultModel);
   const defaultPrompt = asString(chat.defaultPrompt);
+  const skills = normalizeAgentSkills(chat.skills);
 
   if (language) overrides.language = language;
   if (theme) overrides.theme = theme;
-  if (defaultModel || defaultPrompt !== undefined) {
+  if (defaultModel || defaultPrompt !== undefined || skills !== undefined) {
     overrides.chat = {};
     if (defaultModel) overrides.chat.defaultModel = defaultModel;
     if (defaultPrompt !== undefined) overrides.chat.defaultPrompt = defaultPrompt;
+    if (skills !== undefined) overrides.chat.skills = skills;
   }
   return overrides;
 }
@@ -98,6 +115,7 @@ export function resolveSettingsDocument(
         next.chat?.defaultPrompt !== undefined
           ? next.chat.defaultPrompt
           : defaults.chat.defaultPrompt,
+      skills: next.chat?.skills ?? defaults.chat.skills,
     },
   };
 
@@ -124,7 +142,11 @@ export function mergeSettingsOverrides(
   if (patch.language !== undefined) next.language = patch.language;
   if (patch.theme !== undefined) next.theme = patch.theme;
 
-  if (patch.defaultModel !== undefined || patch.defaultPrompt !== undefined) {
+  if (
+    patch.defaultModel !== undefined ||
+    patch.defaultPrompt !== undefined ||
+    patch.skills !== undefined
+  ) {
     const chat = { ...(next.chat ?? {}) };
     if (patch.defaultModel !== undefined) {
       chat.defaultModel = patch.defaultModel;
@@ -133,6 +155,11 @@ export function mergeSettingsOverrides(
       delete chat.defaultPrompt;
     } else if (patch.defaultPrompt !== undefined) {
       chat.defaultPrompt = patch.defaultPrompt;
+    }
+    if (patch.skills === null) {
+      delete chat.skills;
+    } else if (patch.skills !== undefined) {
+      chat.skills = patch.skills;
     }
     next.chat = Object.keys(chat).length ? chat : undefined;
   }
@@ -165,6 +192,76 @@ export function assertSettingsPatch(
       });
     }
   }
+
+  if (patch.skills !== undefined && patch.skills !== null) {
+    assertAgentSkills(patch.skills);
+  }
+}
+
+export function normalizeAgentSkills(value: unknown): AgentSkill[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const skills: AgentSkill[] = [];
+  for (const item of value) {
+    const skill = asAgentSkill(item, skills.length);
+    if (skill) skills.push(skill);
+    if (skills.length >= AGENT_SKILLS_MAX_COUNT) break;
+  }
+  return skills;
+}
+
+function assertAgentSkills(skills: AgentSkill[]): void {
+  if (skills.length > AGENT_SKILLS_MAX_COUNT) {
+    throw new BadRequestException({
+      code: 'SETTINGS_SKILLS_TOO_MANY',
+      message: `skills cannot exceed ${AGENT_SKILLS_MAX_COUNT}.`,
+    });
+  }
+
+  for (const skill of skills) {
+    if (!skill.name.trim()) {
+      throw new BadRequestException({
+        code: 'SETTINGS_SKILL_NAME_REQUIRED',
+        message: 'Each skill needs a name.',
+      });
+    }
+    if (skill.name.length > AGENT_SKILL_NAME_MAX_LENGTH) {
+      throw new BadRequestException({
+        code: 'SETTINGS_SKILL_NAME_TOO_LONG',
+        message: `skill name is too long (max ${AGENT_SKILL_NAME_MAX_LENGTH}).`,
+      });
+    }
+    if (skill.content.length > AGENT_SKILL_CONTENT_MAX_LENGTH) {
+      throw new BadRequestException({
+        code: 'SETTINGS_SKILL_CONTENT_TOO_LONG',
+        message: `skill content is too long (max ${AGENT_SKILL_CONTENT_MAX_LENGTH}).`,
+      });
+    }
+    if (skill.id.length > AGENT_SKILL_ID_MAX_LENGTH) {
+      throw new BadRequestException({
+        code: 'SETTINGS_SKILL_ID_TOO_LONG',
+        message: `skill id is too long (max ${AGENT_SKILL_ID_MAX_LENGTH}).`,
+      });
+    }
+  }
+}
+
+function asAgentSkill(value: unknown, index: number): AgentSkill | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const row = value as Record<string, unknown>;
+  const name = asNonEmptyString(row.name);
+  if (!name || name.length > AGENT_SKILL_NAME_MAX_LENGTH) return undefined;
+  const content = typeof row.content === 'string' ? row.content : '';
+  if (content.length > AGENT_SKILL_CONTENT_MAX_LENGTH) return undefined;
+  const id = asNonEmptyString(row.id) ?? `skill-${index + 1}`;
+  if (id.length > AGENT_SKILL_ID_MAX_LENGTH) return undefined;
+  return {
+    id,
+    name,
+    content,
+    enabled: row.enabled !== false,
+  };
 }
 
 export function settingsPolicyFromModel(defaultModel: string): SettingsPolicy {

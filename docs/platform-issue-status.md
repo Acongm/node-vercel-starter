@@ -122,6 +122,7 @@
 | Browser：Account 显示用户名 / settings | 🔄 mock ✅；live JWT ✅ | `auth` `pnpm test:e2e:live` 真实邮箱登录；缺生产 cookie |
 | Browser：Chat Send / Retry / Reload / Edit / Cancel | 🔄 mock ✅；live JWT chrome ✅ | `chat` `pnpm test:e2e:live` 注入 session；缺生产 cookie / 真 LLM send |
 | Browser：Portal 顶栏登录态 + Drawer 会话持久化 | 🔄 mock ✅；live JWT chrome ✅ | `portal` `pnpm test:e2e:live` 顶栏账号；缺生产 cookie |
+| Chat / Account 用户自定义 Agent（系统提示词 + skills） | ✅ | `PATCH /api/user/settings` 的 `skills`；Chat 侧栏 / Auth `#settings` 可编辑；send 注入为用户偏好，不并入 system policy |
 
 **不要做**：KB / DocHub / Stage 3–6 / Portal shadcn Avatar 换皮（不阻塞）。
 

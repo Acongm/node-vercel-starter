@@ -1,4 +1,5 @@
 import {
+  AGENT_SKILLS_MAX_COUNT,
   DEFAULT_PROMPT_MAX_LENGTH,
   USER_SETTINGS_SCHEMA_VERSION,
   assertSettingsPatch,
@@ -8,6 +9,13 @@ import {
   resolveSettingsDocument,
   settingsRowPatch,
 } from '../src/modules/user/user-settings';
+
+const reviewSkill = {
+  id: 'code-review',
+  name: 'code-review',
+  content: '先核对测试再改代码。',
+  enabled: true,
+};
 
 const policy = {
   defaultModel: 'gpt-4.1-mini',
@@ -24,7 +32,7 @@ describe('User Settings document (#61)', () => {
     expect(document.effective).toEqual({
       language: 'zh-CN',
       theme: 'system',
-      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
+      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '', skills: [] },
     });
     expect(document.language).toBe('zh-CN');
     expect(document.theme).toBe('system');
@@ -43,8 +51,58 @@ describe('User Settings document (#61)', () => {
     expect(document.effective).toEqual({
       language: 'zh-CN',
       theme: 'dark',
-      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: 'Be concise.' },
+      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: 'Be concise.', skills: [] },
     });
+  });
+
+  it('stores agent skills on chat overrides and treats null as a reset', () => {
+    const document = resolveSettingsDocument(
+      { chat: { skills: [reviewSkill] } },
+      policy,
+    );
+
+    expect(document.effective.chat.skills).toEqual([reviewSkill]);
+
+    const merged = mergeSettingsOverrides(
+      { chat: { skills: [reviewSkill], defaultPrompt: 'Be concise.' } },
+      { skills: null },
+    );
+    expect(merged.chat?.skills).toBeUndefined();
+    expect(merged.chat?.defaultPrompt).toBe('Be concise.');
+    expect(resolveSettingsDocument(merged, policy).effective.chat.skills).toEqual(
+      [],
+    );
+  });
+
+  it('rejects too many skills or oversized skill fields', () => {
+    expect(() =>
+      assertSettingsPatch(
+        {
+          skills: Array.from({ length: AGENT_SKILLS_MAX_COUNT + 1 }, (_, index) => ({
+            id: `skill-${index}`,
+            name: `skill-${index}`,
+            content: 'ok',
+            enabled: true,
+          })),
+        },
+        policy,
+      ),
+    ).toThrow(/SETTINGS_SKILLS_TOO_MANY|cannot exceed/);
+    expect(() =>
+      assertSettingsPatch(
+        {
+          skills: [
+            {
+              id: 'x',
+              name: 'x'.repeat(81),
+              content: '',
+              enabled: true,
+            },
+          ],
+        },
+        policy,
+      ),
+    ).toThrow(/SETTINGS_SKILL_NAME_TOO_LONG|too long/);
   });
 
   it('rejects models outside the server allow-list and overlong prompts', () => {

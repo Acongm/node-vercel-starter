@@ -100,7 +100,7 @@ describe('UserService', () => {
       settings: {
         language: 'zh-CN',
         theme: 'system',
-        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
+        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '', skills: [] },
         preferences: {},
       },
     });
@@ -625,5 +625,103 @@ describe('UserService user_settings table (#61)', () => {
     expect(mocks.settingsInsert).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: 'anon-1', theme: 'dark' }),
     );
+  });
+
+  it('merges agent skills from profile preferences onto a user_settings row', async () => {
+    const mocks = settingsTableClient({
+      settings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: null,
+        theme: 'dark',
+        default_model: 'gpt-4.1-mini',
+        default_prompt: 'Be concise.',
+      },
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
+        preferences: {
+          chat: {
+            skills: [
+              {
+                id: 'code-review',
+                name: 'code-review',
+                content: '先核对测试再改代码。',
+                enabled: true,
+              },
+            ],
+          },
+        },
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+
+    await expect(service.getSettings(request(), principal)).resolves.toMatchObject({
+      effective: {
+        chat: {
+          defaultPrompt: 'Be concise.',
+          skills: [
+            {
+              id: 'code-review',
+              name: 'code-review',
+              content: '先核对测试再改代码。',
+              enabled: true,
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it('writes agent skills to profiles.preferences and not user_settings columns', async () => {
+    const mocks = settingsTableClient({
+      settings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: null,
+        theme: null,
+        default_model: null,
+        default_prompt: null,
+      },
+      updatedSettings: {
+        user_id: 'user-1',
+        schema_version: 1,
+        language: null,
+        theme: null,
+        default_model: null,
+        default_prompt: null,
+      },
+      profile: {
+        id: 'user-1',
+        display_name: 'Acongm',
+        avatar_url: null,
+        preferences: { density: 'compact' },
+      },
+    });
+    const service = new UserService({ create: () => mocks.client } as never);
+    const skills = [
+      {
+        id: 'code-review',
+        name: 'code-review',
+        content: '先核对测试再改代码。',
+        enabled: true,
+      },
+    ];
+
+    await expect(
+      service.updateSettings(request(), principal, { skills }),
+    ).resolves.toMatchObject({
+      settings: {
+        effective: { chat: { skills } },
+      },
+    });
+    expect(mocks.profileUpdate).toHaveBeenCalledWith({
+      preferences: {
+        density: 'compact',
+        chat: { skills },
+      },
+    });
+    expect(mocks.settingsUpdate).toHaveBeenCalled();
   });
 });

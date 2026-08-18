@@ -3,6 +3,7 @@ import {
   readSettingsOverrides,
   resolveSettingsDocument,
   settingsPolicyFromModel,
+  type AgentSkill,
   type SettingsPatch,
 } from './user-settings';
 
@@ -37,6 +38,7 @@ export type UserSettingsView = {
   chat: {
     defaultModel: string;
     defaultPrompt: string;
+    skills: AgentSkill[];
   };
   /** Full preferences object; known keys are also mirrored above. */
   preferences: Record<string, unknown>;
@@ -131,6 +133,11 @@ export function mergeSettingsPreferences(
     delete chat.defaultPrompt;
   } else if (patch.defaultPrompt !== undefined) {
     chat.defaultPrompt = patch.defaultPrompt;
+  }
+  if (patch.skills === null) {
+    delete chat.skills;
+  } else if (patch.skills !== undefined) {
+    chat.skills = patch.skills;
   }
   if (Object.keys(chat).length) {
     base.chat = chat;

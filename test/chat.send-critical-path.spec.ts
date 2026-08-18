@@ -216,7 +216,18 @@ describe('Chat v2 send critical path (#59)', () => {
       effective: {
         language: 'zh-CN',
         theme: 'system',
-        chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: 'Be concise.' },
+        chat: {
+          defaultModel: 'gpt-4.1-mini',
+          defaultPrompt: 'Be concise.',
+          skills: [
+            {
+              id: 'code-review',
+              name: 'code-review',
+              content: '先核对测试再改代码。',
+              enabled: true,
+            },
+          ],
+        },
       },
     });
     const stream = jest.fn(async function* () {
@@ -245,6 +256,14 @@ describe('Chat v2 send critical path (#59)', () => {
         settings: {
           defaultModel: 'gpt-4.1-mini',
           defaultPrompt: 'Be concise.',
+          skills: [
+            {
+              id: 'code-review',
+              name: 'code-review',
+              content: '先核对测试再改代码。',
+              enabled: true,
+            },
+          ],
         },
       }),
     );
