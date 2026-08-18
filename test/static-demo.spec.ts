@@ -24,6 +24,9 @@ describe('API debug console assets', () => {
     for (const group of groups) {
       expect(html).toContain(group);
     }
+    expect(html).toContain('placeholder="deepseek-v4-flash"');
+    expect(html).not.toContain('placeholder="deepseek-v4-pro"');
+    expect(html).not.toContain('placeholder="gpt-4.1-mini"');
   });
 
   it('loads api-demo.js script', () => {

@@ -100,6 +100,7 @@ describe('Node Vercel Starter', () => {
       fileMode: 'memory',
       authMode: 'none',
       aiProvider: 'mock',
+      aiModel: 'deepseek-v4-flash',
     });
   });
 
