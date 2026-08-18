@@ -113,12 +113,13 @@
 | API path：user + chats quality-gate | ✅ `platform-v2-quality-gate.e2e-spec.ts` | — |
 | Chat Playwright mock smoke（composer / send / reload / edit） | ✅ `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Portal Playwright mock smoke（登录 chrome / FAB / send） | ✅ `portal` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
+| Auth Playwright mock smoke（登录 chrome / Account 资料+偏好） | ✅ `auth` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Keycloak 式 `/api/auth/session` + cookie userinfo | 🔄 源码进行中 | API `31c7e98` + auth/chat public-config/session BFF |
 | 线上 `/api/user` `/api/chats` 有 token 冒烟 | ⏳ | 本 VM 未注入 `ACONGM_*` Runtime Secret；需新开 Cloud Agent |
 | 生产 `user_settings` migration | ⏳ | 同上 + `#61` |
 | 生产 migration-history 修复 | ⏳ | Supabase 项目权限 |
 | Manual Linking + 匿名→OAuth 同 uid | ⏳ | `auth#48` + Dashboard |
-| Browser：Account 显示用户名 / settings | ⏳ | 真实登录 |
+| Browser：Account 显示用户名 / settings | 🔄 mock ✅；生产 ⏳ | mock 在 auth e2e；生产需真登录 |
 | Browser：Chat Send / Retry / Reload / Edit / Cancel | ⏳ | 真实登录 |
 | Browser：Portal 顶栏登录态 + Drawer 会话持久化 | 🔄 mock ✅；生产 ⏳ | mock 在 portal e2e；生产需真登录 |
 
