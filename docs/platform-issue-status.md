@@ -24,7 +24,7 @@
 | P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
 | P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
 | P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API Bearer+cookie + Chat/Auth/Portal mock + Chat live JWT ✅；缺生产 `.acongm.com` cookie / OAuth / 真 LLM send |
+| P0 | Final Quality Gate | `#37` | **OPEN** — API + mock + live JWT + 生产 cookie chrome + schema/Manual Linking ✅；缺真人 OAuth 同 uid / 真 LLM send |
 | P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
 | P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
 
@@ -34,8 +34,12 @@
 
 | Issue | 仓库 | 关闭理由 | main 证据 |
 |-------|------|----------|-----------|
-| **#52** getUserInfo 登录态展示 | auth | AC 全部满足 | `210b0d8` + chat `d7cf211` + portal `39d1142` |
-| **#127** Portal Embedded Chat v2 | portal | #128 已合入，contract 已绿 | `a367246` / `39d1142` |
+| **#52** getUserInfo 登录态展示 | auth | 2026-08-19 closed | `210b0d8` + chat `d7cf211` + portal `39d1142` |
+| **#51** Auth Client 收口 | auth | 2026-08-19 closed | status machine + scoped signOut |
+| **#41** 用户菜单 + getUserInfo | chat | 2026-08-19 closed | `d7cf211` |
+| **#127** Portal Embedded Chat v2 | portal | 2026-08-19 closed | `a367246` / `39d1142` |
+| **#130** 顶栏账号态 | portal | 2026-08-19 closed | `39d1142` / `490c773` |
+| **#43** Consumer Migration | node-vercel-starter | 2026-08-19 closed | live proof 跟踪 #37 |
 
 ### #52 验收清单（已完成）
 
@@ -114,14 +118,14 @@
 | Chat Playwright mock smoke（composer / send / reload / edit / cancel / persist） | ✅ `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Portal Playwright mock smoke（登录 chrome / FAB / send / restore / reload+edit） | ✅ `portal` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
 | Auth Playwright mock smoke（登录 chrome / Account 资料+偏好） | ✅ `auth` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
-| Keycloak 式 `/api/auth/session` + cookie userinfo | 🔄 API cookie live ✅；生产 browser cookie 仍缺 | `scripts/live-quality-gate.mjs` 现同时打 Bearer、`acongm_access_token`、Supabase SSR cookie |
+| Keycloak 式 `/api/auth/session` + cookie userinfo | ✅ API cookie live + 生产 browser cookie | `scripts/live-quality-gate.mjs` + `auth` `pnpm test:e2e:prod` |
 | 线上 `/api/user` `/api/chats` 有 token 冒烟 | ✅ `scripts/live-quality-gate.mjs` | Management token 铸造临时用户 JWT，跑完删除 |
-| 生产 `user_settings` migration | ⏳ | 需 Supabase 项目权限 + `#61` |
-| 生产 migration-history 修复 | ⏳ | Supabase 项目权限 |
-| Manual Linking + 匿名→OAuth 同 uid | ⏳ | `auth#48` + Dashboard，代码已在 #47 |
-| Browser：Account 显示用户名 / settings | 🔄 mock ✅；live JWT 脚本 ✅ | `auth` `pnpm test:e2e` / `test:e2e:live`；缺生产 `.acongm.com` cookie |
-| Browser：Chat Send / Retry / Reload / Edit / Cancel | 🔄 mock ✅；live JWT chrome ✅ | `chat` `pnpm test:e2e:live` 注入 session；缺生产 cookie / 真 LLM send |
-| Browser：Portal 顶栏登录态 + Drawer 会话持久化 | 🔄 mock ✅；live JWT 脚本 ✅ | `portal` `pnpm test:e2e` / `test:e2e:live`；缺生产 cookie |
+| 生产 `user_settings` migration | ✅ | 远程已有 `20260814010000_user_settings`，表 + 4 条 RLS |
+| 生产 migration-history 修复 | ✅ | comments CHECK 已在；`20260606000000_create_comments` 已补记 |
+| Manual Linking + 匿名用户 | ✅ 配置已开；OAuth 同 uid live 仍缺 | `security_manual_linking_enabled` + `external_anonymous_users_enabled`；`auth#48` 剩真人 OAuth |
+| Browser：Account 显示用户名 / settings | ✅ mock + live JWT + 生产 cookie | `auth` `pnpm test:e2e` / `test:e2e:live` / `test:e2e:prod` |
+| Browser：Chat chrome 登录态 | ✅ mock + live JWT + 生产 cookie | 真 LLM send 仍缺 |
+| Browser：Portal 顶栏登录态 + Drawer FAB | ✅ mock + live JWT + 生产 cookie | 真 LLM send 仍缺 |
 | Chat / Account 用户自定义 Agent（系统提示词 + skills） | ✅ | `PATCH /api/user/settings` 的 `skills`；Chat 侧栏 / Auth `#settings` 可编辑；send 注入为用户偏好，不并入 system policy |
 
 **不要做**：KB / DocHub / Stage 3–6 / Portal shadcn Avatar 换皮（不阻塞）。
