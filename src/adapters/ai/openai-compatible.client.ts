@@ -15,6 +15,7 @@ import { SUMMARY_SYSTEM_PROMPT } from './summary.prompt';
 
 const MAX_SUMMARY_CONTENT_LENGTH = 3000;
 const DEFAULT_CHAT_MAX_TOKENS = 1024;
+const THINKING_CHAT_MAX_TOKENS = 4096;
 const MAX_CHAT_MAX_TOKENS = 8192;
 
 function messagesFor(input: AiChatInput) {
@@ -24,8 +25,21 @@ function messagesFor(input: AiChatInput) {
 }
 
 function resolveMaxTokens(input: AiChatInput): number {
-  const requested = input.maxTokens ?? DEFAULT_CHAT_MAX_TOKENS;
+  const fallback = input.enableThinking
+    ? THINKING_CHAT_MAX_TOKENS
+    : DEFAULT_CHAT_MAX_TOKENS;
+  const requested = input.maxTokens ?? fallback;
   return Math.min(Math.max(1, Math.floor(requested)), MAX_CHAT_MAX_TOKENS);
+}
+
+function thinkingPayload(enableThinking?: boolean) {
+  return {
+    thinking: { type: enableThinking ? 'enabled' : 'disabled' },
+  };
+}
+
+function streamText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
 }
 
 export class OpenAiCompatibleClient implements AiClient {
@@ -40,7 +54,7 @@ export class OpenAiCompatibleClient implements AiClient {
       model: this.config.model,
       messages: messagesFor(input),
       max_tokens: resolveMaxTokens(input),
-      ...(input.enableThinking ? { thinking: { type: 'enabled' } } : {}),
+      ...thinkingPayload(input.enableThinking),
     })) as {
       choices?: Array<{
         message?: {
@@ -58,12 +72,14 @@ export class OpenAiCompatibleClient implements AiClient {
 
     const message = json.choices?.[0]?.message;
     const thinking =
-      message?.reasoning_content || message?.reasoning || undefined;
+      streamText(message?.reasoning_content) ||
+      streamText(message?.reasoning) ||
+      undefined;
 
     return {
       provider: this.config.provider,
       model: this.config.model,
-      message: message?.content || '',
+      message: streamText(message?.content),
       thinking,
       usage: json.usage
         ? {
@@ -92,7 +108,7 @@ export class OpenAiCompatibleClient implements AiClient {
         stream: true,
         stream_options: { include_usage: true },
         max_tokens: resolveMaxTokens(input),
-        ...(input.enableThinking ? { thinking: { type: 'enabled' } } : {}),
+        ...thinkingPayload(input.enableThinking),
       }),
       signal: input.signal,
     });
@@ -151,9 +167,11 @@ export class OpenAiCompatibleClient implements AiClient {
 
       const events: AiStreamEvent[] = [];
       const delta = payload.choices?.[0]?.delta;
-      const thinking = delta?.reasoning_content || delta?.reasoning;
+      const thinking =
+        streamText(delta?.reasoning_content) || streamText(delta?.reasoning);
+      const content = streamText(delta?.content);
       if (thinking) events.push({ type: 'thinking', content: thinking });
-      if (delta?.content) events.push({ type: 'delta', content: delta.content });
+      if (content) events.push({ type: 'delta', content });
       if (payload.usage) {
         events.push({
           type: 'usage',

@@ -149,6 +149,88 @@ describe('OpenAiCompatibleClient', () => {
     ]);
   });
 
+  it('explicitly disables provider thinking when the client did not request it', async () => {
+    let requestBody: Record<string, unknown> = {};
+    global.fetch = jest.fn(async (_url, init) => {
+      requestBody = JSON.parse(String(init?.body));
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                'data: {"choices":[{"delta":{"content":"好"}}]}\n\n',
+              ),
+            );
+            controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const client = new OpenAiCompatibleClient({
+      provider: 'custom',
+      apiKey: 'as-xxx',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-v4-flash',
+    });
+    const events = [];
+    for await (const event of client.streamChat({
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      events.push(event);
+    }
+
+    expect(requestBody).toMatchObject({
+      thinking: { type: 'disabled' },
+      max_tokens: 1024,
+    });
+    expect(events).toEqual([
+      { type: 'delta', content: '好' },
+      { type: 'done' },
+    ]);
+  });
+
+  it('raises the default token budget when thinking is enabled so reasoning cannot starve the answer', async () => {
+    let requestBody: Record<string, unknown> = {};
+    global.fetch = jest.fn(async (_url, init) => {
+      requestBody = JSON.parse(String(init?.body));
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(
+                'data: {"choices":[{"delta":{"content":"好"}}]}\n\n',
+              ),
+            );
+            controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const client = new OpenAiCompatibleClient({
+      provider: 'custom',
+      apiKey: 'as-xxx',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-v4-flash',
+    });
+    for await (const _event of client.streamChat({
+      prompt: 'hi',
+      enableThinking: true,
+    })) {
+      // Drain the mocked stream; the assertion is the outbound body.
+    }
+
+    expect(requestBody).toMatchObject({
+      thinking: { type: 'enabled' },
+      max_tokens: 4096,
+    });
+  });
+
   it('emits thinking events from reasoning_content deltas', async () => {
     const encoder = new TextEncoder();
     global.fetch = jest.fn(async (_url, init) => {

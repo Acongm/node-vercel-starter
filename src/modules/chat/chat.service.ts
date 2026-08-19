@@ -212,7 +212,7 @@ export class ChatService {
         );
       }
 
-      if (!reasoning.trim() && !assistantText.trim()) {
+      if (!assistantText.trim()) {
         throw new ChatContractError(
           'CHAT_EMPTY_RESPONSE',
           'Model returned no usable content.',

@@ -265,4 +265,55 @@ describe('ChatService', () => {
     );
     expect(repository.update).not.toHaveBeenCalled();
   });
+
+  it('treats thinking-only provider output as empty so the user can retry', async () => {
+    const createMessage = jest.fn().mockResolvedValue(
+      message('msg-user', 'user', null, [{ type: 'text', text: 'hello' }]),
+    );
+    const updateRun = jest.fn().mockResolvedValue({});
+    const repository = {
+      get: jest.fn().mockResolvedValue({
+        id: 'chat-1',
+        title: 'Existing',
+        page_path: null,
+        module_key: null,
+      }),
+      listRecentMessages: jest.fn().mockResolvedValue([]),
+      findMessageByClientId: jest.fn().mockResolvedValue(null),
+      findMessageByReference: jest.fn().mockResolvedValue(null),
+      createMessage,
+      createRun: jest.fn().mockResolvedValue({
+        run: runningRun('msg-user'),
+        created: true,
+      }),
+      updateRun,
+      touch: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn(),
+    };
+    async function* modelStream() {
+      yield { type: 'meta', provider: 'custom', model: 'deepseek-v4-flash' };
+      yield { type: 'thinking', content: 'internal draft' };
+      yield { type: 'done' };
+    }
+    const service = new ChatService(
+      repository as never,
+      { enforceRateLimit: jest.fn(), stream: jest.fn(() => modelStream()) } as never,
+      { logFromRequest: jest.fn() } as never,
+    );
+
+    const result = await collectResult(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+    expect(result.events.map((event: any) => event.type)).toEqual([
+      'user-persisted',
+      'meta',
+      'thinking',
+    ]);
+    expect(result.error).toMatchObject({
+      code: 'CHAT_EMPTY_RESPONSE',
+      message: 'Model returned no usable content.',
+    });
+    expect(createMessage).toHaveBeenCalledTimes(1);
+    expect(repository.update).not.toHaveBeenCalled();
+  });
 });
