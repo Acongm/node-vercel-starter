@@ -21,6 +21,7 @@ describe('Platform v2 live quality gate (#37 JWT path)', () => {
     const payload = JSON.parse(result.stdout.trim().split('\n').at(-1) || '{}');
     expect(payload.ok).toBe(true);
     expect(payload.session).toEqual({ authenticated: true, isAnonymous: false });
+    expect(payload.cookie).toEqual({ acongmAccessToken: true, supabaseAuthToken: true });
     expect(payload.chats).toEqual({ listed: expect.any(Number), created: true, deleted: true });
   });
 });

@@ -101,11 +101,50 @@ async function main() {
       fail('failed to delete live chat', { status: deleted.status });
     }
 
+    const cookieAcongm = {
+      Cookie: `acongm_access_token=${live.session.access_token}`,
+      Accept: 'application/json',
+    };
+    const cookieSession = requireJson(
+      await request(`${API_BASE}/api/auth/session`, { headers: cookieAcongm }),
+      'cookie session',
+    );
+    if (
+      cookieSession.authenticated !== true ||
+      cookieSession.isAnonymous !== false ||
+      cookieSession.userInfo?.id !== live.user.id
+    ) {
+      fail('acongm_access_token cookie did not authenticate session', {
+        authenticated: cookieSession.authenticated,
+        isAnonymous: cookieSession.isAnonymous,
+      });
+    }
+
+    const supabaseCookie = {
+      Cookie: `sb-ejprvntpxlyydkzsjqnv-auth-token=${encodeURIComponent(
+        JSON.stringify({
+          access_token: live.session.access_token,
+          refresh_token: live.session.refresh_token,
+          token_type: live.session.token_type ?? 'bearer',
+          user: live.session.user,
+        }),
+      )}`,
+      Accept: 'application/json',
+    };
+    const supabaseCookieInfo = requireJson(
+      await request(`${API_BASE}/api/user/info`, { headers: supabaseCookie }),
+      'supabase cookie user info',
+    );
+    if (supabaseCookieInfo.userInfo?.id !== live.user.id) {
+      fail('Supabase SSR cookie did not authenticate user info');
+    }
+
     console.log(
       JSON.stringify({
         ok: true,
         apiBase: API_BASE,
         session: { authenticated: true, isAnonymous: false },
+        cookie: { acongmAccessToken: true, supabaseAuthToken: true },
         userInfo: { role: info.userInfo?.role, tier: info.userInfo?.tier },
         chats: { listed: list.chats.length, created: true, deleted: true },
       }),
