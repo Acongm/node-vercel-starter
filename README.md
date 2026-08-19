@@ -136,13 +136,13 @@ AI_BASE_URL=https://api.openai.com/v1
 AI_MODEL=gpt-4.1-mini
 ```
 
-For DeepSeek's OpenAI-compatible API:
+For DeepSeek's OpenAI-compatible API (platform default):
 
 ```env
 AI_PROVIDER=custom
 AI_API_KEY=as-xxx
 AI_BASE_URL=https://api.deepseek.com
-AI_MODEL=deepseek-v4-pro
+AI_MODEL=deepseek-v4-flash
 ```
 
 The app exposes both a simple project endpoint and OpenAI-compatible chat
@@ -211,7 +211,7 @@ OpenAI-compatible chat completion example:
 curl -X POST https://api.acongm.com/v1/chat/completions \
   -H 'content-type: application/json' \
   -d '{
-    "model": "deepseek-v4-pro",
+    "model": "deepseek-v4-flash",
     "messages": [
       { "role": "user", "content": "Hello" }
     ]

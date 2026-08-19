@@ -16,6 +16,7 @@ export class HealthService {
       fileMode: this.config.fileMode,
       authMode: this.config.auth.mode,
       aiProvider: this.config.ai.provider,
+      aiModel: this.config.ai.model,
       timestamp: new Date().toISOString(),
     };
   }

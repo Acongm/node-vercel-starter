@@ -66,7 +66,7 @@ describe('userInfo / settings resolvers', () => {
     expect(resolveUserSettings(null)).toEqual({
       language: 'zh-CN',
       theme: 'system',
-      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
+      chat: { defaultModel: 'deepseek-v4-flash', defaultPrompt: '', skills: [] },
       preferences: {},
     });
     expect(
@@ -74,7 +74,7 @@ describe('userInfo / settings resolvers', () => {
     ).toEqual({
       language: 'en',
       theme: 'dark',
-      chat: { defaultModel: 'gpt-4.1-mini', defaultPrompt: '' },
+      chat: { defaultModel: 'deepseek-v4-flash', defaultPrompt: '', skills: [] },
       preferences: { language: 'en', theme: 'dark', density: 'compact' },
     });
 

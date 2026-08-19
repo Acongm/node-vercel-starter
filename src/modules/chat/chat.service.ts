@@ -212,7 +212,7 @@ export class ChatService {
         );
       }
 
-      if (!reasoning.trim() && !assistantText.trim()) {
+      if (!assistantText.trim()) {
         throw new ChatContractError(
           'CHAT_EMPTY_RESPONSE',
           'Model returned no usable content.',
@@ -605,9 +605,13 @@ export class ChatService {
     try {
       const document = await this.userService.getSettings(request, principal);
       const defaultPrompt = document.effective.chat.defaultPrompt?.trim();
+      const skills = (document.effective.chat.skills ?? []).filter(
+        (skill) => skill.enabled !== false && (skill.name.trim() || skill.content.trim()),
+      );
       return {
         defaultModel: document.effective.chat.defaultModel,
         defaultPrompt: defaultPrompt || undefined,
+        skills: skills.length ? skills : undefined,
       };
     } catch {
       return undefined;

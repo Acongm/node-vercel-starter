@@ -98,4 +98,40 @@ describe('AI chat v1 message policy', () => {
     expect(preference?.content).toBe('用户偏好：Be concise.');
     expect(result.at(-1)).toEqual({ role: 'user', content: 'hello' });
   });
+
+  it('injects enabled skills as user preferences and never merges them into the system policy', () => {
+    const result = prepareChatV1Messages(
+      {
+        messages: [{ role: 'user', content: 'hello' }],
+        context: { title: 'React Fiber', scope: 'article' },
+      },
+      {
+        skills: [
+          {
+            name: 'code-review',
+            content: '先核对测试再改代码。',
+            enabled: true,
+          },
+          {
+            name: 'ignored',
+            content: 'should not appear',
+            enabled: false,
+          },
+        ],
+      },
+    );
+    const system = result.find((message) => message.role === 'system');
+    const skill = result.find(
+      (message) => message.role === 'user' && message.content.startsWith('用户技能'),
+    );
+
+    expect(result.filter((message) => message.role === 'system')).toHaveLength(1);
+    expect(system?.content).toContain('AI 阅读助手');
+    expect(system?.content).not.toContain('先核对测试再改代码。');
+    expect(skill?.content).toBe('用户技能「code-review」：先核对测试再改代码。');
+    expect(result.some((message) => message.content.includes('should not appear'))).toBe(
+      false,
+    );
+    expect(result.at(-1)).toEqual({ role: 'user', content: 'hello' });
+  });
 });

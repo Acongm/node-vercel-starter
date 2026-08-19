@@ -21,13 +21,17 @@ GET   /api/user/me        # same payload as /info
 GET   /api/user/profile   # { profile, userInfo }
 PATCH /api/user/profile   # { displayName, avatarUrl, preferences }
 GET   /api/user/settings  # { schemaVersion, defaults, overrides, effective }
-PATCH /api/user/settings  # { language, theme, defaultModel, defaultPrompt }
+PATCH /api/user/settings  # { language, theme, defaultModel, defaultPrompt, skills }
 ```
 
 `GET /api/user/settings` returns platform `defaults`, user `overrides`, and
 `effective` so clients do not merge defaults themselves. Overrides live in
 `user_settings` (owner-only RLS). If that row is missing, the API falls back to
 `profiles.preferences` once. `defaultModel` must be on the server allow-list
-(`AI_MODEL`). `defaultPrompt: null` resets to default.
+(`AI_MODEL`). `defaultPrompt: null` resets to default. `skills` is the
+user-custom agent skill list (name + instruction body, max 8). It is stored in
+`profiles.preferences.chat.skills` until `user_settings` has a dedicated column.
+`skills: null` resets to none. Send injects skills as user-preference messages
+and never merges them into the server system policy.
 
 Try these on https://api.acongm.com/ → User Center.

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { APP_CONFIG } from '../../common/tokens';
-import { AppConfig } from '../../config/app-config';
+import { AppConfig, DEFAULT_AI_MODEL } from '../../config/app-config';
 import { AuthPrincipal } from '../auth/roles';
 import { SupabaseRequestClientService } from '../auth/supabase-request-client.service';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
@@ -111,7 +111,8 @@ export class UserService {
       dto.theme === undefined &&
       dto.preferences === undefined &&
       dto.defaultModel === undefined &&
-      dto.defaultPrompt === undefined
+      dto.defaultPrompt === undefined &&
+      dto.skills === undefined
     ) {
       throw new BadRequestException({
         code: 'SETTINGS_PATCH_EMPTY',
@@ -125,8 +126,18 @@ export class UserService {
     const current = await this.loadSettingsOverrides(request, userId);
     const next = this.mergeSettingsPatch(current, dto);
     const row = await this.writeSettings(request, userId, next);
+    if (dto.skills !== undefined) {
+      await this.persistAgentSkills(request, userId, next.chat?.skills ?? []);
+    }
+    const persisted = overridesFromSettingsRow(row);
     const document = resolveSettingsDocument(
-      overridesFromSettingsRow(row),
+      {
+        ...persisted,
+        chat: {
+          ...persisted.chat,
+          ...(next.chat?.skills !== undefined ? { skills: next.chat.skills } : {}),
+        },
+      },
       policy,
     );
     this.settingsCache.set(this.settingsCacheKey(userId), document);
@@ -215,9 +226,7 @@ export class UserService {
       this.loadSettingsRow(request, userId),
     ]);
     const document = resolveSettingsDocument(
-      settingsRow
-        ? overridesFromSettingsRow(settingsRow)
-        : readSettingsOverrides(profile?.preferences),
+      this.composeSettingsOverrides(settingsRow, profile?.preferences),
       this.settingsPolicy(),
     );
     this.settingsCache.set(cacheKey, document);
@@ -238,10 +247,57 @@ export class UserService {
     request: Request,
     userId: string,
   ): Promise<SettingsOverrides> {
-    const row = await this.loadSettingsRow(request, userId);
-    if (row) return overridesFromSettingsRow(row);
+    const [row, profile] = await Promise.all([
+      this.loadSettingsRow(request, userId),
+      this.loadProfile(request, userId),
+    ]);
+    return this.composeSettingsOverrides(row, profile?.preferences);
+  }
+
+  private composeSettingsOverrides(
+    row: UserSettingsRow | null,
+    preferences: Record<string, unknown> | null | undefined,
+  ): SettingsOverrides {
+    const fromPrefs = readSettingsOverrides(preferences);
+    if (!row) return fromPrefs;
+    const fromRow = overridesFromSettingsRow(row);
+    if (!fromPrefs.chat?.skills) return fromRow;
+    return {
+      ...fromRow,
+      chat: {
+        ...fromRow.chat,
+        skills: fromPrefs.chat.skills,
+      },
+    };
+  }
+
+  private async persistAgentSkills(
+    request: Request,
+    userId: string,
+    skills: NonNullable<SettingsOverrides['chat']>['skills'],
+  ): Promise<void> {
     const profile = await this.loadProfile(request, userId);
-    return readSettingsOverrides(profile?.preferences);
+    const preferences =
+      profile?.preferences && typeof profile.preferences === 'object'
+        ? { ...profile.preferences }
+        : {};
+    const chat =
+      preferences.chat &&
+      typeof preferences.chat === 'object' &&
+      !Array.isArray(preferences.chat)
+        ? { ...(preferences.chat as Record<string, unknown>) }
+        : {};
+    if (skills && skills.length > 0) {
+      chat.skills = skills;
+    } else {
+      delete chat.skills;
+    }
+    if (Object.keys(chat).length > 0) {
+      preferences.chat = chat;
+    } else {
+      delete preferences.chat;
+    }
+    await this.writeProfile(request, userId, { preferences });
   }
 
   private mergeSettingsPatch(
@@ -309,7 +365,7 @@ export class UserService {
   }
 
   private settingsPolicy() {
-    return settingsPolicyFromModel(this.appConfig?.ai.model || 'gpt-4.1-mini');
+    return settingsPolicyFromModel(this.appConfig?.ai.model || DEFAULT_AI_MODEL);
   }
 
   private async loadProfile(

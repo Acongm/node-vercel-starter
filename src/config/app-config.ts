@@ -13,6 +13,8 @@ export type FileMode = 'memory' | 'local' | 'vercel-blob' | 's3';
 export type AuthMode = 'none' | 'jwt' | 'external';
 export type AiProvider = 'mock' | 'openai' | 'custom';
 
+export const DEFAULT_AI_MODEL = 'deepseek-v4-flash';
+
 export interface AppConfig {
   appName: string;
   appVersion: string;
@@ -187,7 +189,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       provider: enumValue(env.AI_PROVIDER, aiProviders, 'mock'),
       apiKey: env.AI_API_KEY,
       baseUrl: (env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
-      model: env.AI_MODEL || 'gpt-4.1-mini',
+      model: env.AI_MODEL || DEFAULT_AI_MODEL,
       webSearchApiKey: env.WEB_SEARCH_API_KEY || env.TAVILY_API_KEY,
     },
     corsOrigins: parseList(env.CORS_ORIGINS || 'https://acongm.com,https://*.acongm.com'),

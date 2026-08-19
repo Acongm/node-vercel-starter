@@ -8,10 +8,16 @@ export const LONG_HISTORY_CHAR_BUDGET = 80000;
 export const DOCUMENT_CONTENT_CHAR_BUDGET = 8000;
 export const SYSTEM_PROMPT_CHAR_BUDGET = 10000;
 export const USER_PREFERENCE_PREFIX = '用户偏好：';
+export const USER_SKILL_PREFIX = '用户技能';
 
 export type ChatSettingsInjection = {
   defaultModel?: string;
   defaultPrompt?: string;
+  skills?: Array<{
+    name: string;
+    content: string;
+    enabled?: boolean;
+  }>;
 };
 
 function normalize(value: string | undefined): string {
@@ -109,12 +115,37 @@ export function prepareChatV1Messages(
   dto: ChatV1Dto,
   settings: ChatSettingsInjection = {},
 ): ChatMessage[] {
-  const preference = normalize(settings.defaultPrompt);
   return [
     { role: 'system', content: buildSystemPrompt(dto) },
-    ...(preference
-      ? [{ role: 'user' as const, content: `${USER_PREFERENCE_PREFIX}${preference}` }]
-      : []),
+    ...buildPreferenceMessages(settings),
     ...prepareConversation(dto),
   ];
+}
+
+function buildPreferenceMessages(
+  settings: ChatSettingsInjection,
+): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+  const preference = normalize(settings.defaultPrompt);
+  if (preference) {
+    messages.push({
+      role: 'user',
+      content: `${USER_PREFERENCE_PREFIX}${preference}`,
+    });
+  }
+
+  for (const skill of settings.skills ?? []) {
+    if (skill.enabled === false) continue;
+    const name = normalize(skill.name);
+    const content = normalize(skill.content);
+    if (!name && !content) continue;
+    messages.push({
+      role: 'user',
+      content: content
+        ? `${USER_SKILL_PREFIX}「${name}」：${content}`
+        : `${USER_SKILL_PREFIX}「${name}」`,
+    });
+  }
+
+  return messages;
 }
