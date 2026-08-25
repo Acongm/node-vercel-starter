@@ -383,3 +383,52 @@ export type RequestLogStatsEnabled = {
 };
 
 export type RequestLogStatsResponse = RequestLogStatsDisabled | RequestLogStatsEnabled;
+
+export type PlatformRuntimeConfigBody = {
+  chat: {
+    provider: 'mock' | 'openai' | 'custom';
+    baseUrl: string;
+    model: string;
+    maxTokensDefault: number;
+    thinkingMaxTokens: number;
+  };
+  knowledgeBase: {
+    summariesUrl: string;
+    portalServiceId: string;
+  };
+  openApi: {
+    enabled: boolean;
+    completionsPathEnabled: boolean;
+  };
+  webSearch: {
+    enabled: boolean;
+  };
+  callers: {
+    allowedCallSources: string[];
+    serviceCallers: Array<{ id: string }>;
+  };
+};
+
+export type PlatformSecretStatus = {
+  configured: boolean;
+  preview: string | null;
+};
+
+export type PlatformRuntimeConfigView = {
+  schemaVersion: number;
+  config: PlatformRuntimeConfigBody;
+  secrets: Record<string, PlatformSecretStatus>;
+  serviceCallerSecrets: Array<{
+    id: string;
+    configured: boolean;
+    preview: string | null;
+  }>;
+  source: 'database' | 'environment';
+  updatedAt: string | null;
+};
+
+export type PlatformRuntimeConfigPatch = {
+  config?: Partial<PlatformRuntimeConfigBody>;
+  secrets?: Record<string, string | null>;
+  serviceCallerKeys?: Array<{ id: string; key: string | null }>;
+};

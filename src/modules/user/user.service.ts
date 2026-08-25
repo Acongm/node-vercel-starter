@@ -10,6 +10,7 @@ import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig, DEFAULT_AI_MODEL } from '../../config/app-config';
 import { AuthPrincipal } from '../auth/roles';
 import { SupabaseRequestClientService } from '../auth/supabase-request-client.service';
+import { PlatformRuntimeConfigService } from '../platform-config/platform-runtime-config.service';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import {
@@ -58,6 +59,7 @@ export class UserService {
 
   constructor(
     private readonly supabaseClients: SupabaseRequestClientService,
+    @Optional() private readonly runtimeConfig?: PlatformRuntimeConfigService,
     @Optional() @Inject(APP_CONFIG) private readonly appConfig?: AppConfig,
   ) {}
 
@@ -120,7 +122,7 @@ export class UserService {
       });
     }
 
-    const policy = this.settingsPolicy();
+    const policy = await this.settingsPolicy();
     assertSettingsPatch(dto, policy);
     const userId = this.requireUserId(principal);
     const current = await this.loadSettingsOverrides(request, userId);
@@ -227,7 +229,7 @@ export class UserService {
     ]);
     const document = resolveSettingsDocument(
       this.composeSettingsOverrides(settingsRow, profile?.preferences),
-      this.settingsPolicy(),
+      await this.settingsPolicy(),
     );
     this.settingsCache.set(cacheKey, document);
     return [profile, document];
@@ -239,7 +241,7 @@ export class UserService {
   ): Promise<UserSettingsDocument> {
     return resolveSettingsDocument(
       await this.loadSettingsOverrides(request, userId),
-      this.settingsPolicy(),
+      await this.settingsPolicy(),
     );
   }
 
@@ -364,8 +366,11 @@ export class UserService {
     return inserted as UserSettingsRow;
   }
 
-  private settingsPolicy() {
-    return settingsPolicyFromModel(this.appConfig?.ai.model || DEFAULT_AI_MODEL);
+  private async settingsPolicy() {
+    const defaultModel = this.runtimeConfig
+      ? await this.runtimeConfig.getDefaultModel()
+      : this.appConfig?.ai.model || DEFAULT_AI_MODEL;
+    return settingsPolicyFromModel(defaultModel);
   }
 
   private async loadProfile(
