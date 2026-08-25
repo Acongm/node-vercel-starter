@@ -14,10 +14,12 @@ import { UserModule } from './modules/user/user.module';
 import { AdminDataModule } from './modules/admin-data/admin-data.module';
 import { AdminInsightsModule } from './modules/admin-insights/admin-insights.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { PlatformConfigModule } from './modules/platform-config/platform-config.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    PlatformConfigModule,
     HealthModule,
     CommentsModule,
     ChatLogsModule,

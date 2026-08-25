@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
-import { AppConfig } from '../../config/app-config';
-import { AI_CLIENT, APP_CONFIG } from '../../common/tokens';
-import { MockAiClient } from '../../adapters/ai/mock-ai.client';
-import { OpenAiCompatibleClient } from '../../adapters/ai/openai-compatible.client';
+import { DynamicAiClient } from '../../adapters/ai/dynamic-ai.client';
+import { AI_CLIENT } from '../../common/tokens';
 import { AuthModule } from '../auth/auth.module';
 import { ChatLogsModule } from '../chat-logs/chat-logs.module';
+import { PlatformRuntimeConfigService } from '../platform-config/platform-runtime-config.service';
 import { AiCallerGuard } from './ai-caller.guard';
 import { AiController, OpenAiCompatibleController } from './ai.controller';
 import { AiService } from './ai.service';
@@ -22,13 +21,9 @@ import { AiV1Service } from './v1/ai-v1.service';
     ChatRateLimitService,
     {
       provide: AI_CLIENT,
-      inject: [APP_CONFIG],
-      useFactory: (config: AppConfig) => {
-        if (config.ai.provider === 'mock') {
-          return new MockAiClient();
-        }
-        return new OpenAiCompatibleClient(config.ai);
-      },
+      inject: [PlatformRuntimeConfigService],
+      useFactory: (runtimeConfig: PlatformRuntimeConfigService) =>
+        new DynamicAiClient(runtimeConfig),
     },
   ],
   exports: [AiV1Service, ChatRateLimitService, AI_CLIENT],

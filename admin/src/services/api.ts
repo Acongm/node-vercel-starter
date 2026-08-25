@@ -19,6 +19,8 @@ import type {
   SyncFailureRow,
   SyncJobRow,
   AdminChatLogItem,
+  PlatformRuntimeConfigPatch,
+  PlatformRuntimeConfigView,
 } from '@/types';
 
 export async function fetchSession(): Promise<AuthSessionView> {
@@ -356,4 +358,25 @@ export async function fetchRequestLogs(params: {
     throw new Error(`Request logs failed: HTTP ${result.status}`);
   }
   return result.body as RequestLogsResponse;
+}
+
+export async function fetchPlatformConfig(): Promise<PlatformRuntimeConfigView> {
+  const result = await apiFetch('/api/admin/platform-config');
+  if (!result.ok) {
+    throw new Error(`Platform config failed: HTTP ${result.status}`);
+  }
+  return result.body as PlatformRuntimeConfigView;
+}
+
+export async function updatePlatformConfig(
+  patch: PlatformRuntimeConfigPatch,
+): Promise<PlatformRuntimeConfigView> {
+  const result = await apiFetch('/api/admin/platform-config', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+  if (!result.ok) {
+    throw new Error(`Platform config update failed: HTTP ${result.status}`);
+  }
+  return result.body as PlatformRuntimeConfigView;
 }

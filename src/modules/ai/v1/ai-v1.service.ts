@@ -3,6 +3,7 @@ import {
   HttpException,
   Inject,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { Request } from 'express';
 import {
@@ -18,6 +19,7 @@ import { SiteConfig, getChatLimitPerDay } from '../../../config/site-config';
 import { JwtAuthService } from '../../auth/jwt-auth.service';
 import { AuthPrincipal } from '../../auth/roles';
 import { ChatLogWriterService } from '../../chat-logs/chat-log-writer.service';
+import { PlatformRuntimeConfigService } from '../../platform-config/platform-runtime-config.service';
 import { RequestWithCaller } from '../ai-caller.guard';
 import { ChatRateLimitService } from '../chat-rate-limit.service';
 import { ChatV1Dto } from './chat-v1.dto';
@@ -62,6 +64,7 @@ export class AiV1Service {
     private readonly chatLogWriter: ChatLogWriterService,
     private readonly rateLimit: ChatRateLimitService,
     private readonly jwtAuth: JwtAuthService,
+    @Optional() private readonly runtimeConfig?: PlatformRuntimeConfigService,
   ) {}
 
   async chat(
@@ -124,13 +127,16 @@ export class AiV1Service {
     } = {},
   ): AsyncGenerator<AiV1StreamEvent> {
     const { messages, sources } = await this.prepare(dto, options.settings);
+    const ai = this.runtimeConfig
+      ? await this.runtimeConfig.getAiConfig()
+      : this.appConfig.ai;
     yield {
       type: 'meta',
-      provider: this.appConfig.ai.provider,
+      provider: ai.provider,
       model:
-        this.appConfig.ai.provider === 'mock'
+        ai.provider === 'mock'
           ? 'mock-local'
-          : options.settings?.defaultModel || this.appConfig.ai.model,
+          : options.settings?.defaultModel || ai.model,
       conversationId: dto.conversationId,
       enableThinking: Boolean(dto.enableThinking),
       requestId: options.requestId,
@@ -201,7 +207,9 @@ export class AiV1Service {
     dto: ChatV1Dto,
     messages: ChatMessage[],
   ): Promise<ChatSource[]> {
-    const apiKey = this.appConfig.ai.webSearchApiKey;
+    const apiKey = this.runtimeConfig
+      ? (await this.runtimeConfig.getAiConfig()).webSearchApiKey
+      : this.appConfig.ai.webSearchApiKey;
     if (!dto.enableWebSearch || !apiKey) return [];
     const query = [...messages]
       .reverse()

@@ -38,6 +38,12 @@ export default defineConfig({
       component: './Knowledge',
     },
     {
+      path: '/llm-config',
+      name: 'LLM 配置',
+      icon: 'SettingOutlined',
+      component: './LlmConfig',
+    },
+    {
       path: '/users',
       name: '用户',
       icon: 'TeamOutlined',

@@ -2,12 +2,9 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { APP_CONFIG } from '../../common/tokens';
-import { AppConfig } from '../../config/app-config';
 import {
   decideAiCallerAccess,
   resolveCallerFromRequest,
@@ -15,6 +12,7 @@ import {
 } from '../../common/caller-identity';
 import { RequestWithId } from '../../common/request-id.middleware';
 import { JwtAuthService } from '../auth/jwt-auth.service';
+import { PlatformRuntimeConfigService } from '../platform-config/platform-runtime-config.service';
 
 export type RequestWithCaller = RequestWithId & {
   resolvedCaller?: ResolvedCaller;
@@ -23,24 +21,19 @@ export type RequestWithCaller = RequestWithId & {
 @Injectable()
 export class AiCallerGuard implements CanActivate {
   constructor(
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly runtimeConfig: PlatformRuntimeConfigService,
     private readonly jwtAuth: JwtAuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithCaller>();
     const principal = await this.jwtAuth.resolvePrincipal(request);
-    const caller = resolveCallerFromRequest(
-      request,
-      principal,
-      this.config.serviceCallers,
-    );
+    const serviceCallers = await this.runtimeConfig.getServiceCallers();
+    const caller = resolveCallerFromRequest(request, principal, serviceCallers);
     request.resolvedCaller = caller;
 
-    const decision = decideAiCallerAccess(
-      caller,
-      this.config.allowedCallSources,
-    );
+    const allowedCallSources = await this.runtimeConfig.getAllowedCallSources();
+    const decision = decideAiCallerAccess(caller, allowedCallSources);
     if (decision.ok) {
       return true;
     }

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Request } from 'express';
 import { searchWithTavily } from '../../adapters/web-search/tavily.client';
 import { AI_CLIENT, APP_CONFIG } from '../../common/tokens';
@@ -10,6 +10,7 @@ import {
   OpenAiChatCompletionResponse,
 } from '../../adapters/ai/ai-client.interface';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
+import { PlatformRuntimeConfigService } from '../platform-config/platform-runtime-config.service';
 import { ChatDto } from './dto/chat.dto';
 import { SummaryDto } from './dto/summary.dto';
 import {
@@ -32,6 +33,7 @@ export class AiService {
     @Inject(AI_CLIENT) private readonly aiClient: AiClient,
     @Inject(APP_CONFIG) private readonly appConfig: AppConfig,
     private readonly chatLogWriter: ChatLogWriterService,
+    private readonly runtimeConfig: PlatformRuntimeConfigService,
   ) {}
 
   async chat(dto: ChatDto, req: Request) {
@@ -80,7 +82,8 @@ export class AiService {
     dto: SummaryDto,
     req?: Request,
   ): Promise<LiveSummaryResult & { requestId?: string }> {
-    if (this.appConfig.ai.provider === 'mock') {
+    const ai = await this.runtimeConfig.getAiConfig();
+    if (ai.provider === 'mock') {
       return {
         ...createMockSummary(dto.content, dto.title),
         requestId: requestIdOf(req),
@@ -113,12 +116,17 @@ export class AiService {
   }
 
   async createChatCompletion(dto: OpenAiChatCompletionRequest, req: Request) {
+    if (!(await this.runtimeConfig.isOpenApiCompletionsEnabled())) {
+      throw new NotFoundException('OpenAI-compatible chat completions are disabled.');
+    }
+
     if (!Array.isArray(dto.messages) || dto.messages.length === 0) {
       throw new BadRequestException(
         'OpenAI-compatible requests require messages.',
       );
     }
 
+    const ai = await this.runtimeConfig.getAiConfig();
     const response = await this.aiClient.createChatCompletion(dto);
 
     await this.chatLogWriter.logFromRequest(req, {
@@ -130,8 +138,8 @@ export class AiService {
         })),
       },
       assistantMessage: assistantMessageFromCompletion(response),
-      provider: this.appConfig.ai.provider,
-      model: modelFromCompletion(response, dto, this.appConfig),
+      provider: ai.provider,
+      model: modelFromCompletion(response, dto, { ai }),
     });
 
     return response;
@@ -176,7 +184,7 @@ export class AiService {
   }
 
   private async searchWeb(messages: ChatMessage[] | undefined) {
-    const apiKey = this.appConfig.ai.webSearchApiKey;
+    const apiKey = (await this.runtimeConfig.getAiConfig()).webSearchApiKey;
     if (!apiKey || !messages?.length) {
       return [];
     }
@@ -242,7 +250,7 @@ function assistantMessageFromCompletion(
 function modelFromCompletion(
   response: OpenAiChatCompletionResponse,
   dto: OpenAiChatCompletionRequest,
-  config: AppConfig,
+  config: Pick<AppConfig, 'ai'>,
 ): string | undefined {
   if (typeof response.model === 'string') {
     return response.model;
