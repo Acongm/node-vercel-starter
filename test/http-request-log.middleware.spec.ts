@@ -10,10 +10,10 @@ describe('httpRequestLogMiddleware', () => {
       path: '/api/user/info',
       originalUrl: '/api/user/info',
       requestId: 'req-42',
-      header: () => undefined,
     }) as RequestWithId;
     const res = Object.assign(new EventEmitter(), {
       statusCode: 200,
+      locals: {},
     });
 
     const next = jest.fn();
@@ -66,7 +66,6 @@ describe('httpRequestLogMiddleware', () => {
         path,
         originalUrl: path,
         requestId: 'req-skip-prefix',
-        header: () => undefined,
       }) as RequestWithId;
       const res = Object.assign(new EventEmitter(), { statusCode: 200 });
       httpRequestLogMiddleware(req, res as never, jest.fn());

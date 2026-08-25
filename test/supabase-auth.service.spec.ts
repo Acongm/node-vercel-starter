@@ -11,7 +11,7 @@ const createClientMock = createClient as jest.MockedFunction<typeof createClient
 function config(overrides: Partial<AppConfig['supabase']> = {}): AppConfig {
   return {
     auth: {
-      adminEmails: [],
+      adminEmails: [] as string[],
     },
     supabase: {
       url: 'https://example.supabase.co',
