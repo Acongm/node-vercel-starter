@@ -304,7 +304,7 @@ export type RequestLogRow = {
 
 export type RequestLogsDisabled = {
   enabled: false;
-  reason?: 'migration_missing' | string;
+  reason?: 'migration_missing' | 'schema_cache' | string;
 };
 
 export type RequestLogsEnabled = {

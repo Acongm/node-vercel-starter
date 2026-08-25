@@ -5,3 +5,5 @@ alter table public.api_request_logs
 
 create index if not exists api_request_logs_call_source_idx
   on public.api_request_logs (call_source, created_at desc);
+
+notify pgrst, 'reload schema';

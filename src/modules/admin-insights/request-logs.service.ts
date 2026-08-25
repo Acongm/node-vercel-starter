@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { classifyRequestLogTableError } from '../../common/request-log-table-error';
 import { isRequestLogSinkEnabled } from '../../common/request-log-sink';
 import { SupabaseAdminClientService } from './supabase-admin-client.service';
 import { ListRequestLogsDto } from './dto/request-logs.dto';
@@ -18,13 +19,6 @@ export interface RequestLogRow {
   user_agent: string | null;
   error_message: string | null;
   created_at: string;
-}
-
-function isMissingTableError(error: { code?: string; message?: string }): boolean {
-  return (
-    error.code === '42P01' ||
-    Boolean(error.message?.includes('api_request_logs'))
-  );
 }
 
 @Injectable()
@@ -58,10 +52,17 @@ export class RequestLogsService {
 
     const { data, error } = await request;
     if (error) {
-      if (isMissingTableError(error)) {
+      const tableIssue = classifyRequestLogTableError(error);
+      if (tableIssue === 'missing') {
         return {
           enabled: false as const,
           reason: 'migration_missing' as const,
+        };
+      }
+      if (tableIssue === 'schema_cache') {
+        return {
+          enabled: false as const,
+          reason: 'schema_cache' as const,
         };
       }
       throw new BadRequestException({

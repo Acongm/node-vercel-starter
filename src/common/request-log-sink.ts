@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { AppConfig } from '../config/app-config';
+import { isMissingRequestLogTableError } from './request-log-table-error';
 
 export interface RequestLogEntry {
   requestId?: string;
@@ -20,13 +21,6 @@ let sinkEnabled = false;
 let sinkClient: SupabaseClient | null = null;
 let tableKnownMissing = false;
 let callerColumnsKnownMissing = false;
-
-function isMissingTableError(error: { code?: string; message?: string }): boolean {
-  return (
-    error.code === '42P01' ||
-    Boolean(error.message?.includes('api_request_logs'))
-  );
-}
 
 function isMissingColumnError(error: { code?: string; message?: string }): boolean {
   return error.code === '42703';
@@ -103,7 +97,7 @@ export function recordRequestLog(entry: RequestLogEntry): void {
     if (!first.error) {
       return;
     }
-    if (isMissingTableError(first.error)) {
+    if (isMissingRequestLogTableError(first.error)) {
       tableKnownMissing = true;
       console.warn('[request-log-sink] api_request_logs table missing; skipping inserts');
       return;

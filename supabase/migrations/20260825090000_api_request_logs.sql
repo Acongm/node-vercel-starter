@@ -37,3 +37,5 @@ with check (true);
 
 -- Manual retention (run periodically via pg_cron or ops):
 -- delete from public.api_request_logs where created_at < now() - interval '14 days';
+
+notify pgrst, 'reload schema';

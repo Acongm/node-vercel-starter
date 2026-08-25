@@ -8,7 +8,10 @@ import { formatDateTime, httpStatusTagColor, idPrefix } from '@/utils/format';
 
 const MAX_ROWS = 500;
 const POLL_INTERVAL_MS = 5000;
-const MIGRATION_PATH = 'supabase/migrations/20260825090000_api_request_logs.sql';
+const MIGRATION_PATHS = [
+  'supabase/migrations/20260825090000_api_request_logs.sql',
+  'supabase/migrations/20260825120000_api_request_logs_caller.sql',
+];
 
 type StatusClass = 'all' | '2xx' | '4xx' | '5xx';
 type PageState =
@@ -189,41 +192,9 @@ export default function RequestLogsPage() {
   }
 
   if (pageState.kind === 'disabled') {
-    if (pageState.reason === 'migration_missing') {
-      return (
-        <PageContainer title="接口日志">
-          <Alert
-            type="warning"
-            showIcon
-            message="尚未执行 api_request_logs 迁移"
-            description={
-              <>
-                <p>请在 Supabase 中执行以下迁移文件：</p>
-                <pre style={{ marginTop: 8 }}>{MIGRATION_PATH}</pre>
-              </>
-            }
-          />
-        </PageContainer>
-      );
-    }
-
     return (
       <PageContainer title="接口日志">
-        <Alert
-          type="info"
-          showIcon
-          message="REQUEST_LOG_SINK 未启用"
-          description={
-            <>
-              <p>接口调用日志落库功能当前关闭。请在 .env 中配置：</p>
-              <pre style={{ marginTop: 8 }}>
-{`REQUEST_LOG_SINK=supabase
-# 或留空并在 DATA_MODE=supabase 时自动启用
-# 并确保 api_request_logs 表已迁移`}
-              </pre>
-            </>
-          }
-        />
+        {renderDisabledAlert(pageState.reason)}
       </PageContainer>
     );
   }
@@ -292,5 +263,57 @@ export default function RequestLogsPage() {
         </pre>
       </Drawer>
     </PageContainer>
+  );
+}
+
+function renderDisabledAlert(reason?: string) {
+  if (reason === 'migration_missing') {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message="尚未执行 api_request_logs 迁移"
+        description={
+          <>
+            <p>请在 Supabase 中执行以下迁移文件，并刷新 PostgREST schema cache：</p>
+            <pre style={{ marginTop: 8 }}>{MIGRATION_PATHS.join('\n')}</pre>
+          </>
+        }
+      />
+    );
+  }
+
+  if (reason === 'schema_cache') {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message="api_request_logs 表已存在，但 PostgREST 尚未刷新"
+        description={
+          <>
+            <p>在 Supabase SQL editor 执行后刷新本页：</p>
+            <pre style={{ marginTop: 8 }}>notify pgrst, 'reload schema';</pre>
+          </>
+        }
+      />
+    );
+  }
+
+  return (
+    <Alert
+      type="info"
+      showIcon
+      message="REQUEST_LOG_SINK 未启用"
+      description={
+        <>
+          <p>接口调用日志落库功能当前关闭。请在 .env 中配置：</p>
+          <pre style={{ marginTop: 8 }}>
+{`REQUEST_LOG_SINK=supabase
+# 或留空并在 DATA_MODE=supabase 时自动启用
+# 并确保 api_request_logs 表已迁移`}
+          </pre>
+        </>
+      }
+    />
   );
 }
