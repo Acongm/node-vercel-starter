@@ -9,13 +9,13 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AdminSessionGuard } from '../auth/admin-session.guard';
+import { AdminAccessGuard } from '../auth/admin-access.guard';
 import { ClientLabelsService } from './client-labels.service';
 import { CreateClientLabelDto } from './dto/create-client-label.dto';
 import { UpdateClientLabelDto } from './dto/update-client-label.dto';
 
 @Controller('api/ai/chat/client-labels')
-@UseGuards(AdminSessionGuard)
+@UseGuards(AdminAccessGuard)
 export class ClientLabelsController {
   constructor(private readonly clientLabelsService: ClientLabelsService) {}
 

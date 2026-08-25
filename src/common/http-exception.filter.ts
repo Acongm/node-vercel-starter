@@ -4,7 +4,10 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { Response } from 'express';
 import { RequestWithId } from './request-id.middleware';
 
@@ -14,6 +17,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<RequestWithId>();
+
+    if (
+      exception instanceof NotFoundException &&
+      (request.method === 'GET' || request.method === 'HEAD') &&
+      !request.path.startsWith('/api') &&
+      !request.path.startsWith('/v1')
+    ) {
+      const publicDir = join(process.cwd(), 'public');
+      const relativePath = request.path.replace(/^\/+/, '');
+      const candidate = join(publicDir, relativePath);
+      if (relativePath && existsSync(candidate)) {
+        response.sendFile(candidate);
+        return;
+      }
+
+      response.sendFile(join(publicDir, 'index.html'));
+      return;
+    }
 
     const status =
       exception instanceof HttpException

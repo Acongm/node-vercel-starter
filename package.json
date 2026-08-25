@@ -6,6 +6,9 @@
   "private": false,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:admin": "node scripts/build-admin.mjs",
+    "build:all": "npm run build && npm run build:admin",
+    "vercel-build": "npm run build:all",
     "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
     "test": "jest --runInBand",

@@ -52,7 +52,8 @@ export class AuthService {
       roles: ['anonymous', 'viewer', 'editor', 'admin'],
       tiers: ['anon', 'user'],
       note:
-        'Password login: admin env credentials or seeded local users (registration is closed). OAuth: GET /api/auth/oauth/providers. Supabase JWT uses SUPABASE_JWT_SECRET + app_metadata.role.',
+        'Password login: admin env credentials or seeded local users (registration is closed). OAuth: GET /api/auth/oauth/providers. Supabase JWT uses app_metadata.role; AUTH_ADMIN_EMAILS grants admin.',
+      adminEmailsConfigured: this.config.auth.adminEmails.length > 0,
     };
   }
 

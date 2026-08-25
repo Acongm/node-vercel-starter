@@ -11,6 +11,7 @@ import { CreateEntityInput } from '../../adapters/data-store/data-store.interfac
 import { APP_CONFIG, AUTH_USER_STORE } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { AccessTokenService } from './access-token.service';
+import { AdminAccessGuard } from './admin-access.guard';
 import { AdminSessionGuard } from './admin-session.guard';
 import { AdminSessionService } from './admin-session.service';
 import { AuthController } from './auth.controller';
@@ -35,6 +36,7 @@ import { SupabaseRequestClientService } from './supabase-request-client.service'
     AuthService,
     AdminSessionService,
     AdminSessionGuard,
+    AdminAccessGuard,
     JwtAuthService,
     SupabaseAuthService,
     SupabaseAuthGuard,
@@ -53,6 +55,7 @@ import { SupabaseRequestClientService } from './supabase-request-client.service'
   exports: [
     AdminSessionService,
     AdminSessionGuard,
+    AdminAccessGuard,
     JwtAuthService,
     SupabaseAuthService,
     SupabaseAuthGuard,

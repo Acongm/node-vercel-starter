@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { SupabaseClient, createClient, User } from '@supabase/supabase-js';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
+import { isAdminEmail } from './admin-emails';
 import { jwtExpiresAtMs } from './bearer-token';
 import { AuthPrincipal, PlatformRole, isPlatformRole } from './roles';
 
@@ -119,6 +120,10 @@ export class SupabaseAuthService {
 
   /** Authorization only trusts server-controlled app_metadata. */
   private extractRole(user: User): PlatformRole {
+    if (isAdminEmail(user.email, this.config.auth.adminEmails)) {
+      return 'admin';
+    }
+
     const appMetadata = user.app_metadata || {};
     const direct = appMetadata.platform_role || appMetadata.role;
     if (isPlatformRole(direct) && direct !== 'anonymous') {

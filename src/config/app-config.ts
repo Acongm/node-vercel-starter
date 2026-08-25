@@ -1,3 +1,4 @@
+import { parseAdminEmails } from '../modules/auth/admin-emails';
 import { knownPublicKeyForSupabaseUrl } from './acongm-supabase-public';
 
 export type RuntimeTarget = 'node' | 'vercel';
@@ -37,6 +38,8 @@ export interface AppConfig {
     supabaseJwtSecret?: string;
     adminUsername?: string;
     adminPassword?: string;
+    /** Lowercase emails that always resolve to platform role admin. */
+    adminEmails: string[];
     sessionTtl: string;
     oauth: {
       githubClientId?: string;
@@ -176,6 +179,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
         env.SUPABASE_JWT_SECRET || env.AUTH_SUPABASE_JWT_SECRET,
       adminUsername: env.AUTH_ADMIN_USERNAME,
       adminPassword: env.AUTH_ADMIN_PASSWORD,
+      adminEmails: parseAdminEmails(env.AUTH_ADMIN_EMAILS),
       sessionTtl: env.AUTH_SESSION_TTL || '7d',
       oauth: {
         githubClientId: env.AUTH_GITHUB_CLIENT_ID,

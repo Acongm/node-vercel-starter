@@ -26,15 +26,34 @@ Open `http://localhost:3000`.
 
 ## API Debug Console
 
-Open the deployment root (`https://api.acongm.com/`) to use the built-in API console.
+Open `http://localhost:3000` for the Umi + Ant Design admin console (build with `npm run build:admin` first).
 
-It covers every public route:
+## Admin Console (Umi + Ant Design)
 
-- Health, AI chat, OpenAI-compatible chat
-- Comments full CRUD (backed by Supabase when `DATA_MODE=supabase`)
-- Auth, upload, proxy
+`api.acongm.com/` now serves a standard admin dashboard built with **Umi Max + Ant Design Pro**.
 
-For production CRUD tests, set `DATA_MODE=supabase` and apply the Supabase migration.
+- **Auth**: redirects unauthenticated users to `auth.acongm.com`; admin access requires platform role `admin`
+- **Admin whitelist** (built-in): `o.arvin.peng@gmail.com`, `acongm@126.com` — extend with `AUTH_ADMIN_EMAILS`
+- **数据表**: browse Supabase tables via `GET /api/admin/tables/:tableKey`
+- **接口调试**: Ant Design Tabs reorganizing the legacy debug console flows
+- **Legacy console**: still available at `/legacy/index.html`
+
+```bash
+npm run build:admin   # builds admin/ → public/
+npm run build:all     # NestJS + admin
+npm run vercel-build  # used by Vercel static-build
+```
+
+Local dev:
+
+```bash
+npm run build:admin
+npm run start:dev
+```
+
+## API Debug Console (legacy)
+
+The original HTML debug console is preserved at `/legacy/index.html`.
 
 ## Environment Modes
 
