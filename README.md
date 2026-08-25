@@ -24,17 +24,29 @@ npm run start
 
 Open `http://localhost:3000`.
 
-## API Debug Console
+## Admin Dashboard
 
-Open the deployment root (`https://api.acongm.com/`) to use the built-in API console.
+`https://api.acongm.com/` is an **Umi 4 + Ant Design Pro** admin console (`admin/`).
 
-It covers every public route:
+Login:
 
-- Health, AI chat, OpenAI-compatible chat
-- Comments full CRUD (backed by Supabase when `DATA_MODE=supabase`)
-- Auth, upload, proxy
+1. Unauthenticated users are sent to `https://auth.acongm.com/login?return_to=https://api.acongm.com/`
+2. After SSO, only whitelist admins may enter:
+   - `o.arvin.peng@gmail.com`
+   - `acongm@126.com`
+   - extra addresses in `AUTH_ADMIN_EMAILS`
+3. Local `AUTH_ADMIN_*` password login remains on `/#/user/login` for development.
 
-For production CRUD tests, set `DATA_MODE=supabase` and apply the Supabase migration.
+Pages:
+
+- **总览** — health / runtime / table catalog
+- **数据列表** — read-only ProTable over comments, chat logs, chats, profiles, settings, …
+- **接口调试** — previous HTML debug console, grouped as Ant Design forms
+
+```bash
+npm run build:admin
+npm run start:admin   # umi dev on :8000
+```
 
 ## Environment Modes
 

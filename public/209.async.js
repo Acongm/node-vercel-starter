@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkapi_admin=self.webpackChunkapi_admin||[]).push([[209],{14209:function(O,n,t){t.r(n),t.d(n,{default:function(){return a}});var e=t(96540),u=t(46617),E=t(74848);function a(){var s=(0,u.useOutletContext)();return(0,E.jsx)(u.Outlet,{context:s})}}}]);
