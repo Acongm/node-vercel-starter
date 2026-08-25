@@ -40,6 +40,8 @@ export interface PlatformUserItem {
 
 const LIST_USERS_PER_PAGE = 200;
 const MAX_LIST_USER_PAGES = 5;
+const MAX_EMAIL_SEARCH_PAGES = 5;
+const CHAT_USER_ID_SCAN_LIMIT = 5000;
 
 @Injectable()
 export class UsersAdminService {
@@ -61,9 +63,9 @@ export class UsersAdminService {
     const pageSize = query.pageSize ?? 50;
     const wantAnonymous = query.anonymous === 'true';
     const emailQuery = query.q?.trim().toLowerCase();
-    const allUsers = await this.listAllAuthUsers();
 
     if (wantAnonymous) {
+      const allUsers = await this.listAuthUsersUpTo(MAX_LIST_USER_PAGES);
       return this.listAnonymousUsers({
         users: allUsers,
         page,
@@ -73,28 +75,51 @@ export class UsersAdminService {
       });
     }
 
-    let filtered = allUsers.filter((user) => !user.is_anonymous);
-
     if (emailQuery) {
-      filtered = filtered.filter((user) =>
-        (user.email ?? '').toLowerCase().includes(emailQuery),
-      );
+      const allUsers = await this.listAuthUsersUpTo(MAX_EMAIL_SEARCH_PAGES);
+      const filtered = allUsers
+        .filter((user) => !user.is_anonymous)
+        .filter((user) => (user.email ?? '').toLowerCase().includes(emailQuery));
+      const total = filtered.length;
+      const from = (page - 1) * pageSize;
+      const pageUsers = filtered.slice(from, from + pageSize);
+      return {
+        enabled: true as const,
+        items: pageUsers.map((user) => mapPlatformUser(user)),
+        total,
+        page,
+        pageSize,
+        totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+        ghostCount: 0,
+        activeCount: 0,
+      };
     }
 
-    const total = filtered.length;
-    const from = (page - 1) * pageSize;
-    const pageUsers = filtered.slice(from, from + pageSize);
+    const client = this.supabaseAdmin.getClient();
+    const { data, error } = await client.auth.admin.listUsers({
+      page,
+      perPage: pageSize,
+    });
+    if (error) {
+      throw new BadRequestException({
+        code: 'ADMIN_USERS_LIST_FAILED',
+        message: error.message,
+      });
+    }
+
+    const pageUsers = (data.users ?? []).filter((user) => !user.is_anonymous);
     const items = pageUsers.map((user) => mapPlatformUser(user));
 
     return {
       enabled: true as const,
       items,
-      total,
+      total: pageUsers.length,
       page,
       pageSize,
-      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+      totalPages: pageUsers.length < pageSize ? page : page + 1,
       ghostCount: 0,
       activeCount: 0,
+      totalApproximate: true as const,
     };
   }
 
@@ -108,7 +133,7 @@ export class UsersAdminService {
     }
 
     const client = this.supabaseAdmin.getClient();
-    const users = await this.listAllAuthUsers();
+    const users = await this.listAuthUsersUpTo(MAX_LIST_USER_PAGES);
     const chatUserIds = await this.loadChatUserIds();
     const ids = selectPurgeGhostIds(users, {
       chatUserIds,
@@ -185,10 +210,10 @@ export class UsersAdminService {
     };
   }
 
-  private async listAllAuthUsers(): Promise<User[]> {
+  private async listAuthUsersUpTo(maxPages: number): Promise<User[]> {
     const client = this.supabaseAdmin.getClient();
     const allUsers: User[] = [];
-    for (let listPage = 1; listPage <= MAX_LIST_USER_PAGES; listPage += 1) {
+    for (let listPage = 1; listPage <= maxPages; listPage += 1) {
       const { data, error } = await client.auth.admin.listUsers({
         page: listPage,
         perPage: LIST_USERS_PER_PAGE,
@@ -208,13 +233,17 @@ export class UsersAdminService {
     return allUsers;
   }
 
+  private async listAllAuthUsers(): Promise<User[]> {
+    return this.listAuthUsersUpTo(MAX_LIST_USER_PAGES);
+  }
+
   private async loadChatUserIds(): Promise<Set<string>> {
     const client = this.supabaseAdmin.getClient();
     const ids = new Set<string>();
     const pageSize = 1000;
     let from = 0;
 
-    while (true) {
+    while (ids.size < CHAT_USER_ID_SCAN_LIMIT) {
       const { data, error } = await client
         .from('chats')
         .select('user_id')

@@ -85,6 +85,20 @@ const logColumns: ProColumns<RequestLogRow>[] = [
     ),
   },
   {
+    title: '分组',
+    dataIndex: 'route_group',
+    width: 80,
+    render: (_, record) =>
+      record.route_group ? <Tag>{record.route_group}</Tag> : '—',
+  },
+  {
+    title: '流式',
+    dataIndex: 'is_stream',
+    width: 60,
+    render: (_, record) =>
+      record.is_stream ? <Tag color="purple">SSE</Tag> : '—',
+  },
+  {
     title: '耗时',
     dataIndex: 'duration_ms',
     width: 90,

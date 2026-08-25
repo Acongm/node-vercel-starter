@@ -8,6 +8,7 @@ import {
   resolveCaller,
 } from './caller-identity';
 import { inferCallSource } from './infer-request-log-meta';
+import { classifyRequestRoute } from './request-route-meta';
 import { recordRequestLog } from './request-log-sink';
 import { RequestWithId } from './request-id.middleware';
 
@@ -85,6 +86,8 @@ export function httpRequestLogMiddleware(
     });
     const clientId =
       caller.kind === 'unknown' ? resolvedClientId : displayCallerId(caller);
+    const routeMeta = classifyRequestRoute(req.path);
+
     recordRequestLog({
       requestId: req.requestId,
       method: req.method,
@@ -94,6 +97,8 @@ export function httpRequestLogMiddleware(
       clientId,
       callSource: caller.callSource,
       callerKind: caller.kind,
+      routeGroup: routeMeta.routeGroup,
+      isStream: routeMeta.isStream,
       origin,
       userAgent,
       errorMessage: locals.errorMessage,

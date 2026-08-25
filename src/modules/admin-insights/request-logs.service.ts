@@ -18,6 +18,8 @@ export interface RequestLogRow {
   client_id: string | null;
   call_source: string | null;
   caller_kind: string | null;
+  route_group: string | null;
+  is_stream: boolean;
   origin: string | null;
   user_agent: string | null;
   error_message: string | null;

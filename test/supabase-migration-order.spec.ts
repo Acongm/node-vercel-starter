@@ -27,6 +27,7 @@ const required = [
   '20260825090000_api_request_logs.sql',
   '20260825120000_api_request_logs_caller.sql',
   '20260825143000_api_request_logs_stats_fn.sql',
+  '20260825143100_api_request_logs_route_meta.sql',
 ] as const;
 
 const stale = [

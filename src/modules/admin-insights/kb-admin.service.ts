@@ -91,6 +91,9 @@ export interface CountAggregate {
 }
 
 const PORTAL_CACHE_TTL_MS = 10 * 60 * 1000;
+const KB_USAGE_CHAT_LOG_SAMPLE = 2000;
+const KB_USAGE_CITATION_SAMPLE = 2000;
+const KB_COVERAGE_CHUNK_SAMPLE = 5000;
 
 @Injectable()
 export class KbAdminService {
@@ -417,7 +420,7 @@ export class KbAdminService {
     const { data, error } = await client
       .from('kb_chunks')
       .select('path, token_count')
-      .limit(10000);
+      .limit(KB_COVERAGE_CHUNK_SAMPLE);
 
     if (error) {
       return [];
@@ -450,7 +453,7 @@ export class KbAdminService {
       .from(table)
       .select('context, created_at')
       .gte('created_at', sinceIso)
-      .limit(5000);
+      .limit(KB_USAGE_CHAT_LOG_SAMPLE);
 
     if (error) {
       return [];
@@ -484,7 +487,7 @@ export class KbAdminService {
       .from(table)
       .select('sources, created_at')
       .gte('created_at', sinceIso)
-      .limit(5000);
+      .limit(KB_USAGE_CHAT_LOG_SAMPLE);
 
     if (error) {
       return [];
