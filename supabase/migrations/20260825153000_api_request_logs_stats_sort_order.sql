@@ -19,7 +19,7 @@ declare
   result jsonb;
   normalized_sort text := lower(coalesce(path_sort, 'p95'));
   normalized_order text := lower(coalesce(path_sort_order, 'desc'));
-  direction_multiplier int := -1;
+  direction_multiplier int := 1;
 begin
   if normalized_sort not in ('count', 'avg_duration', 'p95', 'max_duration', 'errors') then
     normalized_sort := 'p95';
@@ -28,7 +28,7 @@ begin
     normalized_order := 'desc';
   end if;
   if normalized_order = 'asc' then
-    direction_multiplier := 1;
+    direction_multiplier := -1;
   end if;
 
   select jsonb_build_object(
