@@ -285,6 +285,29 @@ describe('SupabaseAuthService', () => {
     });
   });
 
+  it('does not refetch JWKS on every request after a fetch failure', async () => {
+    const fetchMock = jest.fn().mockRejectedValue(new Error('jwks down'));
+    global.fetch = fetchMock;
+    const getUser = mockGetUser({
+      data: {
+        user: {
+          id: 'user-down',
+          email: 'down@example.com',
+          app_metadata: {},
+          user_metadata: {},
+        },
+      },
+      error: null,
+    });
+    const service = new SupabaseAuthService(config());
+
+    await service.verifyAccessToken('token-a');
+    await service.verifyAccessToken('token-b');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getUser).toHaveBeenCalledTimes(2);
+  });
+
   it('falls back to getUser when JWKS cannot verify the token', async () => {
     const getUser = mockGetUser({
       data: {

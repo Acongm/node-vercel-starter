@@ -92,14 +92,22 @@ export class SupabaseAuthService {
 
     try {
       const response = await fetch(`${baseUrl}/auth/v1/.well-known/jwks.json`);
-      if (!response.ok) return [];
+      if (!response.ok) {
+        this.rememberJwks([], 30_000);
+        return [];
+      }
       const body = (await response.json()) as { keys?: Jwk[] };
       const keys = Array.isArray(body.keys) ? body.keys : [];
-      this.jwksCache = { keys, expiresAt: Date.now() + JWKS_TTL_MS };
+      this.rememberJwks(keys, keys.length ? JWKS_TTL_MS : 30_000);
       return keys;
     } catch {
+      this.rememberJwks([], 30_000);
       return [];
     }
+  }
+
+  private rememberJwks(keys: Jwk[], ttlMs: number) {
+    this.jwksCache = { keys, expiresAt: Date.now() + ttlMs };
   }
 
   private getClient(): SupabaseClient {
