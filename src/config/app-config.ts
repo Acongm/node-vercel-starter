@@ -13,6 +13,7 @@ export type DataMode =
 export type FileMode = 'memory' | 'local' | 'vercel-blob' | 's3';
 export type AuthMode = 'none' | 'jwt' | 'external';
 export type AiProvider = 'mock' | 'openai' | 'custom';
+export type RequestLogSink = 'supabase' | 'off';
 
 export const DEFAULT_AI_MODEL = 'deepseek-v4-flash';
 
@@ -59,12 +60,15 @@ export interface AppConfig {
   };
   corsOrigins: string[];
   proxyAllowlist: Record<string, string>;
+  requestLogSink: RequestLogSink;
   supabase: {
     url?: string;
     /** Publishable/anon key used for end-user Auth/RLS scoped requests. */
     publicKey?: string;
     /** Server-side API key; service role is allowed only for trusted backend tasks. */
     apiKey?: string;
+    /** True service role key only — required for auth.admin APIs. */
+    serviceRoleKey?: string;
     requestSecret?: string;
     commentsTable: string;
     chatLogsTable: string;
@@ -198,6 +202,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     corsOrigins: parseList(env.CORS_ORIGINS || 'https://acongm.com,https://*.acongm.com'),
     proxyAllowlist: parseAllowlist(env.PROXY_ALLOWLIST),
+    requestLogSink: env.REQUEST_LOG_SINK === 'supabase' ? 'supabase' : 'off',
     supabase: {
       url: env.SUPABASE_URL,
       publicKey:
@@ -209,6 +214,7 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
           env.SUPABASE_API_KEY,
         ) || knownPublicKeyForSupabaseUrl(env.SUPABASE_URL),
       apiKey: env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_API_KEY,
+      serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
       requestSecret: env.SUPABASE_REQUEST_SECRET,
       commentsTable: env.SUPABASE_COMMENTS_TABLE || 'comments',
       chatLogsTable: env.SUPABASE_CHAT_LOGS_TABLE || 'chat_logs',

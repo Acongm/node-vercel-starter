@@ -3,10 +3,12 @@ import { AppConfig } from '../config/app-config';
 import { APP_CONFIG } from '../common/tokens';
 import { HttpExceptionFilter } from '../common/http-exception.filter';
 import { httpRequestLogMiddleware } from '../common/http-request-log.middleware';
+import { initRequestLogSink } from '../common/request-log-sink';
 import { requestIdMiddleware } from '../common/request-id.middleware';
 
 export function configureApp(app: INestApplication) {
   const config = app.get<AppConfig>(APP_CONFIG);
+  initRequestLogSink(config);
 
   app.enableCors({
     origin: (origin, callback) => {

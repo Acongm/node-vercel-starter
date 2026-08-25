@@ -10,7 +10,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": ["@umijs/max/typings"]
+    "paths": {
+      "@/*": ["./src/*"],
+      "@@/*": ["./src/.umi/*"]
+    }
   },
-  "include": ["src", ".umirc.ts", "typings.d.ts"]
+  "include": ["src", "src/.umi/typings.d.ts", ".umirc.ts", "typings.d.ts"]
 }

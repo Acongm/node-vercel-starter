@@ -1,285 +1,443 @@
-import { ApiOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PageContainer } from '@ant-design/pro-components';
 import {
   Button,
   Card,
   Col,
-  Form,
   Input,
+  List,
   Row,
+  Select,
   Space,
-  Tabs,
+  Tree,
   Typography,
+  message,
 } from 'antd';
-import { useState } from 'react';
-import { apiFetch, formatApiResult } from '@/services/http';
-import type { ApiResult } from '@/types';
+import type { DataNode } from 'antd/es/tree';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { fetchAdminRoutes } from '@/services/api';
+import { apiFetch } from '@/services/http';
+import type { AdminRouteEntry, ApiResult } from '@/types';
 
 const { TextArea } = Input;
+const HISTORY_KEY = 'admin-debug-history';
+const MAX_HISTORY = 20;
 
-type DebugPanelProps = {
-  title: string;
+type KeyValueRow = { key: string; value: string };
+type DebugHistoryItem = {
   method: string;
   path: string;
-  defaultBody?: string;
-  fields?: Array<{
-    name: string;
-    label: string;
-    placeholder?: string;
-    component?: 'input' | 'textarea';
-  }>;
-  buildRequest?: (values: Record<string, string>) => {
-    url: string;
-    options?: RequestInit;
-  };
+  status: number;
+  time: string;
+  queryParams: KeyValueRow[];
+  headers: KeyValueRow[];
+  body: string;
+  pathParams: Record<string, string>;
 };
 
-function DebugPanel({
-  title,
-  method,
-  path,
-  defaultBody,
-  fields = [],
-  buildRequest,
-}: DebugPanelProps) {
-  const [form] = Form.useForm();
+const HTTP_METHODS = ['GET', 'POST', 'PATCH', 'DELETE'] as const;
+
+function parsePathParams(path: string): string[] {
+  const matches = path.match(/:([A-Za-z0-9_]+)/g);
+  if (!matches) {
+    return [];
+  }
+  return matches.map((segment) => segment.slice(1));
+}
+
+function buildUrl(
+  path: string,
+  pathParams: Record<string, string>,
+  queryParams: KeyValueRow[],
+): string {
+  let resolved = path;
+  for (const [key, value] of Object.entries(pathParams)) {
+    resolved = resolved.replace(`:${key}`, encodeURIComponent(value));
+  }
+  const query = new URLSearchParams();
+  for (const row of queryParams) {
+    if (row.key.trim()) {
+      query.set(row.key.trim(), row.value);
+    }
+  }
+  const suffix = query.toString();
+  return suffix ? `${resolved}?${suffix}` : resolved;
+}
+
+function buildCurl(
+  method: string,
+  url: string,
+  headers: KeyValueRow[],
+  body: string,
+): string {
+  const parts = [`curl -X ${method}`];
+  for (const header of headers) {
+    if (header.key.trim()) {
+      parts.push(`-H '${header.key.trim()}: ${header.value}'`);
+    }
+  }
+  if (method !== 'GET' && body.trim()) {
+    parts.push(`-d '${body.replace(/'/g, "'\\''")}'`);
+  }
+  parts.push(`'${window.location.origin}${url}'`);
+  parts.push('--cookie "$(document.cookie)"');
+  return parts.join(' ');
+}
+
+function loadHistory(): DebugHistoryItem[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw) as DebugHistoryItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(items: DebugHistoryItem[]) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
+}
+
+function emptyRow(): KeyValueRow {
+  return { key: '', value: '' };
+}
+
+function KeyValueEditor({
+  rows,
+  onChange,
+  addLabel,
+}: {
+  rows: KeyValueRow[];
+  onChange: (rows: KeyValueRow[]) => void;
+  addLabel: string;
+}) {
+  return (
+    <Space direction="vertical" style={{ width: '100%' }}>
+      {rows.map((row, index) => (
+        <Space key={`${index}-${row.key}`} style={{ width: '100%' }}>
+          <Input
+            placeholder="Key"
+            value={row.key}
+            onChange={(event) => {
+              const next = [...rows];
+              next[index] = { ...row, key: event.target.value };
+              onChange(next);
+            }}
+            style={{ width: 160 }}
+          />
+          <Input
+            placeholder="Value"
+            value={row.value}
+            onChange={(event) => {
+              const next = [...rows];
+              next[index] = { ...row, value: event.target.value };
+              onChange(next);
+            }}
+            style={{ flex: 1 }}
+          />
+          <Button
+            icon={<DeleteOutlined />}
+            onClick={() => onChange(rows.filter((_, i) => i !== index))}
+          />
+        </Space>
+      ))}
+      <Button type="dashed" onClick={() => onChange([...rows, emptyRow()])}>
+        {addLabel}
+      </Button>
+    </Space>
+  );
+}
+
+export default function DebugPage() {
+  const [routes, setRoutes] = useState<AdminRouteEntry[]>([]);
+  const [routeSearch, setRouteSearch] = useState('');
+  const [method, setMethod] = useState<string>('GET');
+  const [path, setPath] = useState('/api/health');
+  const [pathParams, setPathParams] = useState<Record<string, string>>({});
+  const [queryParams, setQueryParams] = useState<KeyValueRow[]>([emptyRow()]);
+  const [headers, setHeaders] = useState<KeyValueRow[]>([emptyRow()]);
+  const [body, setBody] = useState('');
   const [result, setResult] = useState<ApiResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<DebugHistoryItem[]>(loadHistory);
 
-  const run = async () => {
+  useEffect(() => {
+    fetchAdminRoutes()
+      .then(setRoutes)
+      .catch(() => message.error('加载路由清单失败'));
+  }, []);
+
+  const pathParamNames = useMemo(() => parsePathParams(path), [path]);
+
+  const treeData = useMemo(() => {
+    const filtered = routes.filter((route) => {
+      if (!routeSearch.trim()) {
+        return true;
+      }
+      return route.path.toLowerCase().includes(routeSearch.trim().toLowerCase());
+    });
+
+    const grouped = new Map<string, AdminRouteEntry[]>();
+    for (const route of filtered) {
+      const group = grouped.get(route.controllerName) ?? [];
+      group.push(route);
+      grouped.set(route.controllerName, group);
+    }
+
+    const nodes: DataNode[] = [];
+    for (const [controllerName, entries] of grouped.entries()) {
+      nodes.push({
+        key: controllerName,
+        title: controllerName,
+        selectable: false,
+        children: entries.map((entry) => ({
+          key: `${entry.method}:${entry.path}`,
+          title: (
+            <Space size={4}>
+              <Typography.Text code style={{ fontSize: 11 }}>
+                {entry.method}
+              </Typography.Text>
+              <span>{entry.path}</span>
+            </Space>
+          ),
+          isLeaf: true,
+        })),
+      });
+    }
+    return nodes;
+  }, [routes, routeSearch]);
+
+  const selectRoute = useCallback((route: AdminRouteEntry) => {
+    setMethod(route.method);
+    setPath(route.path);
+    const params: Record<string, string> = {};
+    for (const name of parsePathParams(route.path)) {
+      params[name] = '';
+    }
+    setPathParams(params);
+  }, []);
+
+  const sendRequest = async () => {
     setLoading(true);
     try {
-      const values = form.getFieldsValue();
-      const request = buildRequest
-        ? buildRequest(values)
-        : {
-            url: path,
-            options: {
-              method,
-              body:
-                method === 'GET'
-                  ? undefined
-                  : defaultBody || values.body || undefined,
-            },
-          };
+      const url = buildUrl(path, pathParams, queryParams);
+      const headerRecord: Record<string, string> = {};
+      for (const row of headers) {
+        if (row.key.trim()) {
+          headerRecord[row.key.trim()] = row.value;
+        }
+      }
 
-      const response = await apiFetch(request.url, request.options);
+      const options: RequestInit = {
+        method,
+        headers: headerRecord,
+      };
+      if (method !== 'GET' && body.trim()) {
+        options.body = body;
+      }
+
+      const response = await apiFetch(url, options);
       setResult(response);
+
+      const item: DebugHistoryItem = {
+        method,
+        path,
+        status: response.status,
+        time: new Date().toISOString(),
+        queryParams,
+        headers,
+        body,
+        pathParams,
+      };
+      const nextHistory = [item, ...history.filter((h) => h.path !== path || h.method !== method)];
+      setHistory(nextHistory);
+      saveHistory(nextHistory);
     } finally {
       setLoading(false);
     }
   };
 
+  const restoreHistory = (item: DebugHistoryItem) => {
+    setMethod(item.method);
+    setPath(item.path);
+    setPathParams(item.pathParams);
+    setQueryParams(item.queryParams.length ? item.queryParams : [emptyRow()]);
+    setHeaders(item.headers.length ? item.headers : [emptyRow()]);
+    setBody(item.body);
+  };
+
+  const responseBody =
+    result?.body === null || result?.body === undefined
+      ? ''
+      : typeof result.body === 'string'
+        ? result.body
+        : JSON.stringify(result.body, null, 2);
+
+  const contentType =
+    result && typeof result.body === 'object'
+      ? 'application/json'
+      : 'text/plain';
+
   return (
-    <Card
-      title={
-        <Space>
-          <ApiOutlined />
-          <span>{title}</span>
-          <Typography.Text code>
-            {method} {path}
-          </Typography.Text>
-        </Space>
-      }
-      extra={
-        <Button type="primary" loading={loading} onClick={run}>
-          发送请求
-        </Button>
-      }
-    >
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{
-          body: defaultBody,
-        }}
-      >
-        {fields.map((field) => (
-          <Form.Item key={field.name} name={field.name} label={field.label}>
-            {field.component === 'textarea' ? (
-              <TextArea rows={4} placeholder={field.placeholder} />
+    <PageContainer title="接口调试" subTitle="路由清单 + 请求构造器">
+      <Row gutter={16}>
+        <Col xs={24} lg={8}>
+          <Card title="路由清单" size="small">
+            <Input.Search
+              placeholder="按 path 过滤"
+              allowClear
+              onChange={(event) => setRouteSearch(event.target.value)}
+              style={{ marginBottom: 12 }}
+            />
+            <div style={{ maxHeight: 520, overflow: 'auto' }}>
+              <Tree
+                treeData={treeData}
+                defaultExpandAll
+                onSelect={(_, info) => {
+                  const key = String(info.node.key);
+                  const route = routes.find((entry) => `${entry.method}:${entry.path}` === key);
+                  if (route) {
+                    selectRoute(route);
+                  }
+                }}
+              />
+            </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={16}>
+          <Card title="请求构造" size="small">
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+              <Space wrap>
+                <Select
+                  value={method}
+                  onChange={setMethod}
+                  options={HTTP_METHODS.map((value) => ({ value, label: value }))}
+                  style={{ width: 100 }}
+                />
+                <Input
+                  value={path}
+                  onChange={(event) => setPath(event.target.value)}
+                  placeholder="/api/..."
+                  style={{ minWidth: 320 }}
+                />
+              </Space>
+
+              {pathParamNames.length > 0 ? (
+                <Card size="small" title="路径参数">
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    {pathParamNames.map((name) => (
+                      <Input
+                        key={name}
+                        addonBefore={`:${name}`}
+                        value={pathParams[name] ?? ''}
+                        onChange={(event) =>
+                          setPathParams({ ...pathParams, [name]: event.target.value })
+                        }
+                      />
+                    ))}
+                  </Space>
+                </Card>
+              ) : null}
+
+              <div>
+                <Typography.Text strong>Query 参数</Typography.Text>
+                <KeyValueEditor
+                  rows={queryParams}
+                  onChange={setQueryParams}
+                  addLabel="添加 Query"
+                />
+              </div>
+
+              <div>
+                <Typography.Text strong>Headers</Typography.Text>
+                <KeyValueEditor rows={headers} onChange={setHeaders} addLabel="添加 Header" />
+              </div>
+
+              {method !== 'GET' ? (
+                <div>
+                  <Typography.Text strong>Body (JSON)</Typography.Text>
+                  <TextArea rows={6} value={body} onChange={(event) => setBody(event.target.value)} />
+                </div>
+              ) : null}
+
+              <Space>
+                <Button type="primary" loading={loading} onClick={sendRequest}>
+                  发送请求
+                </Button>
+                <Button
+                  icon={<CopyOutlined />}
+                  onClick={() => {
+                    const url = buildUrl(path, pathParams, queryParams);
+                    const curl = buildCurl(method, url, headers, body);
+                    void navigator.clipboard.writeText(curl);
+                    message.success('cURL 已复制');
+                  }}
+                >
+                  复制 cURL
+                </Button>
+              </Space>
+            </Space>
+          </Card>
+
+          <Card title="响应" size="small" style={{ marginTop: 16 }}>
+            {result ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text>
+                  HTTP {result.status} {result.statusText} · {result.durationMs}ms ·{' '}
+                  {contentType}
+                </Typography.Text>
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: 12,
+                    background: '#0f172a',
+                    color: '#e2e8f0',
+                    borderRadius: 8,
+                    minHeight: 120,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {responseBody || '(empty)'}
+                </pre>
+              </Space>
             ) : (
-              <Input placeholder={field.placeholder} />
+              <Typography.Text type="secondary">尚未请求</Typography.Text>
             )}
-          </Form.Item>
-        ))}
-        {!fields.length && method !== 'GET' ? (
-          <Form.Item name="body" label="Body (JSON)">
-            <TextArea rows={6} />
-          </Form.Item>
-        ) : null}
-      </Form>
+          </Card>
 
-      <Typography.Paragraph type="secondary">
-        所有请求走同源 <Typography.Text code>/api/*</Typography.Text>，自动携带
-        auth.acongm.com 会话 Cookie。
-      </Typography.Paragraph>
-
-      <pre
-        style={{
-          marginTop: 16,
-          padding: 12,
-          background: '#0f172a',
-          color: '#e2e8f0',
-          borderRadius: 8,
-          minHeight: 120,
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {result ? formatApiResult(result) : '尚未请求。'}
-      </pre>
-    </Card>
-  );
-}
-
-export default function DebugPage() {
-  const tabItems = [
-    {
-      key: 'health',
-      label: 'Health',
-      children: (
-        <DebugPanel title="Health" method="GET" path="/api/health" />
-      ),
-    },
-    {
-      key: 'auth',
-      label: 'Auth',
-      children: (
-        <Row gutter={[16, 16]}>
-          <Col span={12}>
-            <DebugPanel title="Auth Mode" method="GET" path="/api/auth/mode" />
-          </Col>
-          <Col span={12}>
-            <DebugPanel title="Session" method="GET" path="/api/auth/session" />
-          </Col>
-          <Col span={12}>
-            <DebugPanel title="Me" method="GET" path="/api/auth/me" />
-          </Col>
-          <Col span={12}>
-            <DebugPanel
-              title="Admin Check"
-              method="GET"
-              path="/api/auth/roles/admin-check"
-            />
-          </Col>
-        </Row>
-      ),
-    },
-    {
-      key: 'comments',
-      label: 'Comments',
-      children: (
-        <Row gutter={[16, 16]}>
-          <Col span={24}>
-            <DebugPanel title="List Comments" method="GET" path="/api/comments" />
-          </Col>
-          <Col span={24}>
-            <DebugPanel
-              title="Create Comment"
-              method="POST"
-              path="/api/comments"
-              fields={[
-                { name: 'author', label: 'Author', placeholder: 'API Demo' },
-                {
-                  name: 'content',
-                  label: 'Content',
-                  component: 'textarea',
-                  placeholder: 'Supabase CRUD test comment.',
-                },
-              ]}
-              buildRequest={(values) => ({
-                url: '/api/comments',
-                options: {
-                  method: 'POST',
-                  body: JSON.stringify({
-                    author: values.author || 'API Demo',
-                    content: values.content || 'test',
-                  }),
-                },
-              })}
-            />
-          </Col>
-        </Row>
-      ),
-    },
-    {
-      key: 'ai',
-      label: 'AI',
-      children: (
-        <Row gutter={[16, 16]}>
-          <Col span={24}>
-            <DebugPanel
-              title="AI Chat"
-              method="POST"
-              path="/api/ai/chat"
-              fields={[
-                {
-                  name: 'prompt',
-                  label: 'Prompt',
-                  component: 'textarea',
-                  placeholder: 'hello',
-                },
-              ]}
-              buildRequest={(values) => ({
-                url: '/api/ai/chat',
-                options: {
-                  method: 'POST',
-                  body: JSON.stringify({ prompt: values.prompt || 'hello' }),
-                },
-              })}
-            />
-          </Col>
-          <Col span={24}>
-            <DebugPanel
-              title="OpenAI Compatible"
-              method="POST"
-              path="/v1/chat/completions"
-              defaultBody={JSON.stringify(
-                { messages: [{ role: 'user', content: 'Hello' }] },
-                null,
-                2,
+          <Card title="调用历史" size="small" style={{ marginTop: 16 }}>
+            <List
+              size="small"
+              dataSource={history}
+              locale={{ emptyText: '暂无历史' }}
+              renderItem={(item) => (
+                <List.Item
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => restoreHistory(item)}
+                >
+                  <Space>
+                    <Typography.Text code>{item.method}</Typography.Text>
+                    <Typography.Text ellipsis style={{ maxWidth: 280 }}>
+                      {item.path}
+                    </Typography.Text>
+                    <Typography.Text type={item.status >= 400 ? 'danger' : 'secondary'}>
+                      {item.status}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {new Date(item.time).toLocaleString('zh-CN')}
+                    </Typography.Text>
+                  </Space>
+                </List.Item>
               )}
-              fields={[
-                {
-                  name: 'body',
-                  label: 'Messages JSON',
-                  component: 'textarea',
-                },
-              ]}
-              buildRequest={(values) => ({
-                url: '/v1/chat/completions',
-                options: {
-                  method: 'POST',
-                  body: values.body,
-                },
-              })}
             />
-          </Col>
-        </Row>
-      ),
-    },
-    {
-      key: 'user',
-      label: 'User',
-      children: (
-        <Row gutter={[16, 16]}>
-          <Col span={12}>
-            <DebugPanel title="User Me" method="GET" path="/api/user/me" />
-          </Col>
-          <Col span={12}>
-            <DebugPanel title="User Info" method="GET" path="/api/user/info" />
-          </Col>
-        </Row>
-      ),
-    },
-  ];
-
-  return (
-    <div style={{ padding: 24 }}>
-      <Typography.Title level={3}>接口调试</Typography.Title>
-      <Typography.Paragraph type="secondary">
-        按 Ant Design 卡片 + Tabs 组织原 debug console 能力，保留完整请求/响应预览。
-      </Typography.Paragraph>
-      <Tabs items={tabItems} />
-    </div>
+          </Card>
+        </Col>
+      </Row>
+    </PageContainer>
   );
 }

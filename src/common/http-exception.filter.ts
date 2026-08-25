@@ -64,6 +64,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ? exception.message
         : 'Unexpected error';
 
+    if (status >= 400) {
+      const errorText = Array.isArray(message) ? message.join('; ') : message;
+      response.locals.errorMessage = String(errorText);
+    }
+
     const { message: _message, ...extra } = details || {};
 
     response.status(status).json({

@@ -12,6 +12,7 @@ import { SiteConfigModule } from './modules/config/site-config.module';
 import { ChatThreadsModule } from './modules/chat-threads/chat-threads.module';
 import { UserModule } from './modules/user/user.module';
 import { AdminDataModule } from './modules/admin-data/admin-data.module';
+import { AdminInsightsModule } from './modules/admin-insights/admin-insights.module';
 import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { ChatModule } from './modules/chat/chat.module';
     UserModule,
     ChatModule,
     AdminDataModule,
+    AdminInsightsModule,
   ],
 })
 export class AppModule {}

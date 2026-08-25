@@ -1,38 +1,91 @@
 import { PageContainer, ProCard, ProDescriptions } from '@ant-design/pro-components';
-import { Alert, Tag } from 'antd';
+import { Alert, Col, Row, Statistic, Tag } from 'antd';
 import { useEffect, useState } from 'react';
 import { useModel } from '@umijs/max';
-import { fetchAuthMode, fetchHealth } from '@/services/api';
-import type { HealthResponse } from '@/types';
+import { fetchOverview } from '@/services/api';
+import type { AdminOverview } from '@/types';
+import { formatDateTime, formatMetric, formatPercent, statusTagColor } from '@/utils/format';
 
 export default function DashboardPage() {
   const { initialState } = useModel('@@initialState');
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [authMode, setAuthMode] = useState<Record<string, unknown> | null>(
-    null,
-  );
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchHealth(), fetchAuthMode()])
-      .then(([healthResult, modeResult]) => {
-        setHealth(healthResult);
-        setAuthMode(modeResult);
-      })
+    fetchOverview()
+      .then(setOverview)
       .catch((err: Error) => setError(err.message));
   }, []);
 
   const session = initialState?.session;
+  const latestJob = overview?.latestSyncJob;
+  const showErrorRate = overview?.requestLogErrorRate24h !== null;
 
   return (
-    <PageContainer
-      title="API 控制台概览"
-      subTitle="api.acongm.com 标准后台看板"
-    >
-      {error ? <Alert type="error" message={error} showIcon /> : null}
+    <PageContainer title="概览" subTitle="API 控制台 KPI 与运行状态">
+      {error ? <Alert type="error" message={error} showIcon style={{ marginBottom: 16 }} /> : null}
 
-      <ProCard split="vertical" gutter={16} style={{ marginTop: 16 }}>
-        <ProCard title="当前会话" colSpan="50%">
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <ProCard>
+              <Statistic title="今日对话数" value={formatMetric(overview?.chatLogsTodayCount)} />
+            </ProCard>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <ProCard>
+              <Statistic title="会话总数" value={formatMetric(overview?.chatsCount)} />
+            </ProCard>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <ProCard>
+              <Statistic title="消息总数" value={formatMetric(overview?.messagesCount)} />
+            </ProCard>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <ProCard>
+              <Statistic title="KB 文档数" value={formatMetric(overview?.kbAnalysisCount)} />
+            </ProCard>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <ProCard>
+              <Statistic title="KB Chunks 数" value={formatMetric(overview?.kbChunksCount)} />
+            </ProCard>
+          </Col>
+          {showErrorRate ? (
+            <Col xs={24} sm={12} md={8} lg={6}>
+              <ProCard>
+                <Statistic
+                  title="24h 错误率"
+                  value={formatPercent(overview?.requestLogErrorRate24h)}
+                />
+              </ProCard>
+            </Col>
+          ) : null}
+      </Row>
+
+      <ProCard split="vertical" gutter={16}>
+        <ProCard title="最近流水线执行" colSpan="50%">
+          {latestJob ? (
+            <ProDescriptions column={1}>
+              <ProDescriptions.Item label="类型">
+                <Tag>{latestJob.job_type}</Tag>
+              </ProDescriptions.Item>
+              <ProDescriptions.Item label="状态">
+                <Tag color={statusTagColor(latestJob.status)}>{latestJob.status}</Tag>
+              </ProDescriptions.Item>
+              <ProDescriptions.Item label="创建时间">
+                {formatDateTime(latestJob.created_at)}
+              </ProDescriptions.Item>
+              <ProDescriptions.Item label="完成时间">
+                {formatDateTime(latestJob.finished_at)}
+              </ProDescriptions.Item>
+            </ProDescriptions>
+          ) : (
+            <span>-</span>
+          )}
+        </ProCard>
+
+        <ProCard title="当前会话身份" colSpan="50%">
           <ProDescriptions column={1}>
             <ProDescriptions.Item label="邮箱">
               {session?.userInfo?.email || session?.user?.email || '-'}
@@ -45,28 +98,6 @@ export default function DashboardPage() {
             </ProDescriptions.Item>
           </ProDescriptions>
         </ProCard>
-
-        <ProCard title="运行时" colSpan="50%">
-          <ProDescriptions column={1}>
-            <ProDescriptions.Item label="Health">
-              <Tag color={health?.status === 'ok' ? 'success' : 'warning'}>
-                {health?.status || 'loading'}
-              </Tag>
-            </ProDescriptions.Item>
-            <ProDescriptions.Item label="DATA_MODE">
-              {health?.dataMode || '-'}
-            </ProDescriptions.Item>
-            <ProDescriptions.Item label="AI">
-              {health?.aiProvider || '-'} / {health?.aiModel || '-'}
-            </ProDescriptions.Item>
-          </ProDescriptions>
-        </ProCard>
-      </ProCard>
-
-      <ProCard title="Auth 模式" style={{ marginTop: 16 }}>
-        <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-          {authMode ? JSON.stringify(authMode, null, 2) : '加载中...'}
-        </pre>
       </ProCard>
     </PageContainer>
   );
