@@ -7,6 +7,7 @@ import {
   readOptionalHeader,
   resolveCaller,
 } from './caller-identity';
+import { inferCallSource } from './infer-request-log-meta';
 import { recordRequestLog } from './request-log-sink';
 import { RequestWithId } from './request-id.middleware';
 
@@ -62,19 +63,28 @@ export function httpRequestLogMiddleware(
 
     const locals = (res.locals ?? {}) as { errorMessage?: string };
     const origin = readHeader(req, 'origin');
+    const referer = readHeader(req, 'referer');
     const userAgent = readHeader(req, 'user-agent');
-    const callSource = readOptionalHeader(req, 'x-call-source') ?? 'unknown';
+    const resolvedClientId = resolveClientId(
+      readOptionalHeader(req, 'x-client-id'),
+      userAgent,
+      origin,
+    );
+    const callSource = inferCallSource({
+      header: readOptionalHeader(req, 'x-call-source'),
+      origin,
+      referer,
+      path: req.path,
+    });
     const caller = resolveCaller({
       serviceId: readOptionalHeader(req, 'x-service-id'),
       serviceKey: readOptionalHeader(req, 'x-service-key'),
-      clientId: readOptionalHeader(req, 'x-client-id'),
+      clientId: resolvedClientId,
       callSource,
       serviceCallers: parseServiceCallers(process.env.SERVICE_CALLERS),
     });
     const clientId =
-      caller.kind === 'unknown'
-        ? resolveClientId(readHeader(req, 'x-client-id'), userAgent, origin)
-        : displayCallerId(caller);
+      caller.kind === 'unknown' ? resolvedClientId : displayCallerId(caller);
     recordRequestLog({
       requestId: req.requestId,
       method: req.method,

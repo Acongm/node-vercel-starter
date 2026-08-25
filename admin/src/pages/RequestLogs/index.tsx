@@ -1,21 +1,37 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Drawer, Input, Select, Space, Spin, Switch, Tag } from 'antd';
+import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { Alert, Button, Col, Drawer, Input, Row, Segmented, Select, Space, Spin, Statistic, Switch, Tag } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchRequestLogs } from '@/services/api';
-import type { RequestLogRow, RequestLogsResponse } from '@/types';
-import { formatDateTime, httpStatusTagColor, idPrefix } from '@/utils/format';
+import { fetchRequestLogStats, fetchRequestLogs } from '@/services/api';
+import type {
+  RequestLogCallSourceStat,
+  RequestLogCallerKindStat,
+  RequestLogPathStat,
+  RequestLogRow,
+  RequestLogStats,
+  RequestLogsResponse,
+} from '@/types';
+import { formatDateTime, formatPercent, httpStatusTagColor, idPrefix } from '@/utils/format';
 
 const MAX_ROWS = 500;
 const POLL_INTERVAL_MS = 5000;
 const MIGRATION_PATH = 'supabase/migrations/20260825090000_api_request_logs.sql';
+const STATS_FN_PATH = 'supabase/migrations/20260825143000_api_request_logs_stats_fn.sql';
 
 type StatusClass = 'all' | '2xx' | '4xx' | '5xx';
+type StatsWindow = RequestLogStats['window'];
 type PageState =
   | { kind: 'loading' }
   | { kind: 'disabled'; reason?: string }
   | { kind: 'error'; message: string }
   | { kind: 'ready' };
+
+const CALLER_KIND_LABELS: Record<string, string> = {
+  guest: '访客',
+  user: '用户',
+  service: '服务',
+  unknown: '未知',
+};
 
 function matchesStatusClass(statusCode: number, statusClass: StatusClass): boolean {
   if (statusClass === 'all') {
@@ -33,7 +49,14 @@ function matchesStatusClass(statusCode: number, statusClass: StatusClass): boole
   return true;
 }
 
-const columns: ProColumns<RequestLogRow>[] = [
+function renderCallerKind(value: string | null | undefined): string {
+  if (!value) {
+    return '—';
+  }
+  return CALLER_KIND_LABELS[value] ?? value;
+}
+
+const logColumns: ProColumns<RequestLogRow>[] = [
   {
     title: '时间',
     dataIndex: 'created_at',
@@ -85,8 +108,9 @@ const columns: ProColumns<RequestLogRow>[] = [
     title: '调用方',
     dataIndex: 'caller_kind',
     width: 80,
-    render: (_, record) =>
-      record.caller_kind ? <Tag>{record.caller_kind}</Tag> : '—',
+    render: (_, record) => (
+      <Tag>{renderCallerKind(record.caller_kind)}</Tag>
+    ),
   },
   {
     title: '错误',
@@ -96,9 +120,141 @@ const columns: ProColumns<RequestLogRow>[] = [
   },
 ];
 
+const pathStatColumns: ProColumns<RequestLogPathStat>[] = [
+  { title: 'Method', dataIndex: 'method', width: 80 },
+  { title: '路径', dataIndex: 'path', ellipsis: true },
+  { title: '请求数', dataIndex: 'count', width: 90, align: 'right' },
+  {
+    title: '平均耗时',
+    dataIndex: 'avg_duration_ms',
+    width: 100,
+    align: 'right',
+    render: (_, record) => `${record.avg_duration_ms} ms`,
+  },
+  { title: '5xx', dataIndex: 'errors', width: 70, align: 'right' },
+];
+
+const callerKindColumns: ProColumns<RequestLogCallerKindStat>[] = [
+  {
+    title: '调用方',
+    dataIndex: 'caller_kind',
+    render: (_, record) => renderCallerKind(record.caller_kind),
+  },
+  { title: '请求数', dataIndex: 'count', width: 90, align: 'right' },
+  {
+    title: '平均耗时',
+    dataIndex: 'avg_duration_ms',
+    width: 100,
+    align: 'right',
+    render: (_, record) => `${record.avg_duration_ms} ms`,
+  },
+];
+
+const callSourceColumns: ProColumns<RequestLogCallSourceStat>[] = [
+  { title: '来源', dataIndex: 'call_source', ellipsis: true },
+  { title: '请求数', dataIndex: 'count', width: 90, align: 'right' },
+  {
+    title: '平均耗时',
+    dataIndex: 'avg_duration_ms',
+    width: 100,
+    align: 'right',
+    render: (_, record) => `${record.avg_duration_ms} ms`,
+  },
+];
+
+function RequestLogApmSummary({
+  stats,
+  window,
+  onWindowChange,
+}: {
+  stats: RequestLogStats;
+  window: StatsWindow;
+  onWindowChange: (value: StatsWindow) => void;
+}) {
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%', marginBottom: 16 }}>
+      <Segmented
+        value={window}
+        onChange={(value) => onWindowChange(value as StatsWindow)}
+        options={[
+          { label: '24 小时', value: '24h' },
+          { label: '7 天', value: '7d' },
+          { label: '30 天', value: '30d' },
+        ]}
+      />
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={6}>
+          <ProCard>
+            <Statistic title="请求总数" value={stats.total} />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <ProCard>
+            <Statistic title="平均耗时" value={stats.avgDurationMs} suffix="ms" />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <ProCard>
+            <Statistic title="5xx 错误数" value={stats.errorCount} />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <ProCard>
+            <Statistic title="错误率" value={formatPercent(stats.errorRate)} />
+          </ProCard>
+        </Col>
+      </Row>
+
+      <ProCard title="接口 Top（按请求数）" bordered>
+        <ProTable<RequestLogPathStat>
+          rowKey={(row) => `${row.method}:${row.path}`}
+          columns={pathStatColumns}
+          search={false}
+          dataSource={stats.byPath}
+          pagination={false}
+          toolBarRender={false}
+          size="small"
+        />
+      </ProCard>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <ProCard title="按调用方" bordered>
+            <ProTable<RequestLogCallerKindStat>
+              rowKey="caller_kind"
+              columns={callerKindColumns}
+              search={false}
+              dataSource={stats.byCallerKind}
+              pagination={false}
+              toolBarRender={false}
+              size="small"
+            />
+          </ProCard>
+        </Col>
+        <Col xs={24} lg={12}>
+          <ProCard title="按来源" bordered>
+            <ProTable<RequestLogCallSourceStat>
+              rowKey="call_source"
+              columns={callSourceColumns}
+              search={false}
+              dataSource={stats.byCallSource}
+              pagination={false}
+              toolBarRender={false}
+              size="small"
+            />
+          </ProCard>
+        </Col>
+      </Row>
+    </Space>
+  );
+}
+
 export default function RequestLogsPage() {
   const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
   const [rows, setRows] = useState<RequestLogRow[]>([]);
+  const [stats, setStats] = useState<RequestLogStats | null>(null);
+  const [statsWindow, setStatsWindow] = useState<StatsWindow>('24h');
   const [pathFilter, setPathFilter] = useState('');
   const [statusClass, setStatusClass] = useState<StatusClass>('all');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -122,6 +278,21 @@ export default function RequestLogsPage() {
     });
   }, []);
 
+  const loadStats = useCallback(async (window: StatsWindow) => {
+    const response = await fetchRequestLogStats(window);
+    if (!response.enabled) {
+      if (response.reason === 'stats_fn_missing') {
+        setStats(null);
+        return;
+      }
+      if (response.reason === 'migration_missing') {
+        setPageState({ kind: 'disabled', reason: response.reason });
+      }
+      return;
+    }
+    setStats(response.stats);
+  }, []);
+
   const loadLogs = useCallback(
     async (incremental: boolean) => {
       const response: RequestLogsResponse = await fetchRequestLogs({
@@ -139,28 +310,41 @@ export default function RequestLogsPage() {
     [mergeRows, pathFilter],
   );
 
+  const reloadAll = useCallback(
+    async (incrementalLogs: boolean) => {
+      await Promise.all([loadStats(statsWindow), loadLogs(incrementalLogs)]);
+    },
+    [loadLogs, loadStats, statsWindow],
+  );
+
   const retryLoad = useCallback(() => {
     setPageState({ kind: 'loading' });
-    loadLogs(false).catch((err: Error) => {
+    reloadAll(false).catch((err: Error) => {
       setPageState({ kind: 'error', message: err.message });
     });
-  }, [loadLogs]);
+  }, [reloadAll]);
 
   useEffect(() => {
     retryLoad();
   }, [retryLoad]);
 
   useEffect(() => {
+    loadStats(statsWindow).catch((err: Error) => {
+      setPageState({ kind: 'error', message: err.message });
+    });
+  }, [loadStats, statsWindow]);
+
+  useEffect(() => {
     if (!autoRefresh || paused || pageState.kind !== 'ready') {
       return;
     }
     const timer = window.setInterval(() => {
-      loadLogs(true).catch((err: Error) => {
+      reloadAll(true).catch((err: Error) => {
         setPageState({ kind: 'error', message: err.message });
       });
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [autoRefresh, paused, pageState.kind, loadLogs]);
+  }, [autoRefresh, paused, pageState.kind, reloadAll]);
 
   if (pageState.kind === 'loading') {
     return (
@@ -229,57 +413,83 @@ export default function RequestLogsPage() {
   }
 
   const filteredRows = rows.filter((row) => matchesStatusClass(row.status_code, statusClass));
-  const scrollX = columns.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0);
+  const scrollX = logColumns.reduce(
+    (sum, col) => sum + (typeof col.width === 'number' ? col.width : 160),
+    0,
+  );
 
   return (
-    <PageContainer title="接口日志" subTitle="api_request_logs 准实时 tail">
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Switch
-          checkedChildren="自动刷新"
-          unCheckedChildren="自动刷新"
-          checked={autoRefresh}
-          onChange={setAutoRefresh}
+    <PageContainer title="接口日志" subTitle="简化 APM：聚合统计 + 准实时 tail">
+      {stats ? (
+        <RequestLogApmSummary
+          stats={stats}
+          window={statsWindow}
+          onWindowChange={setStatsWindow}
         />
-        <Switch
-          checkedChildren="继续"
-          unCheckedChildren="暂停"
-          checked={!paused}
-          onChange={(value) => setPaused(!value)}
+      ) : (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="聚合统计函数尚未迁移"
+          description={
+            <>
+              <p>实时 tail 仍可用。要启用 24h / 7d / 30d 聚合统计，请执行：</p>
+              <pre style={{ marginTop: 8 }}>{STATS_FN_PATH}</pre>
+            </>
+          }
         />
-        <Select
-          value={statusClass}
-          onChange={setStatusClass}
-          style={{ width: 120 }}
-          options={[
-            { value: 'all', label: '全部状态' },
-            { value: '2xx', label: '2xx' },
-            { value: '4xx', label: '4xx' },
-            { value: '5xx', label: '5xx' },
-          ]}
-        />
-        <Input
-          placeholder="路径包含"
-          value={pathFilter}
-          onChange={(event) => setPathFilter(event.target.value)}
-          onPressEnter={() => loadLogs(false).catch(() => undefined)}
-          style={{ width: 200 }}
-        />
-      </Space>
+      )}
 
-      <ProTable<RequestLogRow>
-        rowKey="id"
-        columns={columns}
-        search={false}
-        dataSource={filteredRows}
-        pagination={{ pageSize: 50 }}
-        toolBarRender={false}
-        scroll={{ x: scrollX }}
-        tableLayout="fixed"
-        onRow={(record) => ({
-          onClick: () => setSelected(record),
-          style: { cursor: 'pointer' },
-        })}
-      />
+      <ProCard title="实时请求 tail" bordered>
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Switch
+            checkedChildren="自动刷新"
+            unCheckedChildren="自动刷新"
+            checked={autoRefresh}
+            onChange={setAutoRefresh}
+          />
+          <Switch
+            checkedChildren="继续"
+            unCheckedChildren="暂停"
+            checked={!paused}
+            onChange={(value) => setPaused(!value)}
+          />
+          <Select
+            value={statusClass}
+            onChange={setStatusClass}
+            style={{ width: 120 }}
+            options={[
+              { value: 'all', label: '全部状态' },
+              { value: '2xx', label: '2xx' },
+              { value: '4xx', label: '4xx' },
+              { value: '5xx', label: '5xx' },
+            ]}
+          />
+          <Input
+            placeholder="路径包含"
+            value={pathFilter}
+            onChange={(event) => setPathFilter(event.target.value)}
+            onPressEnter={() => loadLogs(false).catch(() => undefined)}
+            style={{ width: 200 }}
+          />
+        </Space>
+
+        <ProTable<RequestLogRow>
+          rowKey="id"
+          columns={logColumns}
+          search={false}
+          dataSource={filteredRows}
+          pagination={{ pageSize: 50 }}
+          toolBarRender={false}
+          scroll={{ x: scrollX }}
+          tableLayout="fixed"
+          onRow={(record) => ({
+            onClick: () => setSelected(record),
+            style: { cursor: 'pointer' },
+          })}
+        />
+      </ProCard>
 
       <Drawer
         open={Boolean(selected)}

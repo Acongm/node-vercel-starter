@@ -313,3 +313,48 @@ export type RequestLogsEnabled = {
 };
 
 export type RequestLogsResponse = RequestLogsDisabled | RequestLogsEnabled;
+
+export type RequestLogPathStat = {
+  method: string;
+  path: string;
+  count: number;
+  avg_duration_ms: number;
+  errors: number;
+};
+
+export type RequestLogDimensionStat = {
+  count: number;
+  avg_duration_ms: number;
+};
+
+export type RequestLogCallerKindStat = RequestLogDimensionStat & {
+  caller_kind: string;
+};
+
+export type RequestLogCallSourceStat = RequestLogDimensionStat & {
+  call_source: string;
+};
+
+export type RequestLogStats = {
+  window: '24h' | '7d' | '30d';
+  since: string;
+  total: number;
+  avgDurationMs: number;
+  errorCount: number;
+  errorRate: number;
+  byPath: RequestLogPathStat[];
+  byCallerKind: RequestLogCallerKindStat[];
+  byCallSource: RequestLogCallSourceStat[];
+};
+
+export type RequestLogStatsDisabled = {
+  enabled: false;
+  reason?: 'migration_missing' | 'stats_fn_missing' | string;
+};
+
+export type RequestLogStatsEnabled = {
+  enabled: true;
+  stats: RequestLogStats;
+};
+
+export type RequestLogStatsResponse = RequestLogStatsDisabled | RequestLogStatsEnabled;

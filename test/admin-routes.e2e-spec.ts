@@ -137,6 +137,12 @@ describe('Admin routes (e2e)', () => {
       .expect(200);
     expect(requestLogs.body).toEqual({ enabled: false });
 
+    const requestLogStats = await request(app.getHttpServer())
+      .get('/api/admin/request-logs/stats?window=24h')
+      .set(auth)
+      .expect(200);
+    expect(requestLogStats.body).toEqual({ enabled: false });
+
     const overview = await request(app.getHttpServer())
       .get('/api/admin/overview')
       .set(auth)

@@ -16,6 +16,7 @@ import type {
   PaginatedResponse,
   PlatformUsersResponse,
   RequestLogsResponse,
+  RequestLogStatsResponse,
   SyncFailureRow,
   SyncJobRow,
   AdminChatLogItem,
@@ -356,4 +357,15 @@ export async function fetchRequestLogs(params: {
     throw new Error(`Request logs failed: HTTP ${result.status}`);
   }
   return result.body as RequestLogsResponse;
+}
+
+export async function fetchRequestLogStats(
+  window: '24h' | '7d' | '30d',
+): Promise<RequestLogStatsResponse> {
+  const query = new URLSearchParams({ window });
+  const result = await apiFetch(`/api/admin/request-logs/stats?${query.toString()}`);
+  if (!result.ok) {
+    throw new Error(`Request log stats failed: HTTP ${result.status}`);
+  }
+  return result.body as RequestLogStatsResponse;
 }

@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { deriveAnonFingerprint } from '../src/common/anon-fingerprint';
 import { httpRequestLogMiddleware } from '../src/common/http-request-log.middleware';
 import { RequestWithId } from '../src/common/request-id.middleware';
+import * as requestLogSink from '../src/common/request-log-sink';
 
 describe('httpRequestLogMiddleware', () => {
   it('logs request metadata when the response finishes', () => {
@@ -81,5 +82,39 @@ describe('httpRequestLogMiddleware', () => {
     const ua = 'Mozilla/5.0 Test Agent';
     const origin = 'https://acongm.com';
     expect(deriveAnonFingerprint(ua, origin)).toMatch(/^ua-[0-9a-f]{8}$/);
+  });
+
+  it('records inferred call source and guest caller kind from origin and user-agent', () => {
+    const recordSpy = jest.spyOn(requestLogSink, 'recordRequestLog').mockImplementation(() => undefined);
+    const ua = 'Mozilla/5.0 Test Agent';
+    const origin = 'https://www.acongm.com';
+    const req = Object.assign(new EventEmitter(), {
+      method: 'GET',
+      path: '/api/user/info',
+      originalUrl: '/api/user/info',
+      requestId: 'req-meta',
+      header(name: string) {
+        if (name === 'origin') return origin;
+        if (name === 'user-agent') return ua;
+        return undefined;
+      },
+    }) as RequestWithId;
+    const res = Object.assign(new EventEmitter(), {
+      statusCode: 200,
+      locals: {},
+    });
+
+    httpRequestLogMiddleware(req, res as never, jest.fn());
+    res.emit('finish');
+
+    expect(recordSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        callSource: 'portal:web',
+        callerKind: 'guest',
+        clientId: deriveAnonFingerprint(ua, origin),
+      }),
+    );
+
+    recordSpy.mockRestore();
   });
 });
