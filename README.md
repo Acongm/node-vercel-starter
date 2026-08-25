@@ -26,11 +26,11 @@ Open `http://localhost:3000`.
 
 ## API Debug Console
 
-Open `http://localhost:3000` for the Umi + Ant Design admin console (build with `npm run build:admin` first).
+Open `http://localhost:3000/fe` for the Umi + Ant Design admin console (build with `npm run build:admin` first).
 
 ## Admin Console (Umi + Ant Design)
 
-`api.acongm.com/` now serves a standard admin dashboard built with **Umi Max + Ant Design Pro**.
+`https://api.acongm.com/fe` serves the admin dashboard. API routes (`/api/*`, `/v1/*`) always take priority; `/` redirects to `/fe`.
 
 - **Auth**: redirects unauthenticated users to `auth.acongm.com`; admin access requires platform role `admin`
 - **Admin whitelist** (built-in): `o.arvin.peng@gmail.com`, `acongm@126.com` — extend with `AUTH_ADMIN_EMAILS`
@@ -39,7 +39,7 @@ Open `http://localhost:3000` for the Umi + Ant Design admin console (build with 
 - **Legacy console**: still available at `/legacy/index.html`
 
 ```bash
-npm run build:admin   # builds admin/ → public/
+npm run build:admin   # builds admin/ → public/fe/
 npm run build:all     # NestJS + admin
 npm run vercel-build  # used by Vercel static-build
 ```

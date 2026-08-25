@@ -22,18 +22,27 @@ export class HttpExceptionFilter implements ExceptionFilter {
       exception instanceof NotFoundException &&
       (request.method === 'GET' || request.method === 'HEAD') &&
       !request.path.startsWith('/api') &&
-      !request.path.startsWith('/v1')
+      !request.path.startsWith('/v1') &&
+      !request.path.startsWith('/legacy')
     ) {
       const publicDir = join(process.cwd(), 'public');
-      const relativePath = request.path.replace(/^\/+/, '');
-      const candidate = join(publicDir, relativePath);
-      if (relativePath && existsSync(candidate)) {
-        response.sendFile(candidate);
+
+      if (request.path === '/' || request.path === '') {
+        response.redirect(308, '/fe');
         return;
       }
 
-      response.sendFile(join(publicDir, 'index.html'));
-      return;
+      if (request.path.startsWith('/fe')) {
+        const relativePath = request.path.replace(/^\/fe\/?/, '');
+        const candidate = join(publicDir, 'fe', relativePath);
+        if (relativePath && existsSync(candidate)) {
+          response.sendFile(candidate);
+          return;
+        }
+
+        response.sendFile(join(publicDir, 'fe', 'index.html'));
+        return;
+      }
     }
 
     const status =

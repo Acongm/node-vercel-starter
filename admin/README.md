@@ -6,10 +6,10 @@ Umi Max + Ant Design Pro dashboard for `api.acongm.com`.
 
 | Route | Description |
 |-------|-------------|
-| `/dashboard` | Health + auth mode overview |
-| `/data` | Supabase table browser |
-| `/chat-logs` | AI chat log viewer |
-| `/debug` | API request debugger (Ant Design cards/tabs) |
+| `/fe/dashboard` | Health + auth mode overview |
+| `/fe/data` | Supabase table browser |
+| `/fe/chat-logs` | AI chat log viewer |
+| `/fe/debug` | API request debugger (Ant Design cards/tabs) |
 
 ## Auth
 

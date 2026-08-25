@@ -1,10 +1,10 @@
 import { Button, Card, Result, Spin } from 'antd';
 import { useEffect } from 'react';
-import { getAuthLoginUrl } from '@/utils/auth';
+import { getAuthLoginUrl, getFeDashboardUrl } from '@/utils/auth';
 
 export default function LoginPage() {
   useEffect(() => {
-    window.location.href = getAuthLoginUrl(window.location.origin);
+    window.location.href = getAuthLoginUrl(getFeDashboardUrl());
   }, []);
 
   return (
@@ -25,7 +25,7 @@ export default function LoginPage() {
             <Button
               type="primary"
               onClick={() => {
-                window.location.href = getAuthLoginUrl(window.location.origin);
+                window.location.href = getAuthLoginUrl(getFeDashboardUrl());
               }}
             >
               立即登录

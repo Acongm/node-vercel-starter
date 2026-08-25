@@ -24,15 +24,34 @@
     },
     {
       "src": "/legacy/(.*)",
-      "dest": "/public/legacy/$1"
+      "dest": "/legacy/$1"
     },
     {
-      "src": "/(.*\\.(js|css|png|ico|svg|json|woff2?|map))",
-      "dest": "/public/$1"
+      "src": "/fe$",
+      "dest": "/fe/index.html"
     },
     {
-      "src": "/(.*)",
-      "dest": "/public/index.html"
+      "src": "/fe/(.*\\.(js|css|png|ico|svg|json|woff2?|map))",
+      "dest": "/fe/$1"
+    },
+    {
+      "src": "/fe/(.*)",
+      "dest": "/fe/index.html"
+    },
+    {
+      "src": "/",
+      "status": 308,
+      "headers": {
+        "Location": "/fe"
+      }
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/fe/favicon.ico"
+    },
+    {
+      "src": "/icon.png",
+      "dest": "/fe/icon.png"
     }
   ]
 }

@@ -14,26 +14,32 @@ function readIcoOpaqueRgb(path: string): [number, number, number] | null {
   return null;
 }
 
-describe('API debug console favicon', () => {
+describe('API admin favicon', () => {
   const root = process.cwd();
   const vercel = readFileSync(join(root, 'vercel.json'), 'utf8');
-  const index = readFileSync(join(root, 'public/index.html'), 'utf8');
-  const logs = readFileSync(join(root, 'public/chat-logs.html'), 'utf8');
+  const legacyIndex = readFileSync(
+    join(root, 'static/legacy/index.html'),
+    'utf8',
+  );
+  const legacyLogs = readFileSync(
+    join(root, 'static/legacy/chat-logs.html'),
+    'utf8',
+  );
 
-  it('keeps an explicit Vercel route for /favicon.ico and /icon.png', () => {
+  it('routes favicon assets from /fe', () => {
     expect(vercel).toContain('"/favicon.ico"');
-    expect(vercel).toContain('"/public/favicon.ico"');
+    expect(vercel).toContain('"/fe/favicon.ico"');
     expect(vercel).toContain('"/icon.png"');
-    expect(vercel).toContain('"/public/icon.png"');
+    expect(vercel).toContain('"/fe/icon.png"');
   });
 
-  it('serves a purple portal 聪 icon and links png + ico from HTML pages', () => {
-    expect(readIcoOpaqueRgb(join(root, 'public/favicon.ico'))).toEqual([
+  it('keeps purple portal icon assets in admin/public', () => {
+    expect(readIcoOpaqueRgb(join(root, 'admin/public/favicon.ico'))).toEqual([
       168, 85, 247,
     ]);
-    expect(index).toContain('href="/icon.png"');
-    expect(index).toContain('href="/favicon.ico"');
-    expect(logs).toContain('href="/icon.png"');
-    expect(logs).toContain('href="/favicon.ico"');
+    expect(legacyIndex).toContain('href="/icon.png"');
+    expect(legacyIndex).toContain('href="/favicon.ico"');
+    expect(legacyLogs).toContain('href="/icon.png"');
+    expect(legacyLogs).toContain('href="/favicon.ico"');
   });
 });
