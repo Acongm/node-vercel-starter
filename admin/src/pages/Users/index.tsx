@@ -9,6 +9,16 @@ import { formatDateTime, idPrefix, roleTagColor } from '@/utils/format';
 
 type AnonymousActivity = 'active' | 'ghost' | 'all';
 
+function renderAnonymousStatus(record: PlatformUserItem) {
+  if (record.hasChats) {
+    return <Tag color="green">有对话</Tag>;
+  }
+  if (record.isGhost) {
+    return <Tag color="orange">幽灵</Tag>;
+  }
+  return <Tag>浏览中</Tag>;
+}
+
 function LoginUsersTab() {
   const [search, setSearch] = useState('');
   const [disabled, setDisabled] = useState<string | null>(null);
@@ -182,14 +192,7 @@ function AnonymousUsersTab() {
         title: '状态',
         dataIndex: 'hasChats',
         width: 120,
-        render: (_, record) =>
-          record.hasChats ? (
-            <Tag color="green">有对话</Tag>
-          ) : record.isGhost ? (
-            <Tag color="orange">幽灵</Tag>
-          ) : (
-            <Tag>浏览中</Tag>
-          ),
+        render: (_, record) => renderAnonymousStatus(record),
       },
       {
         title: '创建时间',
