@@ -3,6 +3,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { SupabaseClient, createClient, User } from '@supabase/supabase-js';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
+import {
+  DEFAULT_ADMIN_EMAILS,
+  applyAdminEmailRole,
+} from './admin-emails';
 import { jwtExpiresAtMs } from './bearer-token';
 import { AuthPrincipal, PlatformRole, isPlatformRole } from './roles';
 
@@ -108,7 +112,13 @@ export class SupabaseAuthService {
       userId: user.id,
       // A Supabase anonymous identity is stable enough for auth.uid()/RLS, but
       // it must not inherit viewer/editor/admin authorization from metadata.
-      role: isAnonymous ? 'anonymous' : this.extractRole(user),
+      role: isAnonymous
+        ? 'anonymous'
+        : applyAdminEmailRole(
+            this.extractRole(user),
+            user.email,
+            this.config.auth.adminEmails ?? DEFAULT_ADMIN_EMAILS,
+          ),
       tier: isAnonymous ? 'anon' : 'user',
       source: 'supabase',
       email: user.email,

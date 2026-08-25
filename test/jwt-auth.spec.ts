@@ -81,6 +81,26 @@ describe('roles + JwtAuthService', () => {
     });
   });
 
+  it('elevates a configured admin email to admin even without app_metadata.role', async () => {
+    const service = createService();
+    const token = await jwtService.signAsync(
+      {
+        sub: 'user-admin-mail',
+        email: 'o.arvin.peng@gmail.com',
+        app_metadata: {},
+      },
+      { secret: 'supabase-secret', expiresIn: '1h' },
+    );
+
+    const principal = await service.verifyAccessToken(token);
+    expect(principal).toMatchObject({
+      userId: 'user-admin-mail',
+      role: 'admin',
+      email: 'o.arvin.peng@gmail.com',
+      source: 'supabase',
+    });
+  });
+
   it('defaults authenticated supabase users without role to viewer', async () => {
     const service = createService();
     const token = await jwtService.signAsync(

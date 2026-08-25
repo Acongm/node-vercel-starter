@@ -30,7 +30,10 @@ describe('AuthService.sessionResponse', () => {
     };
     expect(service.sessionResponse(anonymous)).toMatchObject({
       authenticated: false,
+      isAdmin: false,
+      role: 'anonymous',
       isAnonymous: false,
+      loginUrl: 'https://auth.acongm.com/login?return_to=https%3A%2F%2Fapi.acongm.com%2F',
       user: null,
       userInfo: null,
       accessToken: null,

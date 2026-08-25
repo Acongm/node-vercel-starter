@@ -5,6 +5,10 @@ import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { extractAccessToken } from './bearer-token';
 import {
+  DEFAULT_ADMIN_EMAILS,
+  applyAdminEmailRole,
+} from './admin-emails';
+import {
   AuthPrincipal,
   PlatformRole,
   createAnonymousPrincipal,
@@ -97,7 +101,7 @@ export class JwtAuthService {
 
       return {
         userId: payload.sub,
-        role: payload.role,
+        role: this.withAdminEmail(payload.role, payload.email),
         tier: 'user',
         email: payload.email,
         name: payload.name || payload.email,
@@ -158,7 +162,7 @@ export class JwtAuthService {
 
       return {
         userId,
-        role,
+        role: this.withAdminEmail(role, payload.email),
         tier: 'user',
         email: payload.email,
         name:
@@ -199,5 +203,16 @@ export class JwtAuthService {
     }
 
     return 'viewer';
+  }
+
+  private withAdminEmail(
+    role: PlatformRole,
+    email: string | undefined,
+  ): PlatformRole {
+    return applyAdminEmailRole(
+      role,
+      email,
+      this.config.auth.adminEmails ?? DEFAULT_ADMIN_EMAILS,
+    );
   }
 }

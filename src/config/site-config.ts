@@ -229,6 +229,19 @@ export function getApiBase(config: SiteConfig): string {
   return config.domains.api.replace(/\/+$/, '');
 }
 
+export function getAuthBase(config: SiteConfig): string {
+  return config.domains.auth.replace(/\/+$/, '');
+}
+
+export function getAuthLoginUrl(
+  config: SiteConfig,
+  returnTo = `${getApiBase(config)}/`,
+): string {
+  const url = new URL('/login', `${getAuthBase(config)}/`);
+  url.searchParams.set('return_to', returnTo);
+  return url.toString();
+}
+
 export function getPublishBranch(config: SiteConfig): string {
   return config.git.publishBranch;
 }

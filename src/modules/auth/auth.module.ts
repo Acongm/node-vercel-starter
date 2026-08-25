@@ -51,6 +51,7 @@ import { SupabaseRequestClientService } from './supabase-request-client.service'
     },
   ],
   exports: [
+    AuthService,
     AdminSessionService,
     AdminSessionGuard,
     JwtAuthService,
@@ -62,6 +63,7 @@ import { SupabaseRequestClientService } from './supabase-request-client.service'
     OAuthService,
     RolesGuard,
     OptionalAuthGuard,
+    AUTH_USER_STORE,
   ],
 })
 export class AuthModule {}

@@ -53,7 +53,7 @@ import { ChatLogsService } from './chat-logs.service';
       },
     },
   ],
-  exports: [ChatLogWriterService],
+  exports: [ChatLogWriterService, ChatLogsService, CHAT_LOG_STORE],
 })
 export class ChatLogsModule {}
 

@@ -10,6 +10,13 @@ const createClientMock = createClient as jest.MockedFunction<typeof createClient
 
 function config(overrides: Partial<AppConfig['supabase']> = {}): AppConfig {
   return {
+    auth: {
+      mode: 'jwt',
+      jwtSecret: 'test',
+      sessionTtl: '1h',
+      adminEmails: ['o.arvin.peng@gmail.com', 'acongm@126.com'],
+      oauth: {},
+    },
     supabase: {
       url: 'https://example.supabase.co',
       publicKey: 'sb_publishable_test',
@@ -74,6 +81,30 @@ describe('SupabaseAuthService', () => {
         auth: expect.objectContaining({ persistSession: false }),
       }),
     );
+  });
+
+  it('promotes a whitelist email to admin without trusting user_metadata', async () => {
+    mockGetUser({
+      data: {
+        user: {
+          id: 'user-whitelist',
+          email: 'acongm@126.com',
+          app_metadata: {},
+          user_metadata: { role: 'viewer' },
+        },
+      },
+      error: null,
+    });
+
+    const principal = await new SupabaseAuthService(config()).verifyAccessToken(
+      'token',
+    );
+    expect(principal).toMatchObject({
+      userId: 'user-whitelist',
+      email: 'acongm@126.com',
+      role: 'admin',
+      tier: 'user',
+    });
   });
 
   it('never uses user_metadata for authorization', async () => {

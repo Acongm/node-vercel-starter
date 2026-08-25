@@ -52,7 +52,7 @@ import { ClientLabelsService } from './client-labels.service';
       },
     },
   ],
-  exports: [ClientLabelsService],
+  exports: [ClientLabelsService, CLIENT_LABEL_STORE],
 })
 export class ClientLabelsModule {}
 

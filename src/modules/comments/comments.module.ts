@@ -48,6 +48,7 @@ import { CommentsService } from './comments.service';
       },
     },
   ],
+  exports: [CommentsService, COMMENT_STORE],
 })
 export class CommentsModule {}
 

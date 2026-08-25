@@ -5,12 +5,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { AdminSessionGuard } from '../auth/admin-session.guard';
+import { RequireRoles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { ChatLogsService } from './chat-logs.service';
 import { ListChatLogsDto } from './dto/list-chat-logs.dto';
 
 @Controller('api/ai/chat/logs')
-@UseGuards(AdminSessionGuard)
+@UseGuards(RolesGuard)
+@RequireRoles('admin')
 export class ChatLogsController {
   constructor(private readonly chatLogsService: ChatLogsService) {}
 

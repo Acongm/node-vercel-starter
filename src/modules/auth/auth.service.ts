@@ -2,10 +2,16 @@ import {
   Inject,
   Injectable,
   NotImplementedException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { APP_CONFIG } from '../../common/tokens';
+import { APP_CONFIG, SITE_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
+import {
+  DEFAULT_SITE_CONFIG,
+  SiteConfig,
+  getAuthLoginUrl,
+} from '../../config/site-config';
 import { AccessTokenService } from './access-token.service';
 import { AdminSessionService } from './admin-session.service';
 import { AuthUsersService } from './auth-users.service';
@@ -20,6 +26,7 @@ export class AuthService {
     private readonly adminSession: AdminSessionService,
     private readonly users: AuthUsersService,
     private readonly accessTokens: AccessTokenService,
+    @Optional() @Inject(SITE_CONFIG) private readonly siteConfig?: SiteConfig,
   ) {}
 
   /**
@@ -105,9 +112,11 @@ export class AuthService {
     const authenticated = principal.tier === 'user';
     return {
       authenticated,
+      isAdmin: principal.role === 'admin',
       role: principal.role,
       tier: principal.tier,
       source: principal.source,
+      loginUrl: this.loginUrl(),
       user: authenticated
         ? {
             id: principal.userId,
@@ -142,18 +151,26 @@ export class AuthService {
     return {
       authenticated,
       configured: publicConfig.configured,
+      isAdmin: principal.role === 'admin',
+      role: principal.role,
       isAnonymous: principal.tier === 'anon' && Boolean(principal.userId),
+      loginUrl: this.loginUrl(),
       user: principal.userId
         ? {
             id: principal.userId,
             email: principal.email ?? null,
             name: principal.name ?? null,
             avatarUrl: principal.avatarUrl ?? null,
+            role: principal.role,
           }
         : null,
       userInfo,
       accessToken: accessToken ?? null,
     };
+  }
+
+  loginUrl(returnTo?: string): string {
+    return getAuthLoginUrl(this.siteConfig ?? DEFAULT_SITE_CONFIG, returnTo);
   }
 
   /** OIDC-style userinfo: same identity for email and third-party login. */

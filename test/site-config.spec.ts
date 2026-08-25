@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import {
   DEFAULT_SITE_CONFIG,
   getApiBase,
+  getAuthLoginUrl,
   getChatLimitPerDay,
   getPublishBranch,
   loadSiteConfig,
@@ -45,6 +46,9 @@ limits:
     expect(getPublishBranch(config)).toBe('master');
     expect(getApiBase(config)).toBe('https://api.example.test');
     expect(getChatLimitPerDay(config, 'anon')).toBe(15);
+    expect(getAuthLoginUrl(DEFAULT_SITE_CONFIG)).toBe(
+      'https://auth.acongm.com/login?return_to=https%3A%2F%2Fapi.acongm.com%2F',
+    );
   });
 
   it('allows env to override publishBranch and limits', () => {

@@ -40,7 +40,7 @@ import { ChatThreadsService } from './chat-threads.service';
       useFactory: (config: AppConfig) => createMessageStore(config),
     },
   ],
-  exports: [ChatThreadsService],
+  exports: [ChatThreadsService, CHAT_THREAD_STORE, CHAT_MESSAGE_STORE],
 })
 export class ChatThreadsModule {}
 

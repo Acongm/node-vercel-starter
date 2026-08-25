@@ -12,6 +12,7 @@ import { SiteConfigModule } from './modules/config/site-config.module';
 import { ChatThreadsModule } from './modules/chat-threads/chat-threads.module';
 import { UserModule } from './modules/user/user.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ChatModule } from './modules/chat/chat.module';
     ChatThreadsModule,
     UserModule,
     ChatModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
