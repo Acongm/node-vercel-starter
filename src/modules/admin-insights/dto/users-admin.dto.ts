@@ -22,6 +22,17 @@ export class ListPlatformUsersDto {
   @IsOptional()
   @IsString()
   q?: string;
+
+  /** Anonymous tab: users with chats, purgeable ghosts, or everyone. */
+  @IsOptional()
+  @IsIn(['active', 'ghost', 'all'])
+  activity?: 'active' | 'ghost' | 'all';
+}
+
+export class PurgeGhostUsersDto {
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  dryRun?: 'true' | 'false';
 }
 
 export class ListLocalUsersDto {

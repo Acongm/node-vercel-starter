@@ -248,6 +248,9 @@ export type PlatformUserItem = {
   isAnonymous: boolean;
   createdAt?: string;
   lastSignInAt?: string;
+  cid?: string;
+  hasChats?: boolean;
+  isGhost?: boolean;
 };
 
 export type PlatformUsersDisabled = {
@@ -262,6 +265,8 @@ export type PlatformUsersEnabled = {
   pageSize: number;
   total: number;
   totalPages: number;
+  ghostCount?: number;
+  activeCount?: number;
 };
 
 export type PlatformUsersResponse = PlatformUsersDisabled | PlatformUsersEnabled;
