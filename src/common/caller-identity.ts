@@ -146,6 +146,9 @@ export function readOptionalHeader(
   req: CallerHeaderBag,
   name: string,
 ): string | undefined {
+  if (typeof req.header !== 'function') {
+    return undefined;
+  }
   const value = req.header(name)?.trim();
   return value ? value : undefined;
 }
