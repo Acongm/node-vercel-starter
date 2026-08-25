@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { AppConfig } from '../config/app-config';
+import type { RouteGroup } from './request-route-meta';
 
 export interface RequestLogEntry {
   requestId?: string;
@@ -11,6 +12,8 @@ export interface RequestLogEntry {
   clientId?: string;
   callSource?: string;
   callerKind?: string;
+  routeGroup?: RouteGroup;
+  isStream?: boolean;
   origin?: string;
   userAgent?: string;
   errorMessage?: string;
@@ -20,6 +23,7 @@ let sinkEnabled = false;
 let sinkClient: SupabaseClient | null = null;
 let tableKnownMissing = false;
 let callerColumnsKnownMissing = false;
+let monitoringColumnsKnownMissing = false;
 
 function isMissingTableError(error: { code?: string; message?: string }): boolean {
   return (
@@ -34,9 +38,9 @@ function isMissingColumnError(error: { code?: string; message?: string }): boole
 
 function buildInsertRow(
   entry: RequestLogEntry,
-  includeCallerFields: boolean,
-): Record<string, string | number | null> {
-  const row: Record<string, string | number | null> = {
+  options: { includeCallerFields: boolean; includeMonitoringFields: boolean },
+): Record<string, string | number | boolean | null> {
+  const row: Record<string, string | number | boolean | null> = {
     request_id: entry.requestId ?? null,
     method: entry.method,
     path: entry.path,
@@ -48,9 +52,13 @@ function buildInsertRow(
     user_agent: entry.userAgent ?? null,
     error_message: entry.errorMessage ?? null,
   };
-  if (includeCallerFields) {
+  if (options.includeCallerFields) {
     row.call_source = entry.callSource ?? null;
     row.caller_kind = entry.callerKind ?? null;
+  }
+  if (options.includeMonitoringFields) {
+    row.is_stream = entry.isStream ?? false;
+    row.route_group = entry.routeGroup ?? null;
   }
   return row;
 }
@@ -64,6 +72,7 @@ export function initRequestLogSink(config: AppConfig): void {
 
   tableKnownMissing = false;
   callerColumnsKnownMissing = false;
+  monitoringColumnsKnownMissing = false;
 
   if (!sinkEnabled) {
     sinkClient = null;
@@ -99,7 +108,12 @@ export function recordRequestLog(entry: RequestLogEntry): void {
   const runInsert = async () => {
     const first = await client
       .from('api_request_logs')
-      .insert(buildInsertRow(entry, !callerColumnsKnownMissing));
+      .insert(
+        buildInsertRow(entry, {
+          includeCallerFields: !callerColumnsKnownMissing,
+          includeMonitoringFields: !monitoringColumnsKnownMissing,
+        }),
+      );
     if (!first.error) {
       return;
     }
@@ -108,11 +122,20 @@ export function recordRequestLog(entry: RequestLogEntry): void {
       console.warn('[request-log-sink] api_request_logs table missing; skipping inserts');
       return;
     }
-    if (isMissingColumnError(first.error) && !callerColumnsKnownMissing) {
-      callerColumnsKnownMissing = true;
+    if (isMissingColumnError(first.error)) {
+      if (!callerColumnsKnownMissing) {
+        callerColumnsKnownMissing = true;
+      } else if (!monitoringColumnsKnownMissing) {
+        monitoringColumnsKnownMissing = true;
+      }
       const retry = await client
         .from('api_request_logs')
-        .insert(buildInsertRow(entry, false));
+        .insert(
+          buildInsertRow(entry, {
+            includeCallerFields: !callerColumnsKnownMissing,
+            includeMonitoringFields: !monitoringColumnsKnownMissing,
+          }),
+        );
       if (retry.error) {
         console.error('[request-log-sink] insert failed:', retry.error.message);
       }
@@ -142,6 +165,7 @@ export function resetRequestLogSinkStateForTests(): void {
   sinkClient = null;
   tableKnownMissing = false;
   callerColumnsKnownMissing = false;
+  monitoringColumnsKnownMissing = false;
 }
 
 /** Test-only accessor. */

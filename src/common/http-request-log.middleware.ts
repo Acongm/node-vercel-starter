@@ -7,6 +7,7 @@ import {
   readOptionalHeader,
   resolveCaller,
 } from './caller-identity';
+import { classifyRequestRoute } from './request-route-meta';
 import { recordRequestLog } from './request-log-sink';
 import { RequestWithId } from './request-id.middleware';
 
@@ -75,6 +76,7 @@ export function httpRequestLogMiddleware(
       caller.kind === 'unknown'
         ? resolveClientId(readHeader(req, 'x-client-id'), userAgent, origin)
         : displayCallerId(caller);
+    const routeMeta = classifyRequestRoute(req.path);
     recordRequestLog({
       requestId: req.requestId,
       method: req.method,
@@ -84,6 +86,8 @@ export function httpRequestLogMiddleware(
       clientId,
       callSource: caller.callSource,
       callerKind: caller.kind,
+      routeGroup: routeMeta.routeGroup,
+      isStream: routeMeta.isStream,
       origin,
       userAgent,
       errorMessage: locals.errorMessage,

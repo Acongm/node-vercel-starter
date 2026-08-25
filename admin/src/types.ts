@@ -300,6 +300,8 @@ export type RequestLogRow = {
   user_agent: string | null;
   error_message: string | null;
   created_at: string;
+  route_group?: string | null;
+  is_stream?: boolean;
 };
 
 export type RequestLogsDisabled = {
@@ -313,3 +315,43 @@ export type RequestLogsEnabled = {
 };
 
 export type RequestLogsResponse = RequestLogsDisabled | RequestLogsEnabled;
+
+export type RequestLogRouteStat = {
+  method: string;
+  path: string;
+  routeGroup: 'auth' | 'chat' | 'admin' | 'ai' | 'other';
+  requestCount: number;
+  errorCount: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+};
+
+export type RequestLogGroupStat = {
+  routeGroup: 'auth' | 'chat' | 'admin' | 'ai' | 'other';
+  requestCount: number;
+  errorCount: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+};
+
+export type RequestLogStatsDisabled = {
+  enabled: false;
+  reason?: 'migration_missing' | string;
+};
+
+export type RequestLogStatsEnabled = {
+  enabled: true;
+  hours: number;
+  excludeStream: boolean;
+  routeGroupFilter: RequestLogRouteStat['routeGroup'] | null;
+  routes: RequestLogRouteStat[];
+  groups: RequestLogGroupStat[];
+  source: 'rpc' | 'fallback';
+  sampleCount: number;
+};
+
+export type RequestLogStatsResponse = RequestLogStatsDisabled | RequestLogStatsEnabled;

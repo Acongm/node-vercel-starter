@@ -45,7 +45,7 @@ export default defineConfig({
     },
     {
       path: '/request-logs',
-      name: '接口日志',
+      name: '接口监控',
       icon: 'FileTextOutlined',
       component: './RequestLogs',
     },

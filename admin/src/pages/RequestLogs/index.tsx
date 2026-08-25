@@ -1,10 +1,11 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Drawer, Input, Select, Space, Spin, Switch, Tag } from 'antd';
+import { Alert, Button, Drawer, Input, Select, Space, Spin, Switch, Tabs, Tag } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchRequestLogs } from '@/services/api';
 import type { RequestLogRow, RequestLogsResponse } from '@/types';
 import { formatDateTime, httpStatusTagColor, idPrefix } from '@/utils/format';
+import StatsTab from './StatsTab';
 
 const MAX_ROWS = 500;
 const POLL_INTERVAL_MS = 5000;
@@ -60,6 +61,20 @@ const columns: ProColumns<RequestLogRow>[] = [
     render: (_, record) => (
       <Tag color={httpStatusTagColor(record.status_code)}>{record.status_code}</Tag>
     ),
+  },
+  {
+    title: '分组',
+    dataIndex: 'route_group',
+    width: 80,
+    render: (_, record) =>
+      record.route_group ? <Tag>{record.route_group}</Tag> : '—',
+  },
+  {
+    title: '流式',
+    dataIndex: 'is_stream',
+    width: 60,
+    render: (_, record) =>
+      record.is_stream ? <Tag color="purple">SSE</Tag> : '—',
   },
   {
     title: '耗时',
@@ -162,53 +177,41 @@ export default function RequestLogsPage() {
     return () => window.clearInterval(timer);
   }, [autoRefresh, paused, pageState.kind, loadLogs]);
 
-  if (pageState.kind === 'loading') {
-    return (
-      <PageContainer title="接口日志">
-        <Spin tip="加载中..." />
-      </PageContainer>
-    );
-  }
+  const filteredRows = rows.filter((row) => matchesStatusClass(row.status_code, statusClass));
+  const scrollX = columns.reduce(
+    (sum, col) => sum + (typeof col.width === 'number' ? col.width : 160),
+    0,
+  );
 
-  if (pageState.kind === 'error') {
-    return (
-      <PageContainer title="接口日志">
+  const tailContent =
+    pageState.kind === 'loading' ? (
+      <Spin tip="加载中..." />
+    ) : pageState.kind === 'error' ? (
+      <Alert
+        type="error"
+        showIcon
+        message="加载接口日志失败"
+        description={pageState.message}
+        action={
+          <Button size="small" onClick={retryLoad}>
+            重试
+          </Button>
+        }
+      />
+    ) : pageState.kind === 'disabled' ? (
+      pageState.reason === 'migration_missing' ? (
         <Alert
-          type="error"
+          type="warning"
           showIcon
-          message="加载接口日志失败"
-          description={pageState.message}
-          action={
-            <Button size="small" onClick={retryLoad}>
-              重试
-            </Button>
+          message="尚未执行 api_request_logs 迁移"
+          description={
+            <>
+              <p>请在 Supabase 中执行以下迁移文件：</p>
+              <pre style={{ marginTop: 8 }}>{MIGRATION_PATH}</pre>
+            </>
           }
         />
-      </PageContainer>
-    );
-  }
-
-  if (pageState.kind === 'disabled') {
-    if (pageState.reason === 'migration_missing') {
-      return (
-        <PageContainer title="接口日志">
-          <Alert
-            type="warning"
-            showIcon
-            message="尚未执行 api_request_logs 迁移"
-            description={
-              <>
-                <p>请在 Supabase 中执行以下迁移文件：</p>
-                <pre style={{ marginTop: 8 }}>{MIGRATION_PATH}</pre>
-              </>
-            }
-          />
-        </PageContainer>
-      );
-    }
-
-    return (
-      <PageContainer title="接口日志">
+      ) : (
         <Alert
           type="info"
           showIcon
@@ -224,61 +227,75 @@ export default function RequestLogsPage() {
             </>
           }
         />
-      </PageContainer>
-    );
-  }
+      )
+    ) : (
+      <>
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Switch
+            checkedChildren="自动刷新"
+            unCheckedChildren="自动刷新"
+            checked={autoRefresh}
+            onChange={setAutoRefresh}
+          />
+          <Switch
+            checkedChildren="继续"
+            unCheckedChildren="暂停"
+            checked={!paused}
+            onChange={(value) => setPaused(!value)}
+          />
+          <Select
+            value={statusClass}
+            onChange={setStatusClass}
+            style={{ width: 120 }}
+            options={[
+              { value: 'all', label: '全部状态' },
+              { value: '2xx', label: '2xx' },
+              { value: '4xx', label: '4xx' },
+              { value: '5xx', label: '5xx' },
+            ]}
+          />
+          <Input
+            placeholder="路径包含"
+            value={pathFilter}
+            onChange={(event) => setPathFilter(event.target.value)}
+            onPressEnter={() => loadLogs(false).catch(() => undefined)}
+            style={{ width: 200 }}
+          />
+        </Space>
 
-  const filteredRows = rows.filter((row) => matchesStatusClass(row.status_code, statusClass));
-  const scrollX = columns.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0);
+        <ProTable<RequestLogRow>
+          rowKey="id"
+          columns={columns}
+          search={false}
+          dataSource={filteredRows}
+          pagination={{ pageSize: 50 }}
+          toolBarRender={false}
+          scroll={{ x: scrollX }}
+          tableLayout="fixed"
+          onRow={(record) => ({
+            onClick: () => setSelected(record),
+            style: { cursor: 'pointer' },
+          })}
+        />
+      </>
+    );
 
   return (
-    <PageContainer title="接口日志" subTitle="api_request_logs 准实时 tail">
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Switch
-          checkedChildren="自动刷新"
-          unCheckedChildren="自动刷新"
-          checked={autoRefresh}
-          onChange={setAutoRefresh}
-        />
-        <Switch
-          checkedChildren="继续"
-          unCheckedChildren="暂停"
-          checked={!paused}
-          onChange={(value) => setPaused(!value)}
-        />
-        <Select
-          value={statusClass}
-          onChange={setStatusClass}
-          style={{ width: 120 }}
-          options={[
-            { value: 'all', label: '全部状态' },
-            { value: '2xx', label: '2xx' },
-            { value: '4xx', label: '4xx' },
-            { value: '5xx', label: '5xx' },
-          ]}
-        />
-        <Input
-          placeholder="路径包含"
-          value={pathFilter}
-          onChange={(event) => setPathFilter(event.target.value)}
-          onPressEnter={() => loadLogs(false).catch(() => undefined)}
-          style={{ width: 200 }}
-        />
-      </Space>
-
-      <ProTable<RequestLogRow>
-        rowKey="id"
-        columns={columns}
-        search={false}
-        dataSource={filteredRows}
-        pagination={{ pageSize: 50 }}
-        toolBarRender={false}
-        scroll={{ x: scrollX }}
-        tableLayout="fixed"
-        onRow={(record) => ({
-          onClick: () => setSelected(record),
-          style: { cursor: 'pointer' },
-        })}
+    <PageContainer title="接口监控" subTitle="长期耗时统计 + 实时 tail">
+      <Tabs
+        defaultActiveKey="stats"
+        items={[
+          {
+            key: 'stats',
+            label: '耗时统计',
+            children: <StatsTab />,
+          },
+          {
+            key: 'tail',
+            label: '实时日志',
+            children: tailContent,
+          },
+        ]}
       />
 
       <Drawer
