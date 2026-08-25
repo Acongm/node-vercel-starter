@@ -32,15 +32,25 @@ function safeSlice(value: string, maxLength: number): string {
   return value.slice(0, end);
 }
 
+function isGeneralChat(dto: ChatV1Dto): boolean {
+  const moduleKey = normalize(dto.context?.moduleKey);
+  const pagePath = normalize(dto.context?.pagePath);
+  const title = normalize(dto.context?.title);
+  return moduleKey === '_general' || pagePath === '/' || title === '通用对话';
+}
+
 function buildSystemPrompt(dto: ChatV1Dto): string {
   const context = dto.context;
   const scope = context?.scope === 'module' ? '本模块' : '当前文章';
+  const general = isGeneralChat(dto);
   const lines = [
-    '你是技术知识库的 AI 阅读助手。回答准确、简洁，并明确区分文档内容与外部信息。',
-    `回答范围：${scope}。`,
+    general
+      ? '你是通用 AI 助手。回答准确、简洁，可以处理文档问答、常识、实时信息和日常问题。'
+      : '你是技术知识库的 AI 阅读助手。回答准确、简洁，并明确区分文档内容与外部信息。',
+    general ? '不要把能力限制为只能阅读当前文档。' : `回答范围优先：${scope}；文档未覆盖的问题仍应正常作答，不要拒绝。`,
     dto.enableWebSearch
-      ? '用户要求联网检索；结合检索来源回答并给出引用。'
-      : '除非上下文明确提供，否则不要声称已联网检索。',
+      ? '已开启联网检索；结合【联网检索结果】回答并给出引用。没有检索结果时说明时效可能有限，仍可作答。'
+      : '当前请求未附带检索结果；不要假装已经联网，也不要因此拒绝回答。',
     dto.enableThinking
       ? '可以先进行内部推理，再给出最终回答；对外回答保持简洁。'
       : '',

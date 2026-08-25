@@ -41,6 +41,24 @@ describe('AI chat v1 message policy', () => {
     });
   });
 
+  it('does not lock the assistant to document-only answers', () => {
+    const general = prepareChatV1Messages({
+      messages: [{ role: 'user', content: '联网查询，今天深圳什么天气' }],
+      context: {
+        scope: 'article',
+        pagePath: '/',
+        moduleKey: '_general',
+        title: '通用对话',
+      },
+      enableWebSearch: true,
+    });
+    const system = general[0].content;
+
+    expect(system).toContain('联网检索');
+    expect(system).not.toContain('AI 阅读助手');
+    expect(system).not.toMatch(/仅限于|不具备联网|不要声称已联网/);
+  });
+
   it('builds bounded article, module, and web instructions on the server', () => {
     const content = `${'a'.repeat(DOCUMENT_CONTENT_CHAR_BUDGET - 1)}😀tail`;
     const result = prepareChatV1Messages({
