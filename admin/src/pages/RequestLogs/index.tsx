@@ -6,6 +6,7 @@ import { fetchRequestLogStats, fetchRequestLogs } from '@/services/api';
 import type {
   RequestLogCallSourceStat,
   RequestLogCallerKindStat,
+  RequestLogPathSort,
   RequestLogPathStat,
   RequestLogRouteGroupStat,
   RequestLogRow,
@@ -17,8 +18,20 @@ import { formatDateTime, formatPercent, httpStatusTagColor, idPrefix } from '@/u
 const MAX_ROWS = 500;
 const POLL_INTERVAL_MS = 5000;
 const MIGRATION_PATH = 'supabase/migrations/20260825090000_api_request_logs.sql';
-const STATS_FN_PATH = 'supabase/migrations/20260825143200_api_request_logs_stats_v2.sql';
+const STATS_FN_PATH = 'supabase/migrations/20260825150000_api_request_logs_stats_path_sort.sql';
 const ROUTE_META_PATH = 'supabase/migrations/20260825143100_api_request_logs_route_meta.sql';
+
+const PATH_SORT_OPTIONS: { label: string; value: RequestLogPathSort }[] = [
+  { label: 'P95 耗时', value: 'p95' },
+  { label: '平均耗时', value: 'avg_duration' },
+  { label: '最大耗时', value: 'max_duration' },
+  { label: '请求数', value: 'count' },
+  { label: '5xx 错误', value: 'errors' },
+];
+
+function pathSortLabel(sort: RequestLogPathSort | undefined): string {
+  return PATH_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'P95 耗时';
+}
 
 type StatusClass = 'all' | '2xx' | '4xx' | '5xx';
 type StatsWindow = RequestLogStats['window'];
@@ -161,6 +174,14 @@ const pathStatColumns: ProColumns<RequestLogPathStat>[] = [
         '—'
       ),
   },
+  {
+    title: 'Max',
+    dataIndex: 'max_duration_ms',
+    width: 90,
+    align: 'right',
+    render: (_, record) =>
+      record.max_duration_ms != null ? `${record.max_duration_ms} ms` : '—',
+  },
   { title: '5xx', dataIndex: 'errors', width: 70, align: 'right' },
 ];
 
@@ -223,14 +244,18 @@ function RequestLogApmSummary({
   stats,
   window,
   excludeStream,
+  pathSort,
   onWindowChange,
   onExcludeStreamChange,
+  onPathSortChange,
 }: {
   stats: RequestLogStats;
   window: StatsWindow;
   excludeStream: boolean;
+  pathSort: RequestLogPathSort;
   onWindowChange: (value: StatsWindow) => void;
   onExcludeStreamChange: (value: boolean) => void;
+  onPathSortChange: (value: RequestLogPathSort) => void;
 }) {
   const authGroup = stats.byRouteGroup?.find((row) => row.route_group === 'auth');
   const chatGroup = stats.byRouteGroup?.find((row) => row.route_group === 'chat');
@@ -323,7 +348,18 @@ function RequestLogApmSummary({
         />
       </ProCard>
 
-      <ProCard title="慢接口 Top（按 P95）" bordered>
+      <ProCard
+        title={`接口排行（按 ${pathSortLabel(pathSort)}）`}
+        bordered
+        extra={
+          <Segmented
+            size="small"
+            value={pathSort}
+            onChange={(value) => onPathSortChange(value as RequestLogPathSort)}
+            options={PATH_SORT_OPTIONS}
+          />
+        }
+      >
         <ProTable<RequestLogPathStat>
           rowKey={(row) => `${row.method}:${row.path}`}
           columns={pathStatColumns}
@@ -373,6 +409,7 @@ export default function RequestLogsPage() {
   const [stats, setStats] = useState<RequestLogStats | null>(null);
   const [statsWindow, setStatsWindow] = useState<StatsWindow>('24h');
   const [excludeStream, setExcludeStream] = useState(true);
+  const [pathSort, setPathSort] = useState<RequestLogPathSort>('p95');
   const [pathFilter, setPathFilter] = useState('');
   const [statusClass, setStatusClass] = useState<StatusClass>('all');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -396,20 +433,26 @@ export default function RequestLogsPage() {
     });
   }, []);
 
-  const loadStats = useCallback(async (window: StatsWindow, streamExcluded: boolean) => {
-    const response = await fetchRequestLogStats(window, streamExcluded);
-    if (!response.enabled) {
-      if (response.reason === 'stats_fn_missing') {
-        setStats(null);
+  const loadStats = useCallback(
+    async (window: StatsWindow, streamExcluded: boolean, sort: RequestLogPathSort) => {
+      const response = await fetchRequestLogStats(window, {
+        excludeStream: streamExcluded,
+        pathSort: sort,
+      });
+      if (!response.enabled) {
+        if (response.reason === 'stats_fn_missing') {
+          setStats(null);
+          return;
+        }
+        if (response.reason === 'migration_missing') {
+          setPageState({ kind: 'disabled', reason: response.reason });
+        }
         return;
       }
-      if (response.reason === 'migration_missing') {
-        setPageState({ kind: 'disabled', reason: response.reason });
-      }
-      return;
-    }
-    setStats(response.stats);
-  }, []);
+      setStats(response.stats);
+    },
+    [],
+  );
 
   const loadLogs = useCallback(
     async (incremental: boolean) => {
@@ -431,11 +474,11 @@ export default function RequestLogsPage() {
   const reloadAll = useCallback(
     async (incrementalLogs: boolean) => {
       await Promise.all([
-        loadStats(statsWindow, excludeStream),
+        loadStats(statsWindow, excludeStream, pathSort),
         loadLogs(incrementalLogs),
       ]);
     },
-    [loadLogs, loadStats, statsWindow, excludeStream],
+    [loadLogs, loadStats, statsWindow, excludeStream, pathSort],
   );
 
   const retryLoad = useCallback(() => {
@@ -450,10 +493,10 @@ export default function RequestLogsPage() {
   }, [retryLoad]);
 
   useEffect(() => {
-    loadStats(statsWindow, excludeStream).catch((err: Error) => {
+    loadStats(statsWindow, excludeStream, pathSort).catch((err: Error) => {
       setPageState({ kind: 'error', message: err.message });
     });
-  }, [loadStats, statsWindow, excludeStream]);
+  }, [loadStats, statsWindow, excludeStream, pathSort]);
 
   useEffect(() => {
     if (!autoRefresh || paused || pageState.kind !== 'ready') {
@@ -546,8 +589,10 @@ export default function RequestLogsPage() {
           stats={stats}
           window={statsWindow}
           excludeStream={excludeStream}
+          pathSort={pathSort}
           onWindowChange={setStatsWindow}
           onExcludeStreamChange={setExcludeStream}
+          onPathSortChange={setPathSort}
         />
       ) : (
         <Alert

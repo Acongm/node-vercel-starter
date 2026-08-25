@@ -322,8 +322,16 @@ export type RequestLogPathStat = {
   count: number;
   avg_duration_ms: number;
   p95_ms?: number;
+  max_duration_ms?: number;
   errors: number;
 };
+
+export type RequestLogPathSort =
+  | 'count'
+  | 'avg_duration'
+  | 'p95'
+  | 'max_duration'
+  | 'errors';
 
 export type RequestLogRouteGroupStat = {
   route_group: string;
@@ -354,6 +362,7 @@ export type RequestLogStats = {
   errorCount: number;
   errorRate: number;
   excludeStream?: boolean;
+  pathSort?: RequestLogPathSort;
   byPath: RequestLogPathStat[];
   byRouteGroup?: RequestLogRouteGroupStat[];
   byCallerKind: RequestLogCallerKindStat[];

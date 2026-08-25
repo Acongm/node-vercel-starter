@@ -5,6 +5,7 @@ import { ListRequestLogsDto } from './dto/request-logs.dto';
 import {
   RequestLogStatsDto,
   RequestLogStatsWindow,
+  RequestLogPathSort,
 } from './dto/request-logs-stats.dto';
 
 export interface RequestLogRow {
@@ -32,6 +33,7 @@ export interface RequestLogPathStat {
   count: number;
   avg_duration_ms: number;
   p95_ms?: number;
+  max_duration_ms?: number;
   errors: number;
 }
 
@@ -64,6 +66,7 @@ export interface RequestLogStatsPayload {
   errorCount: number;
   errorRate: number;
   excludeStream?: boolean;
+  pathSort?: RequestLogPathSort;
   byPath: RequestLogPathStat[];
   byRouteGroup?: RequestLogRouteGroupStat[];
   byCallerKind: RequestLogCallerKindStat[];
@@ -140,12 +143,15 @@ export class RequestLogsService {
 
     const window = query.window ?? '24h';
     const excludeStream = query.excludeStream ?? true;
+    const pathSort = query.pathSort ?? 'p95';
+    const pathLimit = query.pathLimit ?? 50;
     const since = windowToSinceIso(window);
     const client = this.supabaseAdmin.getClient();
     const { data, error } = await client.rpc('admin_api_request_log_stats', {
       since_ts: since,
-      path_limit: 20,
+      path_limit: pathLimit,
       exclude_stream: excludeStream,
+      path_sort: pathSort,
     });
 
     if (error) {
@@ -178,6 +184,7 @@ export class RequestLogsService {
         errorCount: Number(payload.errorCount ?? 0),
         errorRate: Number(payload.errorRate ?? 0),
         excludeStream: Boolean(payload.excludeStream ?? excludeStream),
+        pathSort: (payload.pathSort as RequestLogPathSort | undefined) ?? pathSort,
         byPath: (payload.byPath ?? []) as RequestLogPathStat[],
         byRouteGroup: (payload.byRouteGroup ?? []) as RequestLogRouteGroupStat[],
         byCallerKind: (payload.byCallerKind ?? []) as RequestLogCallerKindStat[],

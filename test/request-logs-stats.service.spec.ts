@@ -40,7 +40,7 @@ describe('RequestLogsService stats', () => {
       error: null,
     });
 
-    const result = await service.getStats({ window: '24h' });
+    const result = await service.getStats({ window: '24h', pathSort: 'avg_duration' });
     expect(result).toEqual({
       enabled: true,
       stats: expect.objectContaining({
@@ -58,8 +58,40 @@ describe('RequestLogsService stats', () => {
       'admin_api_request_log_stats',
       expect.objectContaining({
         since_ts: expect.any(String),
-        path_limit: 20,
+        path_limit: 50,
         exclude_stream: true,
+        path_sort: 'avg_duration',
+      }),
+    );
+  });
+
+  it('forwards path sort and limit query params', async () => {
+    rpc.mockResolvedValue({
+      data: {
+        total: 0,
+        avgDurationMs: 0,
+        errorCount: 0,
+        errorRate: 0,
+        byPath: [],
+        byCallerKind: [],
+        byCallSource: [],
+      },
+      error: null,
+    });
+
+    await service.getStats({
+      window: '7d',
+      pathSort: 'max_duration',
+      pathLimit: 100,
+      excludeStream: false,
+    });
+
+    expect(rpc).toHaveBeenCalledWith(
+      'admin_api_request_log_stats',
+      expect.objectContaining({
+        path_limit: 100,
+        exclude_stream: false,
+        path_sort: 'max_duration',
       }),
     );
   });
