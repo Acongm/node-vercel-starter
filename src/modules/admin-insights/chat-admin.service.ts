@@ -3,6 +3,7 @@ import { Inject } from '@nestjs/common';
 import { deriveAnonFingerprint } from '../../common/anon-fingerprint';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
+import { queryChatLogsPage } from '../../common/chat-logs-query';
 import { extractTextPreviewFromParts } from './helpers/message-parts';
 import { SupabaseAdminClientService } from './supabase-admin-client.service';
 import { UserIdentityService } from './user-identity.service';
@@ -60,6 +61,8 @@ interface ClientLabelRow {
   label: string;
   note: string | null;
 }
+
+const ADMIN_CONVERSATION_MESSAGE_LIMIT = 300;
 
 @Injectable()
 export class ChatAdminService {
@@ -170,17 +173,23 @@ export class ChatAdminService {
     const chatRow = chat as ChatRow;
     const user = await this.userIdentity.resolveUser(chatRow.user_id);
 
-    const [messagesResult, runsResult] = await Promise.all([
+    const [messagesResult, runsResult, messageCountResult] = await Promise.all([
       client
         .from('messages')
         .select('id, chat_id, user_id, role, parts, metadata, created_at')
         .eq('chat_id', chatId)
-        .order('created_at', { ascending: true }),
+        .order('created_at', { ascending: true })
+        .limit(ADMIN_CONVERSATION_MESSAGE_LIMIT),
       client
         .from('chat_runs')
         .select('id, chat_id, status, error_message, started_at, completed_at')
         .eq('chat_id', chatId)
-        .order('started_at', { ascending: false }),
+        .order('started_at', { ascending: false })
+        .limit(50),
+      client
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('chat_id', chatId),
     ]);
 
     if (messagesResult.error) {
@@ -228,6 +237,10 @@ export class ChatAdminService {
       },
       messages,
       runs,
+      messageCount: messageCountResult.count ?? messages.length,
+      messageLimit: ADMIN_CONVERSATION_MESSAGE_LIMIT,
+      messagesTruncated:
+        (messageCountResult.count ?? messages.length) > ADMIN_CONVERSATION_MESSAGE_LIMIT,
     };
   }
 
@@ -246,54 +259,17 @@ export class ChatAdminService {
     }
 
     const client = this.supabaseAdmin.getClient();
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
     const table = this.config.supabase.chatLogsTable;
-
-    let request = client
-      .from(table)
-      .select(
-        'id, user_id, client_id, conversation_id, endpoint, user_message, assistant_message, context, sources, prompt_tokens, completion_tokens, total_tokens, origin, user_agent, created_at',
-        { count: 'exact' },
-      )
-      .order('created_at', { ascending: false })
-      .range(from, to);
-
-    if (query.userId) {
-      request = request.eq('user_id', query.userId);
-    }
-    if (query.clientId) {
-      request = request.eq('client_id', query.clientId);
-    }
-    if (query.conversationId) {
-      request = request.eq('conversation_id', query.conversationId);
-    }
-    if (query.pagePath) {
-      request = request.eq('context->>pagePath', query.pagePath);
-    }
-    if (query.from) {
-      request = request.gte('created_at', query.from);
-    }
-    if (query.to) {
-      request = request.lte('created_at', query.to);
-    }
-    const q = query.q?.trim();
-    if (q) {
-      const pattern = `%${escapeIlike(q)}%`;
-      request = request.or(
-        `user_message.ilike.${pattern},assistant_message.ilike.${pattern}`,
-      );
-    }
-
-    const { data, error, count } = await request;
-    if (error) {
+    let result;
+    try {
+      result = await queryChatLogsPage(client, table, query);
+    } catch (error) {
       throw new BadRequestException({
         code: 'ADMIN_CHAT_LOGS_FAILED',
-        message: error.message,
+        message: error instanceof Error ? error.message : 'Chat logs query failed.',
       });
     }
-
-    const rows = (data ?? []) as ChatLogRow[];
+    const rows = result.rows;
     const userIds = rows.map((row) => row.user_id).filter((id): id is string => Boolean(id));
     const clientIds = rows.map((row) => row.client_id).filter((id): id is string => Boolean(id));
 
@@ -346,13 +322,13 @@ export class ChatAdminService {
       };
     });
 
-    const total = count ?? 0;
+    const total = result.total;
     return {
       items,
       total,
-      page,
-      pageSize,
-      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+      page: result.page,
+      pageSize: result.pageSize,
+      totalPages: result.totalPages,
     };
   }
 
@@ -363,19 +339,17 @@ export class ChatAdminService {
     }
 
     const client = this.supabaseAdmin.getClient();
-    const { data, error } = await client
-      .from('messages')
-      .select('chat_id')
-      .in('chat_id', chatIds);
-
-    if (error) {
-      return counts;
-    }
-
-    for (const row of data ?? []) {
-      const chatId = String((row as { chat_id: string }).chat_id);
-      counts.set(chatId, (counts.get(chatId) ?? 0) + 1);
-    }
+    await Promise.all(
+      chatIds.map(async (chatId) => {
+        const { count, error } = await client
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('chat_id', chatId);
+        if (!error && count != null) {
+          counts.set(chatId, count);
+        }
+      }),
+    );
 
     return counts;
   }

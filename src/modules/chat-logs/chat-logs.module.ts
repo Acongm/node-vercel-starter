@@ -9,6 +9,7 @@ import {
   SupabaseRow,
 } from '../../adapters/data-store/supabase-data-store';
 import { CreateEntityInput } from '../../adapters/data-store/data-store.interface';
+import { AdminInsightsModule } from '../admin-insights/admin-insights.module';
 import { AuthModule } from '../auth/auth.module';
 import { ClientLabelsModule } from '../client-labels/client-labels.module';
 import { ChatLogRecord } from './chat-log-record';
@@ -17,7 +18,7 @@ import { ChatLogsController } from './chat-logs.controller';
 import { ChatLogsService } from './chat-logs.service';
 
 @Module({
-  imports: [AuthModule, ClientLabelsModule],
+  imports: [AuthModule, ClientLabelsModule, AdminInsightsModule],
   controllers: [ChatLogsController],
   providers: [
     ChatLogsService,
