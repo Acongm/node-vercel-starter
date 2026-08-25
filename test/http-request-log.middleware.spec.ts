@@ -10,6 +10,7 @@ describe('httpRequestLogMiddleware', () => {
       path: '/api/user/info',
       originalUrl: '/api/user/info',
       requestId: 'req-42',
+      header: () => undefined,
     }) as RequestWithId;
     const res = Object.assign(new EventEmitter(), {
       statusCode: 200,
@@ -51,6 +52,27 @@ describe('httpRequestLogMiddleware', () => {
     res.emit('finish');
 
     expect(next).toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
+  });
+
+  it('skips admin SPA, legacy console, health, and request-log tail paths', () => {
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    const paths = ['/fe/dashboard', '/legacy/index.html', '/api/health', '/api/admin/request-logs'];
+
+    for (const path of paths) {
+      const req = Object.assign(new EventEmitter(), {
+        method: 'GET',
+        path,
+        originalUrl: path,
+        requestId: 'req-skip-prefix',
+        header: () => undefined,
+      }) as RequestWithId;
+      const res = Object.assign(new EventEmitter(), { statusCode: 200 });
+      httpRequestLogMiddleware(req, res as never, jest.fn());
+      res.emit('finish');
+    }
+
     expect(logSpy).not.toHaveBeenCalled();
     logSpy.mockRestore();
   });

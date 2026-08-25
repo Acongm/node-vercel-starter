@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 describe('API debug console assets', () => {
   it('includes all endpoint groups in index.html', () => {
-    const html = readFileSync(join(process.cwd(), 'public/index.html'), 'utf8');
+    const html = readFileSync(join(process.cwd(), 'static/legacy/index.html'), 'utf8');
     const groups = [
       '/api/health',
       '/api/ai/chat',
@@ -30,15 +30,15 @@ describe('API debug console assets', () => {
   });
 
   it('loads api-demo.js script', () => {
-    const html = readFileSync(join(process.cwd(), 'public/index.html'), 'utf8');
+    const html = readFileSync(join(process.cwd(), 'static/legacy/index.html'), 'utf8');
     expect(html).toContain('./api-demo.js');
     expect(html).toContain('./chat-logs.html');
     expect(html).not.toContain('type="module"');
   });
 
   it('includes chat logs viewer assets', () => {
-    const html = readFileSync(join(process.cwd(), 'public/chat-logs.html'), 'utf8');
-    const script = readFileSync(join(process.cwd(), 'public/chat-logs.js'), 'utf8');
+    const html = readFileSync(join(process.cwd(), 'static/legacy/chat-logs.html'), 'utf8');
+    const script = readFileSync(join(process.cwd(), 'static/legacy/chat-logs.js'), 'utf8');
 
     expect(html).toContain('/api/auth/login');
     expect(html).toContain('./chat-logs.js');
@@ -55,7 +55,7 @@ describe('API debug console assets', () => {
   });
 
   it('ships browser-safe api-demo.js without module exports', () => {
-    const script = readFileSync(join(process.cwd(), 'public/api-demo.js'), 'utf8');
+    const script = readFileSync(join(process.cwd(), 'static/legacy/api-demo.js'), 'utf8');
     expect(script).toContain('function boot()');
     expect(script).toContain('/api/user/info');
     expect(script).toContain('/api/auth/session');

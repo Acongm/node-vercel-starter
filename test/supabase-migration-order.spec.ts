@@ -24,6 +24,7 @@ const required = [
   // CHECKs from the historical baseline, so history repair alone is not enough.
   '20260808050000_comments_constraints_repair.sql',
   '20260814010000_user_settings.sql',
+  '20260825090000_api_request_logs.sql',
 ] as const;
 
 const stale = [
@@ -71,6 +72,9 @@ describe('Supabase migration history ordering', () => {
     expect(commentsRepair).toBeGreaterThan(pagination);
     expect(files.indexOf('20260814010000_user_settings.sql')).toBeGreaterThan(
       foundation,
+    );
+    expect(files.indexOf('20260825090000_api_request_logs.sql')).toBeGreaterThan(
+      files.indexOf('20260814010000_user_settings.sql'),
     );
   });
 });
