@@ -59,6 +59,7 @@ describe('RequestLogsService stats', () => {
       expect.objectContaining({
         since_ts: expect.any(String),
         path_limit: 20,
+        exclude_stream: true,
       }),
     );
   });

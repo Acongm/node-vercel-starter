@@ -361,8 +361,12 @@ export async function fetchRequestLogs(params: {
 
 export async function fetchRequestLogStats(
   window: '24h' | '7d' | '30d',
+  excludeStream = true,
 ): Promise<RequestLogStatsResponse> {
-  const query = new URLSearchParams({ window });
+  const query = new URLSearchParams({
+    window,
+    excludeStream: String(excludeStream),
+  });
   const result = await apiFetch(`/api/admin/request-logs/stats?${query.toString()}`);
   if (!result.ok) {
     throw new Error(`Request log stats failed: HTTP ${result.status}`);

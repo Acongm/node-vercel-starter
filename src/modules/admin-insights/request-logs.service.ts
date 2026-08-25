@@ -31,6 +31,15 @@ export interface RequestLogPathStat {
   path: string;
   count: number;
   avg_duration_ms: number;
+  p95_ms?: number;
+  errors: number;
+}
+
+export interface RequestLogRouteGroupStat {
+  route_group: string;
+  count: number;
+  avg_duration_ms: number;
+  p95_ms?: number;
   errors: number;
 }
 
@@ -54,7 +63,9 @@ export interface RequestLogStatsPayload {
   avgDurationMs: number;
   errorCount: number;
   errorRate: number;
+  excludeStream?: boolean;
   byPath: RequestLogPathStat[];
+  byRouteGroup?: RequestLogRouteGroupStat[];
   byCallerKind: RequestLogCallerKindStat[];
   byCallSource: RequestLogCallSourceStat[];
 }
@@ -128,11 +139,13 @@ export class RequestLogsService {
     }
 
     const window = query.window ?? '24h';
+    const excludeStream = query.excludeStream ?? true;
     const since = windowToSinceIso(window);
     const client = this.supabaseAdmin.getClient();
     const { data, error } = await client.rpc('admin_api_request_log_stats', {
       since_ts: since,
       path_limit: 20,
+      exclude_stream: excludeStream,
     });
 
     if (error) {
@@ -164,7 +177,9 @@ export class RequestLogsService {
         avgDurationMs: Number(payload.avgDurationMs ?? 0),
         errorCount: Number(payload.errorCount ?? 0),
         errorRate: Number(payload.errorRate ?? 0),
+        excludeStream: Boolean(payload.excludeStream ?? excludeStream),
         byPath: (payload.byPath ?? []) as RequestLogPathStat[],
+        byRouteGroup: (payload.byRouteGroup ?? []) as RequestLogRouteGroupStat[],
         byCallerKind: (payload.byCallerKind ?? []) as RequestLogCallerKindStat[],
         byCallSource: (payload.byCallSource ?? []) as RequestLogCallSourceStat[],
       },

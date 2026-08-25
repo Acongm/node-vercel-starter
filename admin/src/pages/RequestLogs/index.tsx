@@ -7,6 +7,7 @@ import type {
   RequestLogCallSourceStat,
   RequestLogCallerKindStat,
   RequestLogPathStat,
+  RequestLogRouteGroupStat,
   RequestLogRow,
   RequestLogStats,
   RequestLogsResponse,
@@ -16,7 +17,8 @@ import { formatDateTime, formatPercent, httpStatusTagColor, idPrefix } from '@/u
 const MAX_ROWS = 500;
 const POLL_INTERVAL_MS = 5000;
 const MIGRATION_PATH = 'supabase/migrations/20260825090000_api_request_logs.sql';
-const STATS_FN_PATH = 'supabase/migrations/20260825143000_api_request_logs_stats_fn.sql';
+const STATS_FN_PATH = 'supabase/migrations/20260825143200_api_request_logs_stats_v2.sql';
+const ROUTE_META_PATH = 'supabase/migrations/20260825143100_api_request_logs_route_meta.sql';
 
 type StatusClass = 'all' | '2xx' | '4xx' | '5xx';
 type StatsWindow = RequestLogStats['window'];
@@ -139,11 +141,52 @@ const pathStatColumns: ProColumns<RequestLogPathStat>[] = [
   { title: '路径', dataIndex: 'path', ellipsis: true },
   { title: '请求数', dataIndex: 'count', width: 90, align: 'right' },
   {
-    title: '平均耗时',
+    title: 'Avg',
     dataIndex: 'avg_duration_ms',
-    width: 100,
+    width: 90,
     align: 'right',
     render: (_, record) => `${record.avg_duration_ms} ms`,
+  },
+  {
+    title: 'P95',
+    dataIndex: 'p95_ms',
+    width: 90,
+    align: 'right',
+    render: (_, record) =>
+      record.p95_ms != null ? (
+        <Tag color={record.p95_ms >= 1000 ? 'red' : record.p95_ms >= 500 ? 'orange' : 'green'}>
+          {record.p95_ms} ms
+        </Tag>
+      ) : (
+        '—'
+      ),
+  },
+  { title: '5xx', dataIndex: 'errors', width: 70, align: 'right' },
+];
+
+const routeGroupColumns: ProColumns<RequestLogRouteGroupStat>[] = [
+  { title: '分组', dataIndex: 'route_group', width: 90 },
+  { title: '请求数', dataIndex: 'count', width: 90, align: 'right' },
+  {
+    title: 'Avg',
+    dataIndex: 'avg_duration_ms',
+    width: 90,
+    align: 'right',
+    render: (_, record) => `${record.avg_duration_ms} ms`,
+  },
+  {
+    title: 'P95',
+    dataIndex: 'p95_ms',
+    width: 90,
+    align: 'right',
+    render: (_, record) =>
+      record.p95_ms != null ? (
+        <Tag color={record.p95_ms >= 1000 ? 'red' : record.p95_ms >= 500 ? 'orange' : 'green'}>
+          {record.p95_ms} ms
+        </Tag>
+      ) : (
+        '—'
+      ),
   },
   { title: '5xx', dataIndex: 'errors', width: 70, align: 'right' },
 ];
@@ -179,23 +222,38 @@ const callSourceColumns: ProColumns<RequestLogCallSourceStat>[] = [
 function RequestLogApmSummary({
   stats,
   window,
+  excludeStream,
   onWindowChange,
+  onExcludeStreamChange,
 }: {
   stats: RequestLogStats;
   window: StatsWindow;
+  excludeStream: boolean;
   onWindowChange: (value: StatsWindow) => void;
+  onExcludeStreamChange: (value: boolean) => void;
 }) {
+  const authGroup = stats.byRouteGroup?.find((row) => row.route_group === 'auth');
+  const chatGroup = stats.byRouteGroup?.find((row) => row.route_group === 'chat');
+
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', marginBottom: 16 }}>
-      <Segmented
-        value={window}
-        onChange={(value) => onWindowChange(value as StatsWindow)}
-        options={[
-          { label: '24 小时', value: '24h' },
-          { label: '7 天', value: '7d' },
-          { label: '30 天', value: '30d' },
-        ]}
-      />
+      <Space wrap>
+        <Segmented
+          value={window}
+          onChange={(value) => onWindowChange(value as StatsWindow)}
+          options={[
+            { label: '24 小时', value: '24h' },
+            { label: '7 天', value: '7d' },
+            { label: '30 天', value: '30d' },
+          ]}
+        />
+        <Switch
+          checkedChildren="排除流式"
+          unCheckedChildren="含流式"
+          checked={excludeStream}
+          onChange={onExcludeStreamChange}
+        />
+      </Space>
 
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={6}>
@@ -210,6 +268,39 @@ function RequestLogApmSummary({
         </Col>
         <Col xs={24} sm={12} md={6}>
           <ProCard>
+            <Statistic
+              title="Auth P95"
+              value={authGroup?.p95_ms ?? '—'}
+              suffix={authGroup?.p95_ms != null ? 'ms' : undefined}
+              valueStyle={{
+                color:
+                  authGroup && authGroup.p95_ms != null && authGroup.p95_ms >= 1000
+                    ? '#cf1322'
+                    : undefined,
+              }}
+            />
+          </ProCard>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <ProCard>
+            <Statistic
+              title="Chat P95"
+              value={chatGroup?.p95_ms ?? '—'}
+              suffix={chatGroup?.p95_ms != null ? 'ms' : undefined}
+              valueStyle={{
+                color:
+                  chatGroup && chatGroup.p95_ms != null && chatGroup.p95_ms >= 1000
+                    ? '#cf1322'
+                    : undefined,
+              }}
+            />
+          </ProCard>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={6}>
+          <ProCard>
             <Statistic title="5xx 错误数" value={stats.errorCount} />
           </ProCard>
         </Col>
@@ -220,7 +311,19 @@ function RequestLogApmSummary({
         </Col>
       </Row>
 
-      <ProCard title="接口 Top（按请求数）" bordered>
+      <ProCard title="按分组（Auth / Chat 重点）" bordered>
+        <ProTable<RequestLogRouteGroupStat>
+          rowKey="route_group"
+          columns={routeGroupColumns}
+          search={false}
+          dataSource={stats.byRouteGroup ?? []}
+          pagination={false}
+          toolBarRender={false}
+          size="small"
+        />
+      </ProCard>
+
+      <ProCard title="慢接口 Top（按 P95）" bordered>
         <ProTable<RequestLogPathStat>
           rowKey={(row) => `${row.method}:${row.path}`}
           columns={pathStatColumns}
@@ -269,6 +372,7 @@ export default function RequestLogsPage() {
   const [rows, setRows] = useState<RequestLogRow[]>([]);
   const [stats, setStats] = useState<RequestLogStats | null>(null);
   const [statsWindow, setStatsWindow] = useState<StatsWindow>('24h');
+  const [excludeStream, setExcludeStream] = useState(true);
   const [pathFilter, setPathFilter] = useState('');
   const [statusClass, setStatusClass] = useState<StatusClass>('all');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -292,8 +396,8 @@ export default function RequestLogsPage() {
     });
   }, []);
 
-  const loadStats = useCallback(async (window: StatsWindow) => {
-    const response = await fetchRequestLogStats(window);
+  const loadStats = useCallback(async (window: StatsWindow, streamExcluded: boolean) => {
+    const response = await fetchRequestLogStats(window, streamExcluded);
     if (!response.enabled) {
       if (response.reason === 'stats_fn_missing') {
         setStats(null);
@@ -326,9 +430,12 @@ export default function RequestLogsPage() {
 
   const reloadAll = useCallback(
     async (incrementalLogs: boolean) => {
-      await Promise.all([loadStats(statsWindow), loadLogs(incrementalLogs)]);
+      await Promise.all([
+        loadStats(statsWindow, excludeStream),
+        loadLogs(incrementalLogs),
+      ]);
     },
-    [loadLogs, loadStats, statsWindow],
+    [loadLogs, loadStats, statsWindow, excludeStream],
   );
 
   const retryLoad = useCallback(() => {
@@ -343,10 +450,10 @@ export default function RequestLogsPage() {
   }, [retryLoad]);
 
   useEffect(() => {
-    loadStats(statsWindow).catch((err: Error) => {
+    loadStats(statsWindow, excludeStream).catch((err: Error) => {
       setPageState({ kind: 'error', message: err.message });
     });
-  }, [loadStats, statsWindow]);
+  }, [loadStats, statsWindow, excludeStream]);
 
   useEffect(() => {
     if (!autoRefresh || paused || pageState.kind !== 'ready') {
@@ -438,7 +545,9 @@ export default function RequestLogsPage() {
         <RequestLogApmSummary
           stats={stats}
           window={statsWindow}
+          excludeStream={excludeStream}
           onWindowChange={setStatsWindow}
+          onExcludeStreamChange={setExcludeStream}
         />
       ) : (
         <Alert
@@ -448,7 +557,8 @@ export default function RequestLogsPage() {
           message="聚合统计函数尚未迁移"
           description={
             <>
-              <p>实时 tail 仍可用。要启用 24h / 7d / 30d 聚合统计，请执行：</p>
+              <p>实时 tail 仍可用。要启用聚合统计与 Auth/Chat P95，请依次执行：</p>
+              <pre style={{ marginTop: 8 }}>{ROUTE_META_PATH}</pre>
               <pre style={{ marginTop: 8 }}>{STATS_FN_PATH}</pre>
             </>
           }
