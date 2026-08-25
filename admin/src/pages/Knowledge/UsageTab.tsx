@@ -1,19 +1,19 @@
 import { ProCard } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
-import { Segmented } from 'antd';
+import { Empty, Segmented } from 'antd';
 import { useEffect, useState } from 'react';
 import { fetchKbUsage } from '@/services/api';
 import type { KbCountAggregate, KbCoverageItem } from '@/types';
 
 const coverageColumns: ProColumns<KbCoverageItem>[] = [
-  { title: '路径', dataIndex: 'path', ellipsis: true },
+  { title: '路径', dataIndex: 'path', width: 260, ellipsis: true },
   { title: 'Chunk 数', dataIndex: 'chunkCount', width: 100, align: 'right' },
   { title: 'Token 合计', dataIndex: 'tokenSum', width: 120, align: 'right' },
 ];
 
 const chatPageColumns: ProColumns<KbCountAggregate>[] = [
-  { title: '页面', dataIndex: 'key', ellipsis: true },
+  { title: '页面', dataIndex: 'key', width: 260, ellipsis: true },
   { title: '次数', dataIndex: 'count', width: 80, align: 'right' },
 ];
 
@@ -21,6 +21,7 @@ const citationColumns: ProColumns<KbCountAggregate>[] = [
   {
     title: 'URL',
     dataIndex: 'key',
+    width: 260,
     ellipsis: true,
     render: (_, record) => (
       <a href={record.key} target="_blank" rel="noreferrer">
@@ -49,6 +50,10 @@ export default function UsageTab() {
       .finally(() => setLoading(false));
   }, [days]);
 
+  const coverageScrollX = coverageColumns.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0);
+  const chatScrollX = chatPageColumns.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0);
+  const citationScrollX = citationColumns.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0);
+
   return (
     <>
       <Segmented
@@ -64,14 +69,20 @@ export default function UsageTab() {
 
       <ProCard split="horizontal" loading={loading}>
         <ProCard title="索引覆盖" colSpan="100%">
-          <ProTable<KbCoverageItem>
-            rowKey="path"
-            columns={coverageColumns}
-            search={false}
-            dataSource={coverage}
-            pagination={false}
-            toolBarRender={false}
-          />
+          {coverage.length === 0 ? (
+            <Empty description="暂无 kb_chunks 入库数据（流水线尚未写入 Supabase）" />
+          ) : (
+            <ProTable<KbCoverageItem>
+              rowKey="path"
+              columns={coverageColumns}
+              search={false}
+              dataSource={coverage}
+              pagination={false}
+              toolBarRender={false}
+              scroll={{ x: coverageScrollX }}
+              tableLayout="fixed"
+            />
+          )}
         </ProCard>
 
         <ProCard split="vertical">
@@ -83,6 +94,8 @@ export default function UsageTab() {
               dataSource={chatPages}
               pagination={false}
               toolBarRender={false}
+              scroll={{ x: chatScrollX }}
+              tableLayout="fixed"
             />
           </ProCard>
 
@@ -94,6 +107,8 @@ export default function UsageTab() {
               dataSource={citations}
               pagination={false}
               toolBarRender={false}
+              scroll={{ x: citationScrollX }}
+              tableLayout="fixed"
             />
           </ProCard>
         </ProCard>

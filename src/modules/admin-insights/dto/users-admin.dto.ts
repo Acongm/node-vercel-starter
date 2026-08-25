@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ListPlatformUsersDto {
   @IsOptional()
@@ -13,7 +13,15 @@ export class ListPlatformUsersDto {
   @IsInt()
   @Min(1)
   @Max(200)
-  perPage?: number = 50;
+  pageSize?: number = 50;
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  anonymous?: 'true' | 'false';
+
+  @IsOptional()
+  @IsString()
+  q?: string;
 }
 
 export class ListLocalUsersDto {

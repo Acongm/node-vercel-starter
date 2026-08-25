@@ -61,6 +61,7 @@ export interface AppConfig {
   corsOrigins: string[];
   proxyAllowlist: Record<string, string>;
   requestLogSink: RequestLogSink;
+  portalSummariesUrl: string;
   supabase: {
     url?: string;
     /** Publishable/anon key used for end-user Auth/RLS scoped requests. */
@@ -157,13 +158,32 @@ function parseList(raw: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function parseRequestLogSink(
+  env: NodeJS.ProcessEnv,
+  dataMode: DataMode,
+): RequestLogSink {
+  const explicit = env.REQUEST_LOG_SINK?.trim().toLowerCase();
+  if (explicit === 'off') {
+    return 'off';
+  }
+  if (explicit === 'supabase') {
+    return 'supabase';
+  }
+  if (!explicit && dataMode === 'supabase' && env.SUPABASE_URL) {
+    return 'supabase';
+  }
+  return 'off';
+}
+
 export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const dataMode = enumValue(env.DATA_MODE, dataModes, 'memory');
+
   return {
     appName: env.APP_NAME || 'node-vercel-starter',
     appVersion: env.APP_VERSION || '0.1.0',
     port: numberValue(env.PORT, 3000),
     runtimeTarget: enumValue(env.RUNTIME_TARGET, runtimeTargets, 'node'),
-    dataMode: enumValue(env.DATA_MODE, dataModes, 'memory'),
+    dataMode: dataMode,
     dataFilePath: env.DATA_FILE_PATH || '.data/comments.json',
     chatLogsFilePath: env.CHAT_LOGS_FILE_PATH || '.data/chat-logs.json',
     chatThreadsFilePath:
@@ -202,7 +222,9 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     corsOrigins: parseList(env.CORS_ORIGINS || 'https://acongm.com,https://*.acongm.com'),
     proxyAllowlist: parseAllowlist(env.PROXY_ALLOWLIST),
-    requestLogSink: env.REQUEST_LOG_SINK === 'supabase' ? 'supabase' : 'off',
+    requestLogSink: parseRequestLogSink(env, dataMode),
+    portalSummariesUrl:
+      env.PORTAL_SUMMARIES_URL || 'https://www.acongm.com/summaries-v1.json',
     supabase: {
       url: env.SUPABASE_URL,
       publicKey:

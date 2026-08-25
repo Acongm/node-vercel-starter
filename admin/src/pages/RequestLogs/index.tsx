@@ -1,6 +1,6 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Alert, Drawer, Input, Select, Space, Switch, Tag } from 'antd';
+import { Alert, Button, Drawer, Input, Select, Space, Spin, Switch, Tag } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchRequestLogs } from '@/services/api';
 import type { RequestLogRow, RequestLogsResponse } from '@/types';
@@ -8,8 +8,14 @@ import { formatDateTime, httpStatusTagColor, idPrefix } from '@/utils/format';
 
 const MAX_ROWS = 500;
 const POLL_INTERVAL_MS = 5000;
+const MIGRATION_PATH = 'supabase/migrations/20260825090000_api_request_logs.sql';
 
 type StatusClass = 'all' | '2xx' | '4xx' | '5xx';
+type PageState =
+  | { kind: 'loading' }
+  | { kind: 'disabled'; reason?: string }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready' };
 
 function matchesStatusClass(statusCode: number, statusClass: StatusClass): boolean {
   if (statusClass === 'all') {
@@ -43,6 +49,7 @@ const columns: ProColumns<RequestLogRow>[] = [
   {
     title: '路径',
     dataIndex: 'path',
+    width: 260,
     ellipsis: true,
   },
   {
@@ -71,12 +78,13 @@ const columns: ProColumns<RequestLogRow>[] = [
   {
     title: '错误',
     dataIndex: 'error_message',
+    width: 200,
     ellipsis: true,
   },
 ];
 
 export default function RequestLogsPage() {
-  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [pageState, setPageState] = useState<PageState>({ kind: 'loading' });
   const [rows, setRows] = useState<RequestLogRow[]>([]);
   const [pathFilter, setPathFilter] = useState('');
   const [statusClass, setStatusClass] = useState<StatusClass>('all');
@@ -109,30 +117,83 @@ export default function RequestLogsPage() {
         limit: 100,
       });
       if (!response.enabled) {
-        setEnabled(false);
+        setPageState({ kind: 'disabled', reason: response.reason });
         return;
       }
-      setEnabled(true);
+      setPageState({ kind: 'ready' });
       mergeRows(response.items, incremental);
     },
     [mergeRows, pathFilter],
   );
 
-  useEffect(() => {
-    loadLogs(false).catch(() => setEnabled(false));
+  const retryLoad = useCallback(() => {
+    setPageState({ kind: 'loading' });
+    loadLogs(false).catch((err: Error) => {
+      setPageState({ kind: 'error', message: err.message });
+    });
   }, [loadLogs]);
 
   useEffect(() => {
-    if (!autoRefresh || paused || enabled === false) {
+    retryLoad();
+  }, [retryLoad]);
+
+  useEffect(() => {
+    if (!autoRefresh || paused || pageState.kind !== 'ready') {
       return;
     }
     const timer = window.setInterval(() => {
-      loadLogs(true).catch(() => undefined);
+      loadLogs(true).catch((err: Error) => {
+        setPageState({ kind: 'error', message: err.message });
+      });
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [autoRefresh, paused, enabled, loadLogs]);
+  }, [autoRefresh, paused, pageState.kind, loadLogs]);
 
-  if (enabled === false) {
+  if (pageState.kind === 'loading') {
+    return (
+      <PageContainer title="接口日志">
+        <Spin tip="加载中..." />
+      </PageContainer>
+    );
+  }
+
+  if (pageState.kind === 'error') {
+    return (
+      <PageContainer title="接口日志">
+        <Alert
+          type="error"
+          showIcon
+          message="加载接口日志失败"
+          description={pageState.message}
+          action={
+            <Button size="small" onClick={retryLoad}>
+              重试
+            </Button>
+          }
+        />
+      </PageContainer>
+    );
+  }
+
+  if (pageState.kind === 'disabled') {
+    if (pageState.reason === 'migration_missing') {
+      return (
+        <PageContainer title="接口日志">
+          <Alert
+            type="warning"
+            showIcon
+            message="尚未执行 api_request_logs 迁移"
+            description={
+              <>
+                <p>请在 Supabase 中执行以下迁移文件：</p>
+                <pre style={{ marginTop: 8 }}>{MIGRATION_PATH}</pre>
+              </>
+            }
+          />
+        </PageContainer>
+      );
+    }
+
     return (
       <PageContainer title="接口日志">
         <Alert
@@ -144,6 +205,7 @@ export default function RequestLogsPage() {
               <p>接口调用日志落库功能当前关闭。请在 .env 中配置：</p>
               <pre style={{ marginTop: 8 }}>
 {`REQUEST_LOG_SINK=supabase
+# 或留空并在 DATA_MODE=supabase 时自动启用
 # 并确保 api_request_logs 表已迁移`}
               </pre>
             </>
@@ -154,6 +216,7 @@ export default function RequestLogsPage() {
   }
 
   const filteredRows = rows.filter((row) => matchesStatusClass(row.status_code, statusClass));
+  const scrollX = columns.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0);
 
   return (
     <PageContainer title="接口日志" subTitle="api_request_logs 准实时 tail">
@@ -197,6 +260,8 @@ export default function RequestLogsPage() {
         dataSource={filteredRows}
         pagination={{ pageSize: 50 }}
         toolBarRender={false}
+        scroll={{ x: scrollX }}
+        tableLayout="fixed"
         onRow={(record) => ({
           onClick: () => setSelected(record),
           style: { cursor: 'pointer' },

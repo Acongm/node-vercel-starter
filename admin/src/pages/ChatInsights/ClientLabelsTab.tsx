@@ -1,7 +1,7 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { Button, Form, Input, Modal, Popconfirm, message } from 'antd';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ActionType } from '@ant-design/pro-components';
 import {
   createClientLabel,
@@ -33,6 +33,7 @@ const baseColumns: ProColumns<ClientLabelRecord>[] = [
   {
     title: '备注',
     dataIndex: 'note',
+    width: 200,
     ellipsis: true,
   },
   {
@@ -47,6 +48,7 @@ export default function ClientLabelsTab() {
   const actionRef = useRef<ActionType>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ClientLabelRecord | null>(null);
+  const [filter, setFilter] = useState('');
   const [form] = Form.useForm<LabelFormValues>();
 
   const openCreate = () => {
@@ -108,27 +110,49 @@ export default function ClientLabelsTab() {
     },
   ];
 
+  const scrollX = useMemo(
+    () => tableColumns.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0),
+    [tableColumns],
+  );
+
   return (
     <>
+      <Input.Search
+        placeholder="搜索 label / clientId"
+        allowClear
+        onSearch={setFilter}
+        style={{ maxWidth: 360, marginBottom: 16 }}
+      />
       <ProTable<ClientLabelRecord>
         actionRef={actionRef}
         rowKey="id"
         columns={tableColumns}
         search={false}
+        params={{ filter }}
         toolBarRender={() => [
           <Button key="create" type="primary" onClick={openCreate}>
             新建标签
           </Button>,
         ]}
-        request={async () => {
+        request={async (params) => {
           const items = await fetchClientLabels();
+          const term = String(params.filter ?? '').trim().toLowerCase();
+          const filtered = term
+            ? items.filter(
+                (item) =>
+                  item.label.toLowerCase().includes(term) ||
+                  item.clientId.toLowerCase().includes(term),
+              )
+            : items;
           return {
-            data: items,
-            total: items.length,
+            data: filtered,
+            total: filtered.length,
             success: true,
           };
         }}
         pagination={{ pageSize: 20 }}
+        scroll={{ x: scrollX }}
+        tableLayout="fixed"
       />
 
       <Modal

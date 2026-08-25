@@ -16,6 +16,14 @@ export interface RequestLogEntry {
 
 let sinkEnabled = false;
 let sinkClient: SupabaseClient | null = null;
+let tableKnownMissing = false;
+
+function isMissingTableError(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === '42P01' ||
+    Boolean(error.message?.includes('api_request_logs'))
+  );
+}
 
 export function initRequestLogSink(config: AppConfig): void {
   const { url, serviceRoleKey, apiKey, requestSecret } = config.supabase;
@@ -23,6 +31,8 @@ export function initRequestLogSink(config: AppConfig): void {
 
   sinkEnabled =
     config.requestLogSink === 'supabase' && Boolean(url && apiKeyForSink);
+
+  tableKnownMissing = false;
 
   if (!sinkEnabled) {
     sinkClient = null;
@@ -49,7 +59,7 @@ export function isRequestLogSinkEnabled(): boolean {
 }
 
 export function recordRequestLog(entry: RequestLogEntry): void {
-  if (!sinkEnabled || !sinkClient) {
+  if (!sinkEnabled || !sinkClient || tableKnownMissing) {
     return;
   }
 
@@ -69,6 +79,11 @@ export function recordRequestLog(entry: RequestLogEntry): void {
   const runInsert = async () => {
     const { error } = await insertPromise;
     if (error) {
+      if (isMissingTableError(error)) {
+        tableKnownMissing = true;
+        console.warn('[request-log-sink] api_request_logs table missing; skipping inserts');
+        return;
+      }
       console.error('[request-log-sink] insert failed:', error.message);
     }
   };
@@ -86,4 +101,16 @@ export function recordRequestLog(entry: RequestLogEntry): void {
   }
 
   void runInsert();
+}
+
+/** Test-only reset for module-level state. */
+export function resetRequestLogSinkStateForTests(): void {
+  sinkEnabled = false;
+  sinkClient = null;
+  tableKnownMissing = false;
+}
+
+/** Test-only accessor. */
+export function isRequestLogTableKnownMissingForTests(): boolean {
+  return tableKnownMissing;
 }

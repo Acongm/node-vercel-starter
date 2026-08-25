@@ -398,6 +398,8 @@ export default function DebugPage() {
                     color: '#e2e8f0',
                     borderRadius: 8,
                     minHeight: 120,
+                    maxHeight: 400,
+                    overflow: 'auto',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
                   }}

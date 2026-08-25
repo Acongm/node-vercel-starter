@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { deriveAnonFingerprint } from '../src/common/anon-fingerprint';
 import { httpRequestLogMiddleware } from '../src/common/http-request-log.middleware';
 import { RequestWithId } from '../src/common/request-id.middleware';
 
@@ -74,5 +75,11 @@ describe('httpRequestLogMiddleware', () => {
 
     expect(logSpy).not.toHaveBeenCalled();
     logSpy.mockRestore();
+  });
+
+  it('derives client id from user-agent when x-client-id is missing', () => {
+    const ua = 'Mozilla/5.0 Test Agent';
+    const origin = 'https://acongm.com';
+    expect(deriveAnonFingerprint(ua, origin)).toMatch(/^ua-[0-9a-f]{8}$/);
   });
 });

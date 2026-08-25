@@ -57,7 +57,7 @@ export default defineConfig({
     },
     {
       path: '/data/:tableKey',
-      component: './Data/Table',
+      component: './Data',
       hideInMenu: true,
     },
   ],

@@ -37,6 +37,10 @@ export class ListKbFailuresDto {
   @Min(1)
   @Max(200)
   pageSize?: number = 20;
+
+  @IsOptional()
+  @IsString()
+  path?: string;
 }
 
 export class ListKbAnalysisDto {

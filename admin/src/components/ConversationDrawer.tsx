@@ -49,7 +49,7 @@ function MessageBubble({
             </Typography.Text>
           ) : null}
         </Space>
-        <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap' }}>
+        <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
           {text || '(空)'}
         </Typography.Paragraph>
       </div>

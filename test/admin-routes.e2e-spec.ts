@@ -118,7 +118,18 @@ describe('Admin routes (e2e)', () => {
       .get('/api/admin/kb/jobs')
       .set(auth)
       .expect(200);
-    expect(kbJobs.body.enabled).toBe(false);
+    expect(kbJobs.body).toMatchObject({
+      source: 'portal-static',
+      total: expect.any(Number),
+      items: expect.any(Array),
+    });
+    if (kbJobs.body.items.length > 0) {
+      expect(kbJobs.body.items[0]).toMatchObject({
+        id: 'portal-latest',
+        job_type: 'pipeline',
+        source: 'portal-static',
+      });
+    }
 
     const requestLogs = await request(app.getHttpServer())
       .get('/api/admin/request-logs')

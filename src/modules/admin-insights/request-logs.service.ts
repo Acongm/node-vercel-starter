@@ -18,6 +18,13 @@ export interface RequestLogRow {
   created_at: string;
 }
 
+function isMissingTableError(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === '42P01' ||
+    Boolean(error.message?.includes('api_request_logs'))
+  );
+}
+
 @Injectable()
 export class RequestLogsService {
   constructor(private readonly supabaseAdmin: SupabaseAdminClientService) {}
@@ -49,6 +56,12 @@ export class RequestLogsService {
 
     const { data, error } = await request;
     if (error) {
+      if (isMissingTableError(error)) {
+        return {
+          enabled: false as const,
+          reason: 'migration_missing' as const,
+        };
+      }
       throw new BadRequestException({
         code: 'ADMIN_REQUEST_LOGS_FAILED',
         message: error.message,

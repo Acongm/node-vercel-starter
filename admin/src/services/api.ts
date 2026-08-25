@@ -214,10 +214,12 @@ export async function fetchKbJobs(params: {
 export async function fetchKbFailures(params: {
   page?: number;
   pageSize?: number;
+  path?: string;
 }): Promise<PaginatedResponse<SyncFailureRow>> {
   const query = new URLSearchParams();
   if (params.page) query.set('page', String(params.page));
   if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  if (params.path) query.set('path', params.path);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   const result = await apiFetch(`/api/admin/kb/failures${suffix}`);
   if (!result.ok) {
@@ -277,11 +279,15 @@ export async function fetchKbUsage(params: {
 
 export async function fetchPlatformUsers(params: {
   page?: number;
-  perPage?: number;
+  pageSize?: number;
+  anonymous?: 'true' | 'false';
+  q?: string;
 }): Promise<PlatformUsersResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set('page', String(params.page));
-  if (params.perPage) query.set('perPage', String(params.perPage));
+  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  if (params.anonymous) query.set('anonymous', params.anonymous);
+  if (params.q) query.set('q', params.q);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   const result = await apiFetch(`/api/admin/users${suffix}`);
   if (!result.ok) {

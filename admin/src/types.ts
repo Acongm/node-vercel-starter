@@ -37,6 +37,7 @@ export type PaginatedResponse<T> = {
   page: number;
   pageSize: number;
   totalPages: number;
+  source?: 'supabase' | 'portal-static' | null;
 };
 
 export type ApiResult = {
@@ -55,6 +56,7 @@ export type SyncJobSummary = {
   status: string;
   created_at: string;
   finished_at: string | null;
+  source?: 'supabase' | 'portal-static';
 };
 
 export type AdminOverview = {
@@ -63,6 +65,7 @@ export type AdminOverview = {
   chatLogs24hCount: number | null;
   kbAnalysisCount: number | null;
   kbChunksCount: number | null;
+  kbSource?: 'supabase' | 'portal-static' | null;
   latestSyncJob: SyncJobSummary | null;
   requestLogErrorRate24h: number | null;
   chatLogsTodayCount: number | null;
@@ -140,6 +143,9 @@ export type AdminChatLogItem = {
   isAnonymous: boolean;
   clientId: string | null;
   clientLabel?: string;
+  anonKey?: string;
+  userAgent?: string;
+  origin?: string;
   conversationId: string | null;
   endpoint: string;
   userMessage: string;
@@ -173,6 +179,7 @@ export type SyncJobRow = {
   finished_at: string | null;
   created_at: string;
   updated_at: string;
+  source?: 'supabase' | 'portal-static';
 };
 
 export type SyncFailureRow = {
@@ -193,11 +200,15 @@ export type KbAnalysisRow = {
   path: string;
   title: string | null;
   summary: string | null;
+  key_points?: string[];
   keywords: unknown;
+  tech_stack?: string[];
   difficulty: string | null;
   content_type: string | null;
+  status?: string | null;
   created_at: string;
   updated_at: string;
+  source?: 'supabase' | 'portal-static';
 };
 
 export type KbChunkRow = {
@@ -248,8 +259,9 @@ export type PlatformUsersEnabled = {
   enabled: true;
   items: PlatformUserItem[];
   page: number;
-  perPage: number;
+  pageSize: number;
   total: number;
+  totalPages: number;
 };
 
 export type PlatformUsersResponse = PlatformUsersDisabled | PlatformUsersEnabled;
@@ -285,6 +297,7 @@ export type RequestLogRow = {
 
 export type RequestLogsDisabled = {
   enabled: false;
+  reason?: 'migration_missing' | string;
 };
 
 export type RequestLogsEnabled = {

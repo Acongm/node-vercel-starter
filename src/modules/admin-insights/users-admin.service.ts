@@ -30,6 +30,9 @@ export interface PlatformUserItem {
   lastSignInAt?: string;
 }
 
+const LIST_USERS_PER_PAGE = 200;
+const MAX_LIST_USER_PAGES = 5;
+
 @Injectable()
 export class UsersAdminService {
   constructor(
@@ -48,23 +51,51 @@ export class UsersAdminService {
 
     const client = this.supabaseAdmin.getClient();
     const page = query.page ?? 1;
-    const perPage = query.perPage ?? 50;
+    const pageSize = query.pageSize ?? 50;
+    const wantAnonymous = query.anonymous === 'true';
+    const emailQuery = query.q?.trim().toLowerCase();
 
-    const { data, error } = await client.auth.admin.listUsers({ page, perPage });
-    if (error) {
-      throw new BadRequestException({
-        code: 'ADMIN_USERS_LIST_FAILED',
-        message: error.message,
+    const allUsers: User[] = [];
+    for (let listPage = 1; listPage <= MAX_LIST_USER_PAGES; listPage += 1) {
+      const { data, error } = await client.auth.admin.listUsers({
+        page: listPage,
+        perPage: LIST_USERS_PER_PAGE,
       });
+      if (error) {
+        throw new BadRequestException({
+          code: 'ADMIN_USERS_LIST_FAILED',
+          message: error.message,
+        });
+      }
+
+      const batch = data.users ?? [];
+      allUsers.push(...batch);
+
+      if (batch.length < LIST_USERS_PER_PAGE) {
+        break;
+      }
     }
 
-    const items = (data.users ?? []).map(mapPlatformUser);
+    let filtered = allUsers.filter((user) => Boolean(user.is_anonymous) === wantAnonymous);
+
+    if (emailQuery) {
+      filtered = filtered.filter((user) =>
+        (user.email ?? '').toLowerCase().includes(emailQuery),
+      );
+    }
+
+    const total = filtered.length;
+    const from = (page - 1) * pageSize;
+    const pageUsers = filtered.slice(from, from + pageSize);
+    const items = pageUsers.map(mapPlatformUser);
+
     return {
       enabled: true as const,
       items,
+      total,
       page,
-      perPage,
-      total: data.total ?? items.length,
+      pageSize,
+      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
     };
   }
 

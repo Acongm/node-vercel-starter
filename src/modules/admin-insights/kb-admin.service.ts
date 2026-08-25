@@ -2,6 +2,14 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { normalizeCitationUrl } from './helpers/citation-url';
+import {
+  filterAnalysisRows,
+  mapSnapshotToAnalysisRows,
+  paginateRows,
+  parsePortalSnapshot,
+  PortalSnapshot,
+  synthesizePortalJob,
+} from './helpers/portal-snapshot';
 import { SupabaseAdminClientService } from './supabase-admin-client.service';
 import {
   KbUsageQueryDto,
@@ -23,6 +31,7 @@ export interface SyncJobRow {
   finished_at: string | null;
   created_at: string;
   updated_at: string;
+  source?: 'supabase' | 'portal-static';
 }
 
 export interface SyncFailureRow {
@@ -43,11 +52,15 @@ export interface KbAnalysisRow {
   path: string;
   title: string | null;
   summary: string | null;
+  key_points?: string[];
   keywords: unknown;
+  tech_stack?: string[];
   difficulty: string | null;
   content_type: string | null;
+  status?: string | null;
   created_at: string;
   updated_at: string;
+  source?: 'supabase' | 'portal-static';
 }
 
 export interface KbChunkRow {
@@ -77,24 +90,54 @@ export interface CountAggregate {
   count: number;
 }
 
+const PORTAL_CACHE_TTL_MS = 10 * 60 * 1000;
+
 @Injectable()
 export class KbAdminService {
+  private portalCache: { snapshot: PortalSnapshot | null; fetchedAt: number } | null =
+    null;
+
   constructor(
     private readonly supabaseAdmin: SupabaseAdminClientService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
+  async fetchPortalSnapshot(): Promise<PortalSnapshot | null> {
+    const now = Date.now();
+    if (this.portalCache && now - this.portalCache.fetchedAt < PORTAL_CACHE_TTL_MS) {
+      return this.portalCache.snapshot;
+    }
+
+    try {
+      const response = await fetch(this.config.portalSummariesUrl);
+      if (!response.ok) {
+        this.portalCache = { snapshot: null, fetchedAt: now };
+        return null;
+      }
+      const raw = await response.json();
+      const snapshot = parsePortalSnapshot(raw);
+      this.portalCache = { snapshot, fetchedAt: now };
+      return snapshot;
+    } catch {
+      this.portalCache = { snapshot: null, fetchedAt: now };
+      return null;
+    }
+  }
+
+  async getPortalCompletedFiles(): Promise<number | null> {
+    const snapshot = await this.fetchPortalSnapshot();
+    return snapshot?.stats?.completedFiles ?? null;
+  }
+
   async listJobs(query: ListKbJobsDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+
     if (!this.supabaseAdmin.isConfigured()) {
-      return {
-        enabled: false as const,
-        reason: this.supabaseAdmin.unavailableReason(),
-      };
+      return this.listJobsFromPortal(query);
     }
 
     const client = this.supabaseAdmin.getClient();
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
@@ -120,12 +163,48 @@ export class KbAdminService {
     }
 
     const total = count ?? 0;
+    if (total === 0) {
+      return this.listJobsFromPortal(query);
+    }
+
     return {
-      items: (data ?? []) as SyncJobRow[],
+      source: 'supabase' as const,
+      items: ((data ?? []) as SyncJobRow[]).map((row) => ({
+        ...row,
+        source: 'supabase' as const,
+      })),
       total,
       page,
       pageSize,
       totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+    };
+  }
+
+  private async listJobsFromPortal(query: ListKbJobsDto) {
+    const snapshot = await this.fetchPortalSnapshot();
+    if (!snapshot) {
+      return {
+        source: null,
+        items: [] as SyncJobRow[],
+        total: 0,
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 20,
+        totalPages: 0,
+      };
+    }
+
+    let rows = [synthesizePortalJob(snapshot) as SyncJobRow];
+    if (query.status) {
+      rows = rows.filter((row) => row.status === query.status);
+    }
+    if (query.jobType) {
+      rows = rows.filter((row) => row.job_type === query.jobType);
+    }
+
+    const paginated = paginateRows(rows, query.page ?? 1, query.pageSize ?? 20);
+    return {
+      source: 'portal-static' as const,
+      ...paginated,
     };
   }
 
@@ -143,13 +222,19 @@ export class KbAdminService {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, error, count } = await client
+    let request = client
       .from('sync_failures')
       .select('*', { count: 'exact' })
       .order('resolved_at', { ascending: true, nullsFirst: true })
       .order('created_at', { ascending: false })
       .range(from, to);
 
+    if (query.path?.trim()) {
+      const pattern = `%${escapeIlike(query.path.trim())}%`;
+      request = request.ilike('path', pattern);
+    }
+
+    const { data, error, count } = await request;
     if (error) {
       throw new BadRequestException({
         code: 'ADMIN_KB_FAILURES_FAILED',
@@ -168,16 +253,14 @@ export class KbAdminService {
   }
 
   async listAnalysis(query: ListKbAnalysisDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+
     if (!this.supabaseAdmin.isConfigured()) {
-      return {
-        enabled: false as const,
-        reason: this.supabaseAdmin.unavailableReason(),
-      };
+      return this.listAnalysisFromPortal(query);
     }
 
     const client = this.supabaseAdmin.getClient();
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
@@ -205,12 +288,61 @@ export class KbAdminService {
     }
 
     const total = count ?? 0;
+    if (total === 0) {
+      return this.listAnalysisFromPortal(query);
+    }
+
     return {
-      items: (data ?? []) as KbAnalysisRow[],
+      source: 'supabase' as const,
+      items: ((data ?? []) as KbAnalysisRow[]).map((row) => ({
+        ...row,
+        source: 'supabase' as const,
+      })),
       total,
       page,
       pageSize,
       totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+    };
+  }
+
+  private async listAnalysisFromPortal(query: ListKbAnalysisDto) {
+    const snapshot = await this.fetchPortalSnapshot();
+    if (!snapshot) {
+      return {
+        source: null,
+        items: [] as KbAnalysisRow[],
+        total: 0,
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 20,
+        totalPages: 0,
+      };
+    }
+
+    const allRows = mapSnapshotToAnalysisRows(snapshot);
+    const filtered = filterAnalysisRows(allRows, query.search);
+    const paginated = paginateRows(filtered, query.page ?? 1, query.pageSize ?? 20);
+
+    return {
+      source: 'portal-static' as const,
+      items: paginated.items.map((row) => ({
+        id: row.id,
+        path: row.path,
+        title: row.title,
+        summary: row.summary,
+        key_points: row.key_points,
+        keywords: row.keywords,
+        tech_stack: row.tech_stack,
+        difficulty: row.difficulty,
+        content_type: row.content_type,
+        status: row.status,
+        created_at: row.updated_at ?? '',
+        updated_at: row.updated_at ?? '',
+        source: 'portal-static' as const,
+      })),
+      total: paginated.total,
+      page: paginated.page,
+      pageSize: paginated.pageSize,
+      totalPages: paginated.totalPages,
     };
   }
 

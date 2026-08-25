@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
+import { deriveAnonFingerprint } from '../../common/anon-fingerprint';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { extractTextPreviewFromParts } from './helpers/message-parts';
@@ -49,6 +50,8 @@ interface ChatLogRow {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   total_tokens: number | null;
+  origin: string | null;
+  user_agent: string | null;
   created_at: string;
 }
 
@@ -250,7 +253,7 @@ export class ChatAdminService {
     let request = client
       .from(table)
       .select(
-        'id, user_id, client_id, conversation_id, endpoint, user_message, assistant_message, context, sources, prompt_tokens, completion_tokens, total_tokens, created_at',
+        'id, user_id, client_id, conversation_id, endpoint, user_message, assistant_message, context, sources, prompt_tokens, completion_tokens, total_tokens, origin, user_agent, created_at',
         { count: 'exact' },
       )
       .order('created_at', { ascending: false })
@@ -302,13 +305,31 @@ export class ChatAdminService {
     const items = rows.map((row) => {
       const user = row.user_id ? users.get(row.user_id) : undefined;
       const label = row.client_id ? clientLabels.get(row.client_id) : undefined;
+      const origin =
+        row.origin ??
+        (row.context && typeof row.context.origin === 'string'
+          ? row.context.origin
+          : undefined);
+      const userAgent =
+        row.user_agent ??
+        (row.context && typeof row.context.userAgent === 'string'
+          ? row.context.userAgent
+          : undefined);
+      const anonKey =
+        !row.user_id
+          ? row.client_id ?? deriveAnonFingerprint(userAgent, origin)
+          : undefined;
+
       return {
         id: row.id,
         userId: row.user_id,
         userEmail: user?.email,
-        isAnonymous: user?.isAnonymous ?? false,
+        isAnonymous: user?.isAnonymous ?? Boolean(!row.user_id),
         clientId: row.client_id,
         clientLabel: label?.label,
+        anonKey,
+        userAgent,
+        origin,
         conversationId: row.conversation_id,
         endpoint: row.endpoint,
         userMessage: row.user_message,

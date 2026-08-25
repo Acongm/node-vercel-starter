@@ -1,4 +1,5 @@
 import { NextFunction, Response } from 'express';
+import { resolveClientId } from './anon-fingerprint';
 import { appLogger } from './app-logger';
 import { recordRequestLog } from './request-log-sink';
 import { RequestWithId } from './request-id.middleware';
@@ -54,15 +55,17 @@ export function httpRequestLogMiddleware(
     });
 
     const locals = (res.locals ?? {}) as { errorMessage?: string };
+    const origin = readHeader(req, 'origin');
+    const userAgent = readHeader(req, 'user-agent');
     recordRequestLog({
       requestId: req.requestId,
       method: req.method,
       path: req.path,
       statusCode: res.statusCode,
       durationMs,
-      clientId: readHeader(req, 'x-client-id'),
-      origin: readHeader(req, 'origin'),
-      userAgent: readHeader(req, 'user-agent'),
+      clientId: resolveClientId(readHeader(req, 'x-client-id'), userAgent, origin),
+      origin,
+      userAgent,
       errorMessage: locals.errorMessage,
     });
   });

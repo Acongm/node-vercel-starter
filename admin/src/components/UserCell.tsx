@@ -7,6 +7,9 @@ export type UserCellProps = {
   clientId?: string | null;
   isAnonymous?: boolean;
   clientLabel?: string | null;
+  anonKey?: string | null;
+  userAgent?: string | null;
+  origin?: string | null;
 };
 
 function buildTooltip(props: UserCellProps): string {
@@ -17,15 +20,39 @@ function buildTooltip(props: UserCellProps): string {
   if (props.clientId) {
     parts.push(`clientId: ${props.clientId}`);
   }
+  if (props.anonKey) {
+    parts.push(`anonKey: ${props.anonKey}`);
+  }
+  if (props.userAgent) {
+    parts.push(`userAgent: ${props.userAgent}`);
+  }
+  if (props.origin) {
+    parts.push(`origin: ${props.origin}`);
+  }
   return parts.join('\n') || '-';
+}
+
+function resolveAnonymousDisplay(props: UserCellProps): string {
+  if (props.clientLabel) {
+    return props.clientLabel;
+  }
+  if (props.clientId) {
+    return idPrefix(props.clientId);
+  }
+  if (props.anonKey) {
+    return idPrefix(props.anonKey);
+  }
+  if (props.userId) {
+    return idPrefix(props.userId);
+  }
+  return '-';
 }
 
 export default function UserCell(props: UserCellProps) {
   const tooltip = buildTooltip(props);
 
-  if (props.isAnonymous || (!props.userEmail && props.clientId)) {
-    const display =
-      props.clientLabel || (props.clientId ? idPrefix(props.clientId) : '-');
+  if (props.isAnonymous || (!props.userEmail && (props.clientId || props.anonKey || props.userId))) {
+    const display = resolveAnonymousDisplay(props);
     return (
       <Tooltip title={tooltip}>
         <span>

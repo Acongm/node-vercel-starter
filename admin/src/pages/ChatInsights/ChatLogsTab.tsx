@@ -129,6 +129,9 @@ const columns: ProColumns<AdminChatLogItem>[] = [
         clientId={record.clientId}
         isAnonymous={record.isAnonymous}
         clientLabel={record.clientLabel}
+        anonKey={record.anonKey}
+        userAgent={record.userAgent}
+        origin={record.origin}
       />
     ),
   },
@@ -164,6 +167,10 @@ const columns: ProColumns<AdminChatLogItem>[] = [
   },
 ];
 
+function tableScrollX(cols: ProColumns<AdminChatLogItem>[]): number {
+  return cols.reduce((sum, col) => sum + (typeof col.width === 'number' ? col.width : 160), 0);
+}
+
 export default function ChatLogsTab() {
   const [detail, setDetail] = useState<AdminChatLogItem | null>(null);
 
@@ -192,6 +199,8 @@ export default function ChatLogsTab() {
           };
         }}
         pagination={{ pageSize: 20 }}
+        scroll={{ x: tableScrollX(columns) }}
+        tableLayout="fixed"
         onRow={(record) => ({
           onClick: () => setDetail(record),
           style: { cursor: 'pointer' },
