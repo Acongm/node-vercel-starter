@@ -18,6 +18,7 @@ import type {
   RequestLogsResponse,
   RequestLogStatsResponse,
   RequestLogPathSort,
+  RequestLogSortOrder,
   SyncFailureRow,
   SyncJobRow,
   AdminChatLogItem,
@@ -365,6 +366,7 @@ export async function fetchRequestLogStats(
   options: {
     excludeStream?: boolean;
     pathSort?: RequestLogPathSort;
+    pathSortOrder?: RequestLogSortOrder;
     pathLimit?: number;
   } = {},
 ): Promise<RequestLogStatsResponse> {
@@ -372,6 +374,7 @@ export async function fetchRequestLogStats(
     window,
     excludeStream: String(options.excludeStream ?? true),
     pathSort: options.pathSort ?? 'p95',
+    pathSortOrder: options.pathSortOrder ?? 'desc',
     pathLimit: String(options.pathLimit ?? 50),
   });
   const result = await apiFetch(`/api/admin/request-logs/stats?${query.toString()}`);

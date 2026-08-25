@@ -61,11 +61,12 @@ describe('RequestLogsService stats', () => {
         path_limit: 50,
         exclude_stream: true,
         path_sort: 'avg_duration',
+        path_sort_order: 'desc',
       }),
     );
   });
 
-  it('forwards path sort and limit query params', async () => {
+  it('forwards path sort, order and limit query params', async () => {
     rpc.mockResolvedValue({
       data: {
         total: 0,
@@ -82,6 +83,7 @@ describe('RequestLogsService stats', () => {
     await service.getStats({
       window: '7d',
       pathSort: 'max_duration',
+      pathSortOrder: 'asc',
       pathLimit: 100,
       excludeStream: false,
     });
@@ -92,6 +94,7 @@ describe('RequestLogsService stats', () => {
         path_limit: 100,
         exclude_stream: false,
         path_sort: 'max_duration',
+        path_sort_order: 'asc',
       }),
     );
   });

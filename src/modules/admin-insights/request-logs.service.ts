@@ -6,6 +6,7 @@ import {
   RequestLogStatsDto,
   RequestLogStatsWindow,
   RequestLogPathSort,
+  RequestLogSortOrder,
 } from './dto/request-logs-stats.dto';
 
 export interface RequestLogRow {
@@ -67,6 +68,7 @@ export interface RequestLogStatsPayload {
   errorRate: number;
   excludeStream?: boolean;
   pathSort?: RequestLogPathSort;
+  pathSortOrder?: RequestLogSortOrder;
   byPath: RequestLogPathStat[];
   byRouteGroup?: RequestLogRouteGroupStat[];
   byCallerKind: RequestLogCallerKindStat[];
@@ -144,6 +146,7 @@ export class RequestLogsService {
     const window = query.window ?? '24h';
     const excludeStream = query.excludeStream ?? true;
     const pathSort = query.pathSort ?? 'p95';
+    const pathSortOrder = query.pathSortOrder ?? 'desc';
     const pathLimit = query.pathLimit ?? 50;
     const since = windowToSinceIso(window);
     const client = this.supabaseAdmin.getClient();
@@ -152,6 +155,7 @@ export class RequestLogsService {
       path_limit: pathLimit,
       exclude_stream: excludeStream,
       path_sort: pathSort,
+      path_sort_order: pathSortOrder,
     });
 
     if (error) {
@@ -185,6 +189,8 @@ export class RequestLogsService {
         errorRate: Number(payload.errorRate ?? 0),
         excludeStream: Boolean(payload.excludeStream ?? excludeStream),
         pathSort: (payload.pathSort as RequestLogPathSort | undefined) ?? pathSort,
+        pathSortOrder:
+          (payload.pathSortOrder as RequestLogSortOrder | undefined) ?? pathSortOrder,
         byPath: (payload.byPath ?? []) as RequestLogPathStat[],
         byRouteGroup: (payload.byRouteGroup ?? []) as RequestLogRouteGroupStat[],
         byCallerKind: (payload.byCallerKind ?? []) as RequestLogCallerKindStat[],

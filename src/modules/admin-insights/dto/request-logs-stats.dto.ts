@@ -13,6 +13,9 @@ export const REQUEST_LOG_PATH_SORTS = [
 ] as const;
 export type RequestLogPathSort = (typeof REQUEST_LOG_PATH_SORTS)[number];
 
+export const REQUEST_LOG_SORT_ORDERS = ['asc', 'desc'] as const;
+export type RequestLogSortOrder = (typeof REQUEST_LOG_SORT_ORDERS)[number];
+
 export class RequestLogStatsDto {
   @IsOptional()
   @IsIn(REQUEST_LOG_STATS_WINDOWS)
@@ -26,6 +29,10 @@ export class RequestLogStatsDto {
   @IsOptional()
   @IsIn(REQUEST_LOG_PATH_SORTS)
   pathSort?: RequestLogPathSort = 'p95';
+
+  @IsOptional()
+  @IsIn(REQUEST_LOG_SORT_ORDERS)
+  pathSortOrder?: RequestLogSortOrder = 'desc';
 
   @IsOptional()
   @Type(() => Number)

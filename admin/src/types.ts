@@ -333,6 +333,8 @@ export type RequestLogPathSort =
   | 'max_duration'
   | 'errors';
 
+export type RequestLogSortOrder = 'asc' | 'desc';
+
 export type RequestLogRouteGroupStat = {
   route_group: string;
   count: number;
@@ -363,6 +365,7 @@ export type RequestLogStats = {
   errorRate: number;
   excludeStream?: boolean;
   pathSort?: RequestLogPathSort;
+  pathSortOrder?: RequestLogSortOrder;
   byPath: RequestLogPathStat[];
   byRouteGroup?: RequestLogRouteGroupStat[];
   byCallerKind: RequestLogCallerKindStat[];

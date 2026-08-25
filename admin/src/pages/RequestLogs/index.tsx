@@ -1,7 +1,8 @@
 import type { ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
 import { Alert, Button, Col, Drawer, Input, Row, Segmented, Select, Space, Spin, Statistic, Switch, Tag } from 'antd';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SortOrder } from 'antd/es/table/interface';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchRequestLogStats, fetchRequestLogs } from '@/services/api';
 import type {
   RequestLogCallSourceStat,
@@ -10,6 +11,7 @@ import type {
   RequestLogPathStat,
   RequestLogRouteGroupStat,
   RequestLogRow,
+  RequestLogSortOrder,
   RequestLogStats,
   RequestLogsResponse,
 } from '@/types';
@@ -18,19 +20,83 @@ import { formatDateTime, formatPercent, httpStatusTagColor, idPrefix } from '@/u
 const MAX_ROWS = 500;
 const POLL_INTERVAL_MS = 5000;
 const MIGRATION_PATH = 'supabase/migrations/20260825090000_api_request_logs.sql';
-const STATS_FN_PATH = 'supabase/migrations/20260825150000_api_request_logs_stats_path_sort.sql';
+const STATS_FN_PATH = 'supabase/migrations/20260825153000_api_request_logs_stats_sort_order.sql';
 const ROUTE_META_PATH = 'supabase/migrations/20260825143100_api_request_logs_route_meta.sql';
 
-const PATH_SORT_OPTIONS: { label: string; value: RequestLogPathSort }[] = [
-  { label: 'P95 耗时', value: 'p95' },
-  { label: '平均耗时', value: 'avg_duration' },
-  { label: '最大耗时', value: 'max_duration' },
-  { label: '请求数', value: 'count' },
-  { label: '5xx 错误', value: 'errors' },
-];
+const PATH_COLUMN_TO_SORT: Record<string, RequestLogPathSort> = {
+  count: 'count',
+  avg_duration_ms: 'avg_duration',
+  p95_ms: 'p95',
+  max_duration_ms: 'max_duration',
+  errors: 'errors',
+};
 
-function pathSortLabel(sort: RequestLogPathSort | undefined): string {
-  return PATH_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'P95 耗时';
+function buildPathStatColumns(
+  pathSort: RequestLogPathSort,
+  pathSortOrder: RequestLogSortOrder,
+): ProColumns<RequestLogPathStat>[] {
+  const activeOrder = (field: RequestLogPathSort): SortOrder | undefined => {
+    if (pathSort !== field) {
+      return undefined;
+    }
+    return pathSortOrder === 'asc' ? 'ascend' : 'descend';
+  };
+
+  return [
+    { title: 'Method', dataIndex: 'method', width: 80 },
+    { title: '路径', dataIndex: 'path', ellipsis: true },
+    {
+      title: '请求数',
+      dataIndex: 'count',
+      width: 90,
+      align: 'right',
+      sorter: { compare: () => 0 },
+      sortOrder: activeOrder('count'),
+    },
+    {
+      title: 'Avg',
+      dataIndex: 'avg_duration_ms',
+      width: 90,
+      align: 'right',
+      sorter: { compare: () => 0 },
+      sortOrder: activeOrder('avg_duration'),
+      render: (_, record) => `${record.avg_duration_ms} ms`,
+    },
+    {
+      title: 'P95',
+      dataIndex: 'p95_ms',
+      width: 90,
+      align: 'right',
+      sorter: { compare: () => 0 },
+      sortOrder: activeOrder('p95'),
+      render: (_, record) =>
+        record.p95_ms != null ? (
+          <Tag color={record.p95_ms >= 1000 ? 'red' : record.p95_ms >= 500 ? 'orange' : 'green'}>
+            {record.p95_ms} ms
+          </Tag>
+        ) : (
+          '—'
+        ),
+    },
+    {
+      title: 'Max',
+      dataIndex: 'max_duration_ms',
+      width: 90,
+      align: 'right',
+      sorter: { compare: () => 0 },
+      sortOrder: activeOrder('max_duration'),
+      render: (_, record) =>
+        record.max_duration_ms != null ? `${record.max_duration_ms} ms` : '—',
+    },
+    {
+      title: '5xx',
+      dataIndex: 'errors',
+      width: 70,
+      align: 'right',
+      sorter: { compare: () => 0 },
+      sortOrder: activeOrder('errors'),
+    },
+  ];
 }
 
 type StatusClass = 'all' | '2xx' | '4xx' | '5xx';
@@ -149,42 +215,6 @@ const logColumns: ProColumns<RequestLogRow>[] = [
   },
 ];
 
-const pathStatColumns: ProColumns<RequestLogPathStat>[] = [
-  { title: 'Method', dataIndex: 'method', width: 80 },
-  { title: '路径', dataIndex: 'path', ellipsis: true },
-  { title: '请求数', dataIndex: 'count', width: 90, align: 'right' },
-  {
-    title: 'Avg',
-    dataIndex: 'avg_duration_ms',
-    width: 90,
-    align: 'right',
-    render: (_, record) => `${record.avg_duration_ms} ms`,
-  },
-  {
-    title: 'P95',
-    dataIndex: 'p95_ms',
-    width: 90,
-    align: 'right',
-    render: (_, record) =>
-      record.p95_ms != null ? (
-        <Tag color={record.p95_ms >= 1000 ? 'red' : record.p95_ms >= 500 ? 'orange' : 'green'}>
-          {record.p95_ms} ms
-        </Tag>
-      ) : (
-        '—'
-      ),
-  },
-  {
-    title: 'Max',
-    dataIndex: 'max_duration_ms',
-    width: 90,
-    align: 'right',
-    render: (_, record) =>
-      record.max_duration_ms != null ? `${record.max_duration_ms} ms` : '—',
-  },
-  { title: '5xx', dataIndex: 'errors', width: 70, align: 'right' },
-];
-
 const routeGroupColumns: ProColumns<RequestLogRouteGroupStat>[] = [
   { title: '分组', dataIndex: 'route_group', width: 90 },
   { title: '请求数', dataIndex: 'count', width: 90, align: 'right' },
@@ -245,6 +275,7 @@ function RequestLogApmSummary({
   window,
   excludeStream,
   pathSort,
+  pathSortOrder,
   onWindowChange,
   onExcludeStreamChange,
   onPathSortChange,
@@ -253,12 +284,17 @@ function RequestLogApmSummary({
   window: StatsWindow;
   excludeStream: boolean;
   pathSort: RequestLogPathSort;
+  pathSortOrder: RequestLogSortOrder;
   onWindowChange: (value: StatsWindow) => void;
   onExcludeStreamChange: (value: boolean) => void;
-  onPathSortChange: (value: RequestLogPathSort) => void;
+  onPathSortChange: (sort: RequestLogPathSort, order: RequestLogSortOrder) => void;
 }) {
   const authGroup = stats.byRouteGroup?.find((row) => row.route_group === 'auth');
   const chatGroup = stats.byRouteGroup?.find((row) => row.route_group === 'chat');
+  const pathStatColumns = useMemo(
+    () => buildPathStatColumns(pathSort, pathSortOrder),
+    [pathSort, pathSortOrder],
+  );
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', marginBottom: 16 }}>
@@ -348,18 +384,7 @@ function RequestLogApmSummary({
         />
       </ProCard>
 
-      <ProCard
-        title={`接口排行（按 ${pathSortLabel(pathSort)}）`}
-        bordered
-        extra={
-          <Segmented
-            size="small"
-            value={pathSort}
-            onChange={(value) => onPathSortChange(value as RequestLogPathSort)}
-            options={PATH_SORT_OPTIONS}
-          />
-        }
-      >
+      <ProCard title="接口排行" bordered>
         <ProTable<RequestLogPathStat>
           rowKey={(row) => `${row.method}:${row.path}`}
           columns={pathStatColumns}
@@ -368,6 +393,17 @@ function RequestLogApmSummary({
           pagination={false}
           toolBarRender={false}
           size="small"
+          onChange={(_pagination, _filters, sorter) => {
+            const active = Array.isArray(sorter) ? sorter[0] : sorter;
+            if (!active?.field || !active.order) {
+              return;
+            }
+            const mapped = PATH_COLUMN_TO_SORT[String(active.field)];
+            if (!mapped) {
+              return;
+            }
+            onPathSortChange(mapped, active.order === 'ascend' ? 'asc' : 'desc');
+          }}
         />
       </ProCard>
 
@@ -410,6 +446,7 @@ export default function RequestLogsPage() {
   const [statsWindow, setStatsWindow] = useState<StatsWindow>('24h');
   const [excludeStream, setExcludeStream] = useState(true);
   const [pathSort, setPathSort] = useState<RequestLogPathSort>('p95');
+  const [pathSortOrder, setPathSortOrder] = useState<RequestLogSortOrder>('desc');
   const [pathFilter, setPathFilter] = useState('');
   const [statusClass, setStatusClass] = useState<StatusClass>('all');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -434,10 +471,16 @@ export default function RequestLogsPage() {
   }, []);
 
   const loadStats = useCallback(
-    async (window: StatsWindow, streamExcluded: boolean, sort: RequestLogPathSort) => {
+    async (
+      window: StatsWindow,
+      streamExcluded: boolean,
+      sort: RequestLogPathSort,
+      sortOrder: RequestLogSortOrder,
+    ) => {
       const response = await fetchRequestLogStats(window, {
         excludeStream: streamExcluded,
         pathSort: sort,
+        pathSortOrder: sortOrder,
       });
       if (!response.enabled) {
         if (response.reason === 'stats_fn_missing') {
@@ -474,11 +517,19 @@ export default function RequestLogsPage() {
   const reloadAll = useCallback(
     async (incrementalLogs: boolean) => {
       await Promise.all([
-        loadStats(statsWindow, excludeStream, pathSort),
+        loadStats(statsWindow, excludeStream, pathSort, pathSortOrder),
         loadLogs(incrementalLogs),
       ]);
     },
-    [loadLogs, loadStats, statsWindow, excludeStream, pathSort],
+    [loadLogs, loadStats, statsWindow, excludeStream, pathSort, pathSortOrder],
+  );
+
+  const handlePathSortChange = useCallback(
+    (sort: RequestLogPathSort, order: RequestLogSortOrder) => {
+      setPathSort(sort);
+      setPathSortOrder(order);
+    },
+    [],
   );
 
   const retryLoad = useCallback(() => {
@@ -493,10 +544,10 @@ export default function RequestLogsPage() {
   }, [retryLoad]);
 
   useEffect(() => {
-    loadStats(statsWindow, excludeStream, pathSort).catch((err: Error) => {
+    loadStats(statsWindow, excludeStream, pathSort, pathSortOrder).catch((err: Error) => {
       setPageState({ kind: 'error', message: err.message });
     });
-  }, [loadStats, statsWindow, excludeStream, pathSort]);
+  }, [loadStats, statsWindow, excludeStream, pathSort, pathSortOrder]);
 
   useEffect(() => {
     if (!autoRefresh || paused || pageState.kind !== 'ready') {
@@ -590,9 +641,10 @@ export default function RequestLogsPage() {
           window={statsWindow}
           excludeStream={excludeStream}
           pathSort={pathSort}
+          pathSortOrder={pathSortOrder}
           onWindowChange={setStatsWindow}
           onExcludeStreamChange={setExcludeStream}
-          onPathSortChange={setPathSort}
+          onPathSortChange={handlePathSortChange}
         />
       ) : (
         <Alert
