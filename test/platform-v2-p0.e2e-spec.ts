@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/runtime/configure-app';
+import { AI_CALLER_HEADERS } from './helpers/ai-caller-headers';
 
 describe('Platform v2 P0 auth + site.config', () => {
   let app: INestApplication;
@@ -71,6 +72,7 @@ describe('Platform v2 P0 auth + site.config', () => {
   it('allows chat anonymously but blocks editor-check for anon', async () => {
     await request(app.getHttpServer())
       .post('/api/ai/v1/chat')
+      .set(AI_CALLER_HEADERS)
       .send({ prompt: 'anon chat ok' })
       .expect(201);
 

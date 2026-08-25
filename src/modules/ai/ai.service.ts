@@ -20,6 +20,12 @@ import {
   SUMMARY_SYSTEM_PROMPT,
 } from './summary.utils';
 
+function requestIdOf(req?: Request): string | undefined {
+  if (!req || !('requestId' in req)) return undefined;
+  const value = req.requestId;
+  return typeof value === 'string' ? value : undefined;
+}
+
 @Injectable()
 export class AiService {
   constructor(
@@ -55,6 +61,7 @@ export class AiService {
       model: result.model,
       message: result.message,
       sources: sources?.length ? sources : result.sources,
+      requestId: requestIdOf(req),
     };
 
     await this.chatLogWriter.logFromRequest(req, {
@@ -69,9 +76,15 @@ export class AiService {
     return response;
   }
 
-  async createSummary(dto: SummaryDto): Promise<LiveSummaryResult> {
+  async createSummary(
+    dto: SummaryDto,
+    req?: Request,
+  ): Promise<LiveSummaryResult & { requestId?: string }> {
     if (this.appConfig.ai.provider === 'mock') {
-      return createMockSummary(dto.content, dto.title);
+      return {
+        ...createMockSummary(dto.content, dto.title),
+        requestId: requestIdOf(req),
+      };
     }
 
     const result = await this.aiClient.chat({
@@ -90,6 +103,7 @@ export class AiService {
         ...parsed,
         source: 'live',
         generatedAt: new Date().toISOString(),
+        requestId: requestIdOf(req),
       };
     } catch (error) {
       const message =

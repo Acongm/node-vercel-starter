@@ -1,6 +1,12 @@
 import { NextFunction, Response } from 'express';
 import { resolveClientId } from './anon-fingerprint';
 import { appLogger } from './app-logger';
+import {
+  displayCallerId,
+  parseServiceCallers,
+  readOptionalHeader,
+  resolveCaller,
+} from './caller-identity';
 import { recordRequestLog } from './request-log-sink';
 import { RequestWithId } from './request-id.middleware';
 
@@ -57,13 +63,27 @@ export function httpRequestLogMiddleware(
     const locals = (res.locals ?? {}) as { errorMessage?: string };
     const origin = readHeader(req, 'origin');
     const userAgent = readHeader(req, 'user-agent');
+    const callSource = readOptionalHeader(req, 'x-call-source') ?? 'unknown';
+    const caller = resolveCaller({
+      serviceId: readOptionalHeader(req, 'x-service-id'),
+      serviceKey: readOptionalHeader(req, 'x-service-key'),
+      clientId: readOptionalHeader(req, 'x-client-id'),
+      callSource,
+      serviceCallers: parseServiceCallers(process.env.SERVICE_CALLERS),
+    });
+    const clientId =
+      caller.kind === 'unknown'
+        ? resolveClientId(readHeader(req, 'x-client-id'), userAgent, origin)
+        : displayCallerId(caller);
     recordRequestLog({
       requestId: req.requestId,
       method: req.method,
       path: req.path,
       statusCode: res.statusCode,
       durationMs,
-      clientId: resolveClientId(readHeader(req, 'x-client-id'), userAgent, origin),
+      clientId,
+      callSource: caller.callSource,
+      callerKind: caller.kind,
       origin,
       userAgent,
       errorMessage: locals.errorMessage,

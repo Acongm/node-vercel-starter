@@ -1,7 +1,8 @@
-import { Body, Controller, Post, Req, Res } from '@nestjs/common';
-import { Request, Response } from 'express';
+import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { ChatLogWriterService } from '../../chat-logs/chat-log-writer.service';
 import { AiV1Service } from './ai-v1.service';
+import { AiCallerGuard, RequestWithCaller } from '../ai-caller.guard';
 import { ChatV1Dto } from './chat-v1.dto';
 
 function writeEvent(response: Response, event: Record<string, unknown>) {
@@ -10,6 +11,7 @@ function writeEvent(response: Response, event: Record<string, unknown>) {
 }
 
 @Controller('api/ai/v1')
+@UseGuards(AiCallerGuard)
 export class AiV1Controller {
   constructor(
     private readonly aiV1Service: AiV1Service,
@@ -17,14 +19,14 @@ export class AiV1Controller {
   ) {}
 
   @Post('chat')
-  chat(@Body() dto: ChatV1Dto, @Req() req: Request) {
+  chat(@Body() dto: ChatV1Dto, @Req() req: RequestWithCaller) {
     return this.aiV1Service.chat(dto, req);
   }
 
   @Post('chat/stream')
   async stream(
     @Body() dto: ChatV1Dto,
-    @Req() req: Request,
+    @Req() req: RequestWithCaller,
     @Res() response: Response,
   ) {
     const principal = await this.aiV1Service.enforceRateLimit(req);
@@ -53,6 +55,7 @@ export class AiV1Controller {
       for await (const event of this.aiV1Service.stream(dto, {
         signal: abortController.signal,
         principal,
+        requestId: req.requestId,
       })) {
         if (event.type === 'meta') {
           provider = event.provider;

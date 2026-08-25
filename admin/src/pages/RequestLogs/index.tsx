@@ -76,6 +76,19 @@ const columns: ProColumns<RequestLogRow>[] = [
     render: (_, record) => idPrefix(record.client_id),
   },
   {
+    title: '来源',
+    dataIndex: 'call_source',
+    width: 160,
+    ellipsis: true,
+  },
+  {
+    title: '调用方',
+    dataIndex: 'caller_kind',
+    width: 80,
+    render: (_, record) =>
+      record.caller_kind ? <Tag>{record.caller_kind}</Tag> : '—',
+  },
+  {
     title: '错误',
     dataIndex: 'error_message',
     width: 200,

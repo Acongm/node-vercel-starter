@@ -37,6 +37,7 @@ describe('Chat enhancements (thinking / threads / rate limit)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/ai/v1/chat/stream')
       .set('x-client-id', 'client-think')
+      .set('x-call-source', 'portal:e2e')
       .send({
         prompt: '解释 Fiber',
         enableThinking: true,
@@ -68,12 +69,14 @@ describe('Chat enhancements (thinking / threads / rate limit)', () => {
     await request(app.getHttpServer())
       .post('/api/ai/v1/chat')
       .set('x-client-id', 'client-limit')
+      .set('x-call-source', 'portal:e2e')
       .send({ prompt: 'one' })
       .expect(201);
 
     const limited = await request(app.getHttpServer())
       .post('/api/ai/v1/chat')
       .set('x-client-id', 'client-limit')
+      .set('x-call-source', 'portal:e2e')
       .send({ prompt: 'two' })
       .expect(429);
 
@@ -150,6 +153,7 @@ describe('Chat enhancements (thinking / threads / rate limit)', () => {
     const response = await request(app.getHttpServer())
       .post('/api/ai/v1/chat/stream')
       .set('x-client-id', 'client-empty-content')
+      .set('x-call-source', 'portal:e2e')
       .send({
         messages: [{ role: 'user', content: '你好' }],
         context: {

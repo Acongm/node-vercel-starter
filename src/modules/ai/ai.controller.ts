@@ -1,11 +1,13 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { OpenAiChatCompletionRequest } from '../../adapters/ai/ai-client.interface';
+import { AiCallerGuard } from './ai-caller.guard';
 import { AiService } from './ai.service';
 import { ChatDto } from './dto/chat.dto';
 import { SummaryDto } from './dto/summary.dto';
 
 @Controller('api/ai')
+@UseGuards(AiCallerGuard)
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
@@ -15,12 +17,13 @@ export class AiController {
   }
 
   @Post('summary')
-  createSummary(@Body() dto: SummaryDto) {
-    return this.aiService.createSummary(dto);
+  createSummary(@Body() dto: SummaryDto, @Req() req: Request) {
+    return this.aiService.createSummary(dto, req);
   }
 }
 
 @Controller()
+@UseGuards(AiCallerGuard)
 export class OpenAiCompatibleController {
   constructor(private readonly aiService: AiService) {}
 

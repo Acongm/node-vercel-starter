@@ -167,9 +167,18 @@ AI_MODEL=deepseek-v4-flash
 The app exposes both a simple project endpoint and OpenAI-compatible chat
 completion routes:
 
-- `POST /api/ai/chat`: returns `{ provider, model, message }`
+- `POST /api/ai/chat`: returns `{ provider, model, message, requestId }`
 - `POST /v1/chat/completions`: OpenAI-style request/response
 - `POST /api/openai/v1/chat/completions`: same OpenAI-style route under the API prefix
+
+Spend endpoints (`/api/ai/*`, `/v1/chat/completions`) require a resolved caller:
+
+- logged-in user (`Authorization`)
+- guest (`x-client-id` + allowed `x-call-source`)
+- service (`x-service-id` + `x-service-key` from `SERVICE_CALLERS`)
+
+Default allowed sources: `portal:`, `chat-site`. Every response includes
+`x-request-id` (generated when the client omits it).
 
 ## Endpoints
 

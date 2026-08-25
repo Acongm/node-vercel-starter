@@ -25,6 +25,7 @@ const required = [
   '20260808050000_comments_constraints_repair.sql',
   '20260814010000_user_settings.sql',
   '20260825090000_api_request_logs.sql',
+  '20260825120000_api_request_logs_caller.sql',
 ] as const;
 
 const stale = [

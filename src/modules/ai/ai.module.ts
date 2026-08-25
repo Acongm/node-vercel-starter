@@ -5,6 +5,7 @@ import { MockAiClient } from '../../adapters/ai/mock-ai.client';
 import { OpenAiCompatibleClient } from '../../adapters/ai/openai-compatible.client';
 import { AuthModule } from '../auth/auth.module';
 import { ChatLogsModule } from '../chat-logs/chat-logs.module';
+import { AiCallerGuard } from './ai-caller.guard';
 import { AiController, OpenAiCompatibleController } from './ai.controller';
 import { AiService } from './ai.service';
 import { ChatRateLimitService } from './chat-rate-limit.service';
@@ -17,6 +18,7 @@ import { AiV1Service } from './v1/ai-v1.service';
   providers: [
     AiService,
     AiV1Service,
+    AiCallerGuard,
     ChatRateLimitService,
     {
       provide: AI_CLIENT,

@@ -29,7 +29,10 @@ export function configureApp(app: INestApplication) {
       'x-call-source',
       'x-conversation-id',
       'x-api-secret',
+      'x-service-id',
+      'x-service-key',
     ],
+    exposedHeaders: ['x-request-id'],
   });
 
   app.use(requestIdMiddleware);

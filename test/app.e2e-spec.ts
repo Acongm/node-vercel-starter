@@ -3,6 +3,10 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/runtime/configure-app';
+import {
+  AI_CALLER_HEADERS,
+  PORTAL_CI_CALLER_HEADERS,
+} from './helpers/ai-caller-headers';
 
 const TEST_ENV_KEYS = [
   'APP_NAME',
@@ -28,6 +32,8 @@ const TEST_ENV_KEYS = [
   'AUTH_ADMIN_PASSWORD',
   'AUTH_JWT_SECRET',
   'AUTH_SESSION_TTL',
+  'SERVICE_CALLERS',
+  'ALLOWED_CALL_SOURCES',
 ];
 
 async function loginAdmin(
@@ -69,6 +75,8 @@ async function createTestApp(env: NodeJS.ProcessEnv = {}): Promise<INestApplicat
   process.env.AUTH_ADMIN_PASSWORD = env.AUTH_ADMIN_PASSWORD || '';
   process.env.AUTH_JWT_SECRET = env.AUTH_JWT_SECRET || '';
   process.env.AUTH_SESSION_TTL = env.AUTH_SESSION_TTL || '';
+  process.env.SERVICE_CALLERS = env.SERVICE_CALLERS || '';
+  process.env.ALLOWED_CALL_SOURCES = env.ALLOWED_CALL_SOURCES || '';
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -199,11 +207,85 @@ describe('Node Vercel Starter', () => {
       .expect(404);
   });
 
+  it('rejects unidentified AI calls so crawlers cannot spend tokens', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/chat')
+      .send({ prompt: 'hello' })
+      .expect(401);
+
+    expect(response.body).toMatchObject({
+      code: 'CALLER_REQUIRED',
+    });
+    expect(response.headers['x-request-id']).toEqual(expect.any(String));
+  });
+
+  it('rejects identified callers whose source is not on the whitelist', async () => {
+    app = await createTestApp();
+
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/chat')
+      .set('x-client-id', 'GA1.1.e2etest00000000.1')
+      .set('x-call-source', 'curl/8.0')
+      .send({ prompt: 'hello' })
+      .expect(403);
+
+    expect(response.body).toMatchObject({
+      code: 'CALL_SOURCE_DENIED',
+    });
+    expect(response.headers['x-request-id']).toEqual(expect.any(String));
+  });
+
+  it('accepts portal CI service callers on /api/ai/summary and echoes request id', async () => {
+    app = await createTestApp({
+      SERVICE_CALLERS: 'portal-ci:test-portal-ci-key',
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/ai/summary')
+      .set(PORTAL_CI_CALLER_HEADERS)
+      .send({
+        path: '/react/react16.md',
+        title: 'React 16',
+        content: 'React 16 introduced Fiber architecture and improved scheduling.',
+      })
+      .expect(201);
+
+    expect(response.headers['x-request-id']).toBe('req-portal-ci-test');
+    expect(response.body).toMatchObject({
+      source: 'live',
+      requestId: 'req-portal-ci-test',
+      summary: expect.stringContaining('Mock 摘要'),
+    });
+  });
+
+  it('does not treat a service id as trusted without the matching key', async () => {
+    app = await createTestApp({
+      SERVICE_CALLERS: 'portal-ci:test-portal-ci-key',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/ai/summary')
+      .set({
+        'x-service-id': 'portal-ci',
+        'x-service-key': 'wrong-key',
+        'x-call-source': 'portal:ci:summaries',
+      })
+      .send({
+        path: '/react/react16.md',
+        title: 'React 16',
+        content: 'React 16 introduced Fiber architecture.',
+      })
+      .expect(401);
+  });
+
   it('uses the mock AI provider by default', async () => {
     app = await createTestApp();
 
     const response = await request(app.getHttpServer())
       .post('/api/ai/chat')
+      .set(AI_CALLER_HEADERS)
       .send({ prompt: 'hello' })
       .expect(201);
 
@@ -211,7 +293,9 @@ describe('Node Vercel Starter', () => {
       provider: 'mock',
       model: 'mock-local',
       message: 'Mock response: hello',
+      requestId: expect.any(String),
     });
+    expect(response.headers['x-request-id']).toBe(response.body.requestId);
   });
 
   it('accepts vuepress chat payload with context and enableWebSearch', async () => {
@@ -219,6 +303,7 @@ describe('Node Vercel Starter', () => {
 
     const response = await request(app.getHttpServer())
       .post('/api/ai/chat')
+      .set(AI_CALLER_HEADERS)
       .send({
         messages: [
           { role: 'system', content: '你是文档助手' },
@@ -247,6 +332,7 @@ describe('Node Vercel Starter', () => {
 
     const response = await request(app.getHttpServer())
       .post('/api/ai/v1/chat')
+      .set(AI_CALLER_HEADERS)
       .send({
         prompt: '概括本文',
         context: {
@@ -269,6 +355,7 @@ describe('Node Vercel Starter', () => {
 
     const response = await request(app.getHttpServer())
       .post('/api/ai/v1/chat/stream')
+      .set(AI_CALLER_HEADERS)
       .send({ prompt: '解释 Fiber' })
       .expect(201)
       .expect('content-type', /text\/event-stream/);
@@ -291,7 +378,7 @@ describe('Node Vercel Starter', () => {
     await request(app.getHttpServer())
       .post('/api/ai/chat')
       .set('x-client-id', 'client-e2e-1')
-      .set('x-call-source', 'vuepress:article-sidebar')
+      .set('x-call-source', 'portal:e2e')
       .set('x-conversation-id', 'conv-e2e-1')
       .send({
         prompt: 'hello log',
@@ -351,6 +438,7 @@ describe('Node Vercel Starter', () => {
     await request(app.getHttpServer())
       .post('/api/ai/chat')
       .set('x-client-id', 'client-label-e2e')
+      .set('x-call-source', 'portal:e2e')
       .send({ prompt: 'label test' })
       .expect(201);
 
@@ -430,7 +518,7 @@ describe('Node Vercel Starter', () => {
     await request(app.getHttpServer())
       .post('/api/ai/v1/chat/stream')
       .set('x-client-id', 'client-stream-1')
-      .set('x-call-source', 'vuepress:reading-assistant')
+      .set('x-call-source', 'portal:e2e')
       .send({ prompt: 'stream log test' })
       .expect(201)
       .expect('content-type', /text\/event-stream/);
@@ -463,7 +551,7 @@ describe('Node Vercel Starter', () => {
     const response = await request(app.getHttpServer())
       .post('/v1/chat/completions')
       .set('x-client-id', 'client-openai-e2e')
-      .set('x-call-source', 'pipeline-ai')
+      .set('x-call-source', 'portal:e2e')
       .send({
         model: 'deepseek-v4-pro',
         messages: [{ role: 'user', content: 'hello' }],
@@ -496,7 +584,7 @@ describe('Node Vercel Starter', () => {
     expect(listResponse.body.items).toEqual([
       expect.objectContaining({
         clientId: 'client-openai-e2e',
-        callSource: 'pipeline-ai',
+        callSource: 'portal:e2e',
         endpoint: '/v1/chat/completions',
         userMessage: 'hello',
         assistantMessage: 'Mock response: hello',
@@ -511,6 +599,7 @@ describe('Node Vercel Starter', () => {
 
     const response = await request(app.getHttpServer())
       .post('/api/openai/v1/chat/completions')
+      .set(AI_CALLER_HEADERS)
       .send({
         messages: [{ role: 'user', content: 'hello from api prefix' }],
       })
@@ -535,6 +624,7 @@ describe('Node Vercel Starter', () => {
 
     const response = await request(app.getHttpServer())
       .post('/api/ai/summary')
+      .set(AI_CALLER_HEADERS)
       .send({
         path: '/react/react16.md',
         title: 'React 16',
@@ -559,6 +649,7 @@ describe('Node Vercel Starter', () => {
 
     await request(app.getHttpServer())
       .post('/api/ai/summary')
+      .set(AI_CALLER_HEADERS)
       .send({ path: '/react/react16.md' })
       .expect(400);
   });

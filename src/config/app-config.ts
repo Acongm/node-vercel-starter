@@ -1,3 +1,8 @@
+import {
+  parseAllowedCallSources,
+  parseServiceCallers,
+  type ServiceCaller,
+} from '../common/caller-identity';
 import { parseAdminEmails } from '../modules/auth/admin-emails';
 import { knownPublicKeyForSupabaseUrl } from './acongm-supabase-public';
 
@@ -60,6 +65,8 @@ export interface AppConfig {
   };
   corsOrigins: string[];
   proxyAllowlist: Record<string, string>;
+  serviceCallers: ServiceCaller[];
+  allowedCallSources: string[];
   requestLogSink: RequestLogSink;
   portalSummariesUrl: string;
   supabase: {
@@ -222,6 +229,8 @@ export function loadAppConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     corsOrigins: parseList(env.CORS_ORIGINS || 'https://acongm.com,https://*.acongm.com'),
     proxyAllowlist: parseAllowlist(env.PROXY_ALLOWLIST),
+    serviceCallers: parseServiceCallers(env.SERVICE_CALLERS),
+    allowedCallSources: parseAllowedCallSources(env.ALLOWED_CALL_SOURCES),
     requestLogSink: parseRequestLogSink(env, dataMode),
     portalSummariesUrl:
       env.PORTAL_SUMMARIES_URL || 'https://www.acongm.com/summaries-v1.json',

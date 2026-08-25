@@ -12,6 +12,8 @@ export interface RequestLogRow {
   duration_ms: number;
   user_id: string | null;
   client_id: string | null;
+  call_source: string | null;
+  caller_kind: string | null;
   origin: string | null;
   user_agent: string | null;
   error_message: string | null;

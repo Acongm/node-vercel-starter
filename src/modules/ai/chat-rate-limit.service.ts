@@ -18,19 +18,19 @@ export class ChatRateLimitService {
     tier: AuthTier;
     userId?: string | null;
     clientId?: string;
+    serviceId?: string;
     limit: number;
     now?: Date;
   }): RateLimitDecision {
     const now = input.now ?? new Date();
     const day = now.toISOString().slice(0, 10);
-    // Supabase anonymous users have a stable auth.uid() even though their
-    // application tier is still `anon`. Prefer that identity when available;
-    // x-client-id remains the fallback for legacy unauthenticated callers.
-    const identity = input.userId
-      ? input.tier === 'user'
-        ? `user:${input.userId}`
-        : `anon-user:${input.userId}`
-      : `anon:${input.clientId || 'anonymous'}`;
+    const identity = input.serviceId
+      ? `svc:${input.serviceId}`
+      : input.userId
+        ? input.tier === 'user'
+          ? `user:${input.userId}`
+          : `anon-user:${input.userId}`
+        : `anon:${input.clientId || 'anonymous'}`;
     const key = `${identity}:${day}`;
     const used = this.counters.get(key) ?? 0;
     const limit = Math.max(0, Math.floor(input.limit));

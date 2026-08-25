@@ -18,12 +18,19 @@ import { SiteConfig, getChatLimitPerDay } from '../../../config/site-config';
 import { JwtAuthService } from '../../auth/jwt-auth.service';
 import { AuthPrincipal } from '../../auth/roles';
 import { ChatLogWriterService } from '../../chat-logs/chat-log-writer.service';
+import { RequestWithCaller } from '../ai-caller.guard';
 import { ChatRateLimitService } from '../chat-rate-limit.service';
 import { ChatV1Dto } from './chat-v1.dto';
 import {
   prepareChatV1Messages,
   type ChatSettingsInjection,
 } from './chat-v1.policy';
+
+function requestIdOf(req?: Request): string | undefined {
+  if (!req || !('requestId' in req)) return undefined;
+  const value = req.requestId;
+  return typeof value === 'string' ? value : undefined;
+}
 
 export type AiV1StreamEvent =
   | {
@@ -32,6 +39,7 @@ export type AiV1StreamEvent =
       model: string;
       conversationId?: string;
       enableThinking?: boolean;
+      requestId?: string;
     }
   | { type: 'sources'; sources: ChatSource[] }
   | { type: 'thinking'; content: string }
@@ -84,6 +92,7 @@ export class AiV1Service {
       sources: sources.length ? sources : result.sources,
       conversationId:
         dto.conversationId || extractChatRequestMeta(req).conversationId,
+      requestId: requestIdOf(req),
     };
 
     if (!options.skipLog) {
@@ -111,6 +120,7 @@ export class AiV1Service {
       signal?: AbortSignal;
       principal?: AuthPrincipal;
       settings?: ChatSettingsInjection;
+      requestId?: string;
     } = {},
   ): AsyncGenerator<AiV1StreamEvent> {
     const { messages, sources } = await this.prepare(dto, options.settings);
@@ -123,6 +133,7 @@ export class AiV1Service {
           : options.settings?.defaultModel || this.appConfig.ai.model,
       conversationId: dto.conversationId,
       enableThinking: Boolean(dto.enableThinking),
+      requestId: options.requestId,
     };
     if (sources.length) yield { type: 'sources', sources };
     yield* this.aiClient.streamChat({
@@ -136,16 +147,19 @@ export class AiV1Service {
   }
 
   async enforceRateLimit(
-    req: Request,
+    req: RequestWithCaller,
     principal?: AuthPrincipal,
   ): Promise<AuthPrincipal> {
     const verified = principal ?? (await this.jwtAuth.resolvePrincipal(req));
     const meta = extractChatRequestMeta(req);
     const limit = getChatLimitPerDay(this.siteConfig, verified.tier);
+    const serviceCaller = req.resolvedCaller;
     const decision = this.rateLimit.consume({
       tier: verified.tier,
       userId: verified.userId,
       clientId: meta.clientId,
+      serviceId:
+        serviceCaller?.kind === 'service' ? serviceCaller.callerId : undefined,
       limit,
     });
 

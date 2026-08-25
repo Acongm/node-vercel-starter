@@ -9,6 +9,8 @@ export interface RequestLogEntry {
   durationMs: number;
   userId?: string;
   clientId?: string;
+  callSource?: string;
+  callerKind?: string;
   origin?: string;
   userAgent?: string;
   errorMessage?: string;
@@ -17,12 +19,40 @@ export interface RequestLogEntry {
 let sinkEnabled = false;
 let sinkClient: SupabaseClient | null = null;
 let tableKnownMissing = false;
+let callerColumnsKnownMissing = false;
 
 function isMissingTableError(error: { code?: string; message?: string }): boolean {
   return (
     error.code === '42P01' ||
     Boolean(error.message?.includes('api_request_logs'))
   );
+}
+
+function isMissingColumnError(error: { code?: string; message?: string }): boolean {
+  return error.code === '42703';
+}
+
+function buildInsertRow(
+  entry: RequestLogEntry,
+  includeCallerFields: boolean,
+): Record<string, string | number | null> {
+  const row: Record<string, string | number | null> = {
+    request_id: entry.requestId ?? null,
+    method: entry.method,
+    path: entry.path,
+    status_code: entry.statusCode,
+    duration_ms: entry.durationMs,
+    user_id: entry.userId ?? null,
+    client_id: entry.clientId ?? null,
+    origin: entry.origin ?? null,
+    user_agent: entry.userAgent ?? null,
+    error_message: entry.errorMessage ?? null,
+  };
+  if (includeCallerFields) {
+    row.call_source = entry.callSource ?? null;
+    row.caller_kind = entry.callerKind ?? null;
+  }
+  return row;
 }
 
 export function initRequestLogSink(config: AppConfig): void {
@@ -33,6 +63,7 @@ export function initRequestLogSink(config: AppConfig): void {
     config.requestLogSink === 'supabase' && Boolean(url && apiKeyForSink);
 
   tableKnownMissing = false;
+  callerColumnsKnownMissing = false;
 
   if (!sinkEnabled) {
     sinkClient = null;
@@ -63,29 +94,31 @@ export function recordRequestLog(entry: RequestLogEntry): void {
     return;
   }
 
-  const insertPromise = sinkClient.from('api_request_logs').insert({
-    request_id: entry.requestId ?? null,
-    method: entry.method,
-    path: entry.path,
-    status_code: entry.statusCode,
-    duration_ms: entry.durationMs,
-    user_id: entry.userId ?? null,
-    client_id: entry.clientId ?? null,
-    origin: entry.origin ?? null,
-    user_agent: entry.userAgent ?? null,
-    error_message: entry.errorMessage ?? null,
-  });
+  const client = sinkClient;
 
   const runInsert = async () => {
-    const { error } = await insertPromise;
-    if (error) {
-      if (isMissingTableError(error)) {
-        tableKnownMissing = true;
-        console.warn('[request-log-sink] api_request_logs table missing; skipping inserts');
-        return;
-      }
-      console.error('[request-log-sink] insert failed:', error.message);
+    const first = await client
+      .from('api_request_logs')
+      .insert(buildInsertRow(entry, !callerColumnsKnownMissing));
+    if (!first.error) {
+      return;
     }
+    if (isMissingTableError(first.error)) {
+      tableKnownMissing = true;
+      console.warn('[request-log-sink] api_request_logs table missing; skipping inserts');
+      return;
+    }
+    if (isMissingColumnError(first.error) && !callerColumnsKnownMissing) {
+      callerColumnsKnownMissing = true;
+      const retry = await client
+        .from('api_request_logs')
+        .insert(buildInsertRow(entry, false));
+      if (retry.error) {
+        console.error('[request-log-sink] insert failed:', retry.error.message);
+      }
+      return;
+    }
+    console.error('[request-log-sink] insert failed:', first.error.message);
   };
 
   if (process.env.VERCEL) {
@@ -108,9 +141,15 @@ export function resetRequestLogSinkStateForTests(): void {
   sinkEnabled = false;
   sinkClient = null;
   tableKnownMissing = false;
+  callerColumnsKnownMissing = false;
 }
 
 /** Test-only accessor. */
 export function isRequestLogTableKnownMissingForTests(): boolean {
   return tableKnownMissing;
+}
+
+/** Test-only accessor. */
+export function areRequestLogCallerColumnsKnownMissingForTests(): boolean {
+  return callerColumnsKnownMissing;
 }
