@@ -1,3 +1,5 @@
+import { generateKeyPairSync } from 'node:crypto';
+import { JwtService } from '@nestjs/jwt';
 import { createClient } from '@supabase/supabase-js';
 import { AppConfig } from '../src/config/app-config';
 import { SupabaseAuthService } from '../src/modules/auth/supabase-auth.service';
@@ -33,9 +35,15 @@ function mockGetUser(result: unknown) {
 }
 
 describe('SupabaseAuthService', () => {
-  beforeEach(() => jest.clearAllMocks());
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn().mockRejectedValue(new Error('jwks unavailable'));
+  });
   afterEach(() => {
     jest.useRealTimers();
+    global.fetch = originalFetch;
   });
 
   it('returns null without Supabase configuration', async () => {
@@ -220,4 +228,125 @@ describe('SupabaseAuthService', () => {
 
     expect(getUser).toHaveBeenCalledTimes(2);
   });
+
+  it('verifies ES256 access tokens locally via JWKS and skips Auth getUser', async () => {
+    const { token, jwk } = await signEs256AccessToken({
+      sub: 'user-jwks',
+      email: 'jwks@example.com',
+      app_metadata: { platform_role: 'editor' },
+      user_metadata: { name: 'JWKS User', avatar_url: 'https://img.example/a.png' },
+    });
+    const getUser = mockGetUser({ data: { user: null }, error: { message: 'unused' } });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ keys: [jwk] }),
+    });
+    const service = new SupabaseAuthService(config());
+
+    await expect(service.verifyAccessToken(token)).resolves.toEqual({
+      userId: 'user-jwks',
+      email: 'jwks@example.com',
+      name: 'JWKS User',
+      avatarUrl: 'https://img.example/a.png',
+      role: 'editor',
+      tier: 'user',
+      source: 'supabase',
+    });
+    expect(getUser).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://example.supabase.co/auth/v1/.well-known/jwks.json',
+    );
+
+    await expect(service.verifyAccessToken(token)).resolves.toMatchObject({
+      userId: 'user-jwks',
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps anonymous ES256 tokens unprivileged after local verify', async () => {
+    const { token, jwk } = await signEs256AccessToken({
+      sub: 'anon-jwks',
+      is_anonymous: true,
+      app_metadata: { roles: ['editor'] },
+    });
+    mockGetUser({ data: { user: null }, error: { message: 'unused' } });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ keys: [jwk] }),
+    });
+
+    await expect(
+      new SupabaseAuthService(config()).verifyAccessToken(token),
+    ).resolves.toMatchObject({
+      userId: 'anon-jwks',
+      role: 'anonymous',
+      tier: 'anon',
+      source: 'supabase',
+    });
+  });
+
+  it('falls back to getUser when JWKS cannot verify the token', async () => {
+    const getUser = mockGetUser({
+      data: {
+        user: {
+          id: 'user-fallback',
+          email: 'fallback@example.com',
+          app_metadata: {},
+          user_metadata: {},
+        },
+      },
+      error: null,
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ keys: [] }),
+    });
+    const service = new SupabaseAuthService(config());
+
+    await expect(service.verifyAccessToken('opaque-or-hs256')).resolves.toMatchObject({
+      userId: 'user-fallback',
+    });
+    expect(getUser).toHaveBeenCalledWith('opaque-or-hs256');
+  });
 });
+
+type TestJwk = {
+  kid: string;
+  alg: string;
+  use: string;
+  kty?: string;
+  crv?: string;
+  x?: string;
+  y?: string;
+};
+
+async function signEs256AccessToken(
+  claims: Record<string, unknown>,
+): Promise<{ token: string; jwk: TestJwk }> {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', {
+    namedCurve: 'P-256',
+  });
+  const jwk = publicKey.export({ format: 'jwk' });
+  const token = await new JwtService().signAsync(
+    {
+      aud: 'authenticated',
+      role: 'authenticated',
+      ...claims,
+    },
+    {
+      secret: privateKey.export({ type: 'pkcs8', format: 'pem' }),
+      algorithm: 'ES256',
+      expiresIn: '1h',
+      keyid: 'test-es256',
+    },
+  );
+  return {
+    token,
+    jwk: {
+      ...jwk,
+      kid: 'test-es256',
+      alg: 'ES256',
+      use: 'sig',
+    },
+  };
+}

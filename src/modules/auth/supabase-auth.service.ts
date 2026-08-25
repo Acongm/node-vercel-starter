@@ -6,9 +6,26 @@ import { AppConfig } from '../../config/app-config';
 import { isAdminEmail } from './admin-emails';
 import { jwtExpiresAtMs } from './bearer-token';
 import { AuthPrincipal, PlatformRole, isPlatformRole } from './roles';
+import {
+  SupabaseJwtClaims,
+  verifySupabaseJwt,
+} from './supabase-access-token';
 
 const TOKEN_CACHE_TTL_MS = 300_000;
 const TOKEN_CACHE_MAX_ENTRIES = 1_000;
+const JWKS_TTL_MS = 60 * 60 * 1000;
+
+type Jwk = {
+  kid?: string;
+  alg?: string;
+  kty?: string;
+  crv?: string;
+  x?: string;
+  y?: string;
+  n?: string;
+  e?: string;
+  use?: string;
+};
 
 type CachedPrincipal = {
   principal: AuthPrincipal | null;
@@ -19,6 +36,7 @@ type CachedPrincipal = {
 export class SupabaseAuthService {
   private client: SupabaseClient | null = null;
   private readonly tokenCache = new Map<string, CachedPrincipal>();
+  private jwksCache: { keys: Jwk[]; expiresAt: number } | null = null;
 
   constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 
@@ -40,11 +58,48 @@ export class SupabaseAuthService {
       return cached.principal;
     }
 
+    const localPrincipal = await this.verifySignedAccessToken(token);
+    if (localPrincipal) {
+      this.rememberToken(cacheKey, localPrincipal, token);
+      return localPrincipal;
+    }
+
     const client = this.getClient();
     const { data, error } = await client.auth.getUser(token);
     const principal = error || !data.user ? null : this.toPrincipal(data.user);
     this.rememberToken(cacheKey, principal, token);
     return principal;
+  }
+
+  private async verifySignedAccessToken(
+    token: string,
+  ): Promise<AuthPrincipal | null> {
+    const claims = await verifySupabaseJwt(token, {
+      jwks: await this.loadJwks(),
+      hs256Secret: this.config.auth.supabaseJwtSecret,
+    });
+    if (!claims?.sub) return null;
+    return this.toPrincipalFromClaims(claims);
+  }
+
+  private async loadJwks(): Promise<Jwk[]> {
+    if (this.jwksCache && this.jwksCache.expiresAt > Date.now()) {
+      return this.jwksCache.keys;
+    }
+
+    const baseUrl = this.config.supabase.url?.replace(/\/$/, '');
+    if (!baseUrl) return [];
+
+    try {
+      const response = await fetch(`${baseUrl}/auth/v1/.well-known/jwks.json`);
+      if (!response.ok) return [];
+      const body = (await response.json()) as { keys?: Jwk[] };
+      const keys = Array.isArray(body.keys) ? body.keys : [];
+      this.jwksCache = { keys, expiresAt: Date.now() + JWKS_TTL_MS };
+      return keys;
+    } catch {
+      return [];
+    }
   }
 
   private getClient(): SupabaseClient {
@@ -101,30 +156,51 @@ export class SupabaseAuthService {
   }
 
   private toPrincipal(user: User): AuthPrincipal {
-    const isAnonymous = Boolean(
-      (user as User & { is_anonymous?: boolean }).is_anonymous,
-    );
+    return this.toPrincipalFromIdentity(user.id, {
+      email: user.email,
+      app_metadata: user.app_metadata,
+      user_metadata: user.user_metadata,
+      is_anonymous: Boolean(
+        (user as User & { is_anonymous?: boolean }).is_anonymous,
+      ),
+    });
+  }
+
+  private toPrincipalFromClaims(claims: SupabaseJwtClaims): AuthPrincipal {
+    return this.toPrincipalFromIdentity(claims.sub ?? '', {
+      email: claims.email,
+      app_metadata: claims.app_metadata,
+      user_metadata: claims.user_metadata,
+      is_anonymous: Boolean(claims.is_anonymous),
+    });
+  }
+
+  private toPrincipalFromIdentity(
+    userId: string,
+    identity: SupabaseJwtClaims,
+  ): AuthPrincipal {
+    const isAnonymous = Boolean(identity.is_anonymous);
 
     return {
-      userId: user.id,
+      userId,
       // A Supabase anonymous identity is stable enough for auth.uid()/RLS, but
       // it must not inherit viewer/editor/admin authorization from metadata.
-      role: isAnonymous ? 'anonymous' : this.extractRole(user),
+      role: isAnonymous ? 'anonymous' : this.extractRole(identity),
       tier: isAnonymous ? 'anon' : 'user',
       source: 'supabase',
-      email: user.email,
-      name: this.extractDisplayName(user),
-      avatarUrl: this.extractAvatarUrl(user),
+      email: identity.email,
+      name: this.extractDisplayName(identity),
+      avatarUrl: this.extractAvatarUrl(identity),
     };
   }
 
   /** Authorization only trusts server-controlled app_metadata. */
-  private extractRole(user: User): PlatformRole {
-    if (isAdminEmail(user.email, this.config.auth.adminEmails)) {
+  private extractRole(identity: SupabaseJwtClaims): PlatformRole {
+    if (isAdminEmail(identity.email, this.config.auth.adminEmails)) {
       return 'admin';
     }
 
-    const appMetadata = user.app_metadata || {};
+    const appMetadata = identity.app_metadata || {};
     const direct = appMetadata.platform_role || appMetadata.role;
     if (isPlatformRole(direct) && direct !== 'anonymous') {
       return direct;
@@ -142,8 +218,8 @@ export class SupabaseAuthService {
     return 'viewer';
   }
 
-  private extractDisplayName(user: User): string | undefined {
-    const metadata = user.user_metadata || {};
+  private extractDisplayName(identity: SupabaseJwtClaims): string | undefined {
+    const metadata = identity.user_metadata || {};
     const value =
       metadata.display_name ||
       metadata.name ||
@@ -152,11 +228,11 @@ export class SupabaseAuthService {
       metadata.preferred_username;
     return typeof value === 'string' && value.trim()
       ? value.trim()
-      : user.email;
+      : identity.email;
   }
 
-  private extractAvatarUrl(user: User): string | undefined {
-    const metadata = user.user_metadata || {};
+  private extractAvatarUrl(identity: SupabaseJwtClaims): string | undefined {
+    const metadata = identity.user_metadata || {};
     const value =
       metadata.avatar_url || metadata.picture || metadata.avatar || metadata.profile_image;
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;

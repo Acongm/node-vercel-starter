@@ -53,4 +53,15 @@ describe('SupabaseRequestClientService', () => {
       }),
     );
   });
+
+  it('reuses one RLS client for the same request', () => {
+    const client = { from: jest.fn() };
+    createClientMock.mockReturnValue(client as never);
+    const service = new SupabaseRequestClientService(config());
+    const req = request('Bearer user-token');
+
+    expect(service.create(req)).toBe(client);
+    expect(service.create(req)).toBe(client);
+    expect(createClientMock).toHaveBeenCalledTimes(1);
+  });
 });
