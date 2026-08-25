@@ -282,18 +282,46 @@ export async function fetchPlatformUsers(params: {
   pageSize?: number;
   anonymous?: 'true' | 'false';
   q?: string;
+  activity?: 'active' | 'ghost' | 'all';
 }): Promise<PlatformUsersResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set('page', String(params.page));
   if (params.pageSize) query.set('pageSize', String(params.pageSize));
   if (params.anonymous) query.set('anonymous', params.anonymous);
   if (params.q) query.set('q', params.q);
+  if (params.activity) query.set('activity', params.activity);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   const result = await apiFetch(`/api/admin/users${suffix}`);
   if (!result.ok) {
     throw new Error(`Platform users failed: HTTP ${result.status}`);
   }
   return result.body as PlatformUsersResponse;
+}
+
+export type PurgeGhostUsersResponse =
+  | { enabled: false; reason: string }
+  | {
+      enabled: true;
+      dryRun: boolean;
+      deleted: number;
+      skipped: number;
+      candidateCount: number;
+      ids: string[];
+    };
+
+export async function purgeGhostUsers(params?: {
+  dryRun?: boolean;
+}): Promise<PurgeGhostUsersResponse> {
+  const query = new URLSearchParams();
+  if (params?.dryRun) query.set('dryRun', 'true');
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  const result = await apiFetch(`/api/admin/users/purge-ghosts${suffix}`, {
+    method: 'POST',
+  });
+  if (!result.ok) {
+    throw new Error(`Purge ghosts failed: HTTP ${result.status}`);
+  }
+  return result.body as PurgeGhostUsersResponse;
 }
 
 export async function fetchLocalUsers(params: {

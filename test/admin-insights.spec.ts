@@ -11,6 +11,14 @@ import {
   PortalSnapshot,
 } from '../src/modules/admin-insights/helpers/portal-snapshot';
 import {
+  classifyAnonymousUsers,
+  isGaClientId,
+  isGhostAnonymousUser,
+  readUserCid,
+  selectPurgeGhostIds,
+  type AnonymousUserLike,
+} from '../src/modules/admin-insights/helpers/anonymous-identity';
+import {
   ResolvedUserIdentity,
   UserEmailCache,
 } from '../src/modules/admin-insights/helpers/user-email-cache';
@@ -177,6 +185,141 @@ describe('admin-insights helpers', () => {
       expect(cache.get('user-1')).toBeUndefined();
       expect(cache.get('user-2')).toBeDefined();
       expect(cache.get('user-3')).toBeDefined();
+    });
+  });
+
+  describe('GA anonymous identity', () => {
+    const nowMs = Date.parse('2026-08-25T10:00:00.000Z');
+    const oldCreatedAt = '2026-08-25T09:00:00.000Z';
+    const recentCreatedAt = '2026-08-25T09:50:00.000Z';
+
+    const ghost: AnonymousUserLike = {
+      id: 'ghost-1',
+      is_anonymous: true,
+      created_at: oldCreatedAt,
+      user_metadata: { cid: 'GA1.1.abc123def4567890.1756110000' },
+      identities: [{ provider: 'anonymous' }],
+    };
+    const active: AnonymousUserLike = {
+      id: 'active-1',
+      is_anonymous: true,
+      created_at: oldCreatedAt,
+      user_metadata: { cid: 'GA1.1.xyz987654321abcd.1756110001' },
+      identities: [{ provider: 'anonymous' }],
+    };
+    const recent: AnonymousUserLike = {
+      id: 'recent-1',
+      is_anonymous: true,
+      created_at: recentCreatedAt,
+      user_metadata: { cid: 'GA1.1.recentcid0000001.1756111111' },
+      identities: [{ provider: 'anonymous' }],
+    };
+    const linked: AnonymousUserLike = {
+      id: 'linked-1',
+      is_anonymous: true,
+      created_at: oldCreatedAt,
+      user_metadata: { cid: 'GA1.1.linkedcid0000001.1756112222' },
+      identities: [{ provider: 'anonymous' }, { provider: 'github' }],
+    };
+    const signedIn: AnonymousUserLike = {
+      id: 'user-1',
+      is_anonymous: false,
+      created_at: oldCreatedAt,
+      user_metadata: {},
+      identities: [{ provider: 'github' }],
+    };
+
+    it('accepts GA-style client ids and rejects other strings', () => {
+      expect(isGaClientId('GA1.1.abc123def4567890.1756110000')).toBe(true);
+      expect(isGaClientId('not-a-cid')).toBe(false);
+      expect(isGaClientId(undefined)).toBe(false);
+    });
+
+    it('reads cid from user_metadata', () => {
+      expect(readUserCid(ghost)).toBe('GA1.1.abc123def4567890.1756110000');
+      expect(readUserCid(signedIn)).toBeUndefined();
+    });
+
+    it('treats old anonymous users without chats as ghosts', () => {
+      expect(
+        isGhostAnonymousUser(ghost, {
+          chatUserIds: new Set(),
+          nowMs,
+        }),
+      ).toBe(true);
+    });
+
+    it('keeps anonymous users who already have chats', () => {
+      expect(
+        isGhostAnonymousUser(active, {
+          chatUserIds: new Set(['active-1']),
+          nowMs,
+        }),
+      ).toBe(false);
+    });
+
+    it('skips recently created anonymous users inside the grace window', () => {
+      expect(
+        isGhostAnonymousUser(recent, {
+          chatUserIds: new Set(),
+          nowMs,
+        }),
+      ).toBe(false);
+    });
+
+    it('does not treat linked or signed-in accounts as ghosts', () => {
+      expect(
+        isGhostAnonymousUser(linked, {
+          chatUserIds: new Set(),
+          nowMs,
+        }),
+      ).toBe(false);
+      expect(
+        isGhostAnonymousUser(signedIn, {
+          chatUserIds: new Set(),
+          nowMs,
+        }),
+      ).toBe(false);
+    });
+
+    it('defaults the anonymous list to active users only', () => {
+      const classified = classifyAnonymousUsers([ghost, active, recent, linked], {
+        chatUserIds: new Set(['active-1']),
+        activity: 'active',
+        nowMs,
+      });
+
+      expect(classified.items.map((item) => item.id)).toEqual(['active-1']);
+      expect(classified.ghostCount).toBe(1);
+      expect(classified.activeCount).toBe(1);
+      expect(classified.items[0]?.cid).toBe('GA1.1.xyz987654321abcd.1756110001');
+      expect(classified.items[0]?.hasChats).toBe(true);
+    });
+
+    it('can list ghosts and search by cid', () => {
+      const ghosts = classifyAnonymousUsers([ghost, active], {
+        chatUserIds: new Set(['active-1']),
+        activity: 'ghost',
+        nowMs,
+      });
+      expect(ghosts.items.map((item) => item.id)).toEqual(['ghost-1']);
+
+      const searched = classifyAnonymousUsers([ghost, active], {
+        chatUserIds: new Set(['active-1']),
+        activity: 'all',
+        nowMs,
+        q: 'abc123def4567890',
+      });
+      expect(searched.items.map((item) => item.id)).toEqual(['ghost-1']);
+    });
+
+    it('selects only purgeable ghost ids and skips recent or active users', () => {
+      expect(
+        selectPurgeGhostIds([ghost, active, recent, linked, signedIn], {
+          chatUserIds: new Set(['active-1']),
+          nowMs,
+        }),
+      ).toEqual(['ghost-1']);
     });
   });
 });

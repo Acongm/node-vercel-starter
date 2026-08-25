@@ -5,6 +5,11 @@ import { AppConfig } from '../../config/app-config';
 import { PlatformRole } from '../auth/roles';
 import { SupabaseAdminClientService } from './supabase-admin-client.service';
 import { ListLocalUsersDto, ListPlatformUsersDto } from './dto/users-admin.dto';
+import {
+  classifyAnonymousUsers,
+  selectPurgeGhostIds,
+  type AnonymousActivity,
+} from './helpers/anonymous-identity';
 
 export interface AuthUserRow {
   id: string;
@@ -28,6 +33,9 @@ export interface PlatformUserItem {
   isAnonymous: boolean;
   createdAt?: string;
   lastSignInAt?: string;
+  cid?: string;
+  hasChats?: boolean;
+  isGhost?: boolean;
 }
 
 const LIST_USERS_PER_PAGE = 200;
@@ -49,12 +57,136 @@ export class UsersAdminService {
       };
     }
 
-    const client = this.supabaseAdmin.getClient();
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 50;
     const wantAnonymous = query.anonymous === 'true';
     const emailQuery = query.q?.trim().toLowerCase();
+    const allUsers = await this.listAllAuthUsers();
 
+    if (wantAnonymous) {
+      return this.listAnonymousUsers({
+        users: allUsers,
+        page,
+        pageSize,
+        q: query.q,
+        activity: query.activity ?? 'active',
+      });
+    }
+
+    let filtered = allUsers.filter((user) => !user.is_anonymous);
+
+    if (emailQuery) {
+      filtered = filtered.filter((user) =>
+        (user.email ?? '').toLowerCase().includes(emailQuery),
+      );
+    }
+
+    const total = filtered.length;
+    const from = (page - 1) * pageSize;
+    const pageUsers = filtered.slice(from, from + pageSize);
+    const items = pageUsers.map((user) => mapPlatformUser(user));
+
+    return {
+      enabled: true as const,
+      items,
+      total,
+      page,
+      pageSize,
+      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+      ghostCount: 0,
+      activeCount: 0,
+    };
+  }
+
+  async purgeGhostUsers(options?: { dryRun?: boolean }) {
+    if (!this.supabaseAdmin.hasAdminAuth()) {
+      return {
+        enabled: false as const,
+        reason:
+          'Supabase service role key is required for auth.admin.deleteUser. Set SUPABASE_SERVICE_ROLE_KEY.',
+      };
+    }
+
+    const client = this.supabaseAdmin.getClient();
+    const users = await this.listAllAuthUsers();
+    const chatUserIds = await this.loadChatUserIds();
+    const ids = selectPurgeGhostIds(users, {
+      chatUserIds,
+      nowMs: Date.now(),
+    });
+
+    if (options?.dryRun) {
+      return {
+        enabled: true as const,
+        dryRun: true as const,
+        deleted: 0,
+        skipped: 0,
+        candidateCount: ids.length,
+        ids,
+      };
+    }
+
+    let deleted = 0;
+    let skipped = 0;
+    for (const id of ids) {
+      const { error } = await client.auth.admin.deleteUser(id);
+      if (error) {
+        skipped += 1;
+        continue;
+      }
+      deleted += 1;
+    }
+
+    return {
+      enabled: true as const,
+      dryRun: false as const,
+      deleted,
+      skipped,
+      candidateCount: ids.length,
+      ids,
+    };
+  }
+
+  private async listAnonymousUsers(input: {
+    users: User[];
+    page: number;
+    pageSize: number;
+    q?: string;
+    activity: AnonymousActivity;
+  }) {
+    const chatUserIds = await this.loadChatUserIds();
+    const classified = classifyAnonymousUsers(input.users, {
+      chatUserIds,
+      activity: input.activity,
+      nowMs: Date.now(),
+      q: input.q,
+    });
+
+    const total = classified.items.length;
+    const from = (input.page - 1) * input.pageSize;
+    const pageUsers = classified.items.slice(from, from + input.pageSize);
+    const items = pageUsers.map((user) =>
+      mapPlatformUser(user, {
+        cid: user.cid,
+        hasChats: user.hasChats,
+        isGhost: user.isGhost,
+      }),
+    );
+
+    return {
+      enabled: true as const,
+      items,
+      total,
+      page: input.page,
+      pageSize: input.pageSize,
+      totalPages: total === 0 ? 0 : Math.ceil(total / input.pageSize),
+      ghostCount: classified.ghostCount,
+      activeCount: classified.activeCount,
+    };
+  }
+
+  private async listAllAuthUsers(): Promise<User[]> {
+    const client = this.supabaseAdmin.getClient();
     const allUsers: User[] = [];
     for (let listPage = 1; listPage <= MAX_LIST_USER_PAGES; listPage += 1) {
       const { data, error } = await client.auth.admin.listUsers({
@@ -67,36 +199,41 @@ export class UsersAdminService {
           message: error.message,
         });
       }
-
       const batch = data.users ?? [];
       allUsers.push(...batch);
-
       if (batch.length < LIST_USERS_PER_PAGE) {
         break;
       }
     }
+    return allUsers;
+  }
 
-    let filtered = allUsers.filter((user) => Boolean(user.is_anonymous) === wantAnonymous);
+  private async loadChatUserIds(): Promise<Set<string>> {
+    const client = this.supabaseAdmin.getClient();
+    const ids = new Set<string>();
+    const pageSize = 1000;
+    let from = 0;
 
-    if (emailQuery) {
-      filtered = filtered.filter((user) =>
-        (user.email ?? '').toLowerCase().includes(emailQuery),
-      );
+    while (true) {
+      const { data, error } = await client
+        .from('chats')
+        .select('user_id')
+        .range(from, from + pageSize - 1);
+      if (error) {
+        throw new BadRequestException({
+          code: 'ADMIN_CHAT_USER_IDS_FAILED',
+          message: error.message,
+        });
+      }
+      const rows = (data ?? []) as Array<{ user_id?: string | null }>;
+      for (const row of rows) {
+        if (row.user_id) ids.add(row.user_id);
+      }
+      if (rows.length < pageSize) break;
+      from += pageSize;
     }
 
-    const total = filtered.length;
-    const from = (page - 1) * pageSize;
-    const pageUsers = filtered.slice(from, from + pageSize);
-    const items = pageUsers.map(mapPlatformUser);
-
-    return {
-      enabled: true as const,
-      items,
-      total,
-      page,
-      pageSize,
-      totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
-    };
+    return ids;
   }
 
   async listLocalUsers(query: ListLocalUsersDto) {
@@ -141,7 +278,10 @@ export class UsersAdminService {
   }
 }
 
-function mapPlatformUser(user: User): PlatformUserItem {
+function mapPlatformUser(
+  user: User,
+  extras?: { cid?: string; hasChats?: boolean; isGhost?: boolean },
+): PlatformUserItem {
   const appMetadata =
     user.app_metadata && typeof user.app_metadata === 'object'
       ? (user.app_metadata as Record<string, unknown>)
@@ -170,5 +310,8 @@ function mapPlatformUser(user: User): PlatformUserItem {
     isAnonymous: Boolean(user.is_anonymous),
     createdAt: user.created_at,
     lastSignInAt: user.last_sign_in_at ?? undefined,
+    cid: extras?.cid,
+    hasChats: extras?.hasChats,
+    isGhost: extras?.isGhost,
   };
 }
