@@ -10,7 +10,7 @@ export function configureApp(app: INestApplication) {
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || isAllowedOrigin(origin, config.corsOrigins)) {
+      if (!origin || isCorsOriginAllowed(origin, config.corsOrigins)) {
         callback(null, true);
         return;
       }
@@ -42,7 +42,14 @@ export function configureApp(app: INestApplication) {
   app.useGlobalFilters(new HttpExceptionFilter());
 }
 
-function isAllowedOrigin(origin: string, allowedOrigins: string[]): boolean {
+export function isCorsOriginAllowed(
+  origin: string,
+  allowedOrigins: string[],
+): boolean {
+  if (isLoopbackOrigin(origin)) {
+    return true;
+  }
+
   return allowedOrigins.some((allowedOrigin) => {
     if (allowedOrigin === origin) {
       return true;
@@ -58,6 +65,19 @@ function isAllowedOrigin(origin: string, allowedOrigins: string[]): boolean {
       .join('[^.]+');
     return new RegExp(`^${pattern}$`).test(origin);
   });
+}
+
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]'
+    );
+  } catch {
+    return false;
+  }
 }
 
 function escapeRegExp(value: string): string {

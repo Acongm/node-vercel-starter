@@ -125,6 +125,22 @@ describe('Node Vercel Starter', () => {
     );
   });
 
+  it('allows loopback origins so the same-host admin UI can call the API', async () => {
+    app = await createTestApp({
+      CORS_ORIGINS: 'https://acongm.com',
+    });
+
+    const response = await request(app.getHttpServer())
+      .options('/api/auth/login')
+      .set('Origin', 'http://127.0.0.1:3000')
+      .set('Access-Control-Request-Method', 'POST')
+      .expect(204);
+
+    expect(response.headers['access-control-allow-origin']).toBe(
+      'http://127.0.0.1:3000',
+    );
+  });
+
   it('allows configured acongm.com origins through CORS', async () => {
     app = await createTestApp({
       CORS_ORIGINS: 'https://acongm.com,https://*.acongm.com',

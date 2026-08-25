@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { history, useModel } from '@umijs/max';
+import { useModel } from '@umijs/max';
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { LoginForm, ProFormText } from '@ant-design/pro-components';
 import { Alert, Button, Card, Space, Typography } from 'antd';
@@ -81,10 +81,10 @@ export default function LoginPage() {
               const session = await fetchSession();
               await setInitialState({ session });
               if (!session.isAdmin) {
-                history.replace('/403');
+                window.location.replace('/#/403');
                 return false;
               }
-              history.replace('/dashboard');
+              window.location.replace('/#/dashboard');
               return true;
             }}
           >
