@@ -2,12 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
 import { PATH_METADATA, METHOD_METADATA } from '@nestjs/common/constants';
 import { RequestMethod } from '@nestjs/common';
+import { resolveRouteGroup } from './route-groups';
 
 export interface AdminRouteEntry {
   method: string;
   path: string;
   controllerName: string;
   handlerName: string;
+  group: string;
+  groupLabel: string;
 }
 
 @Injectable()
@@ -67,11 +70,15 @@ export class RoutesService {
             : [routePathRaw];
 
           for (const routePath of routePaths) {
+            const path = this.composePath(controllerPath, routePath);
+            const { group, groupLabel } = resolveRouteGroup(path, metatype.name);
             routes.push({
               method,
-              path: this.composePath(controllerPath, routePath),
+              path,
               controllerName: metatype.name,
               handlerName: methodName,
+              group,
+              groupLabel,
             });
           }
         },

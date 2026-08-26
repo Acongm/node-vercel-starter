@@ -19,6 +19,22 @@ import { fetchAdminRoutes } from '@/services/api';
 import { apiFetch } from '@/services/http';
 import type { AdminRouteEntry, ApiResult } from '@/types';
 
+const ROUTE_GROUP_ORDER = [
+  'system',
+  'auth',
+  'ai',
+  'chats',
+  'users',
+  'admin',
+  'openai',
+  'other',
+] as const;
+
+function groupSortIndex(group: string): number {
+  const index = ROUTE_GROUP_ORDER.indexOf(group as typeof ROUTE_GROUP_ORDER[number]);
+  return index === -1 ? ROUTE_GROUP_ORDER.length : index;
+}
+
 const { TextArea } = Input;
 const HISTORY_KEY = 'admin-debug-history';
 const MAX_HISTORY = 20;
@@ -180,20 +196,30 @@ export default function DebugPage() {
       return route.path.toLowerCase().includes(routeSearch.trim().toLowerCase());
     });
 
-    const grouped = new Map<string, AdminRouteEntry[]>();
+    const grouped = new Map<string, { label: string; entries: AdminRouteEntry[] }>();
     for (const route of filtered) {
-      const group = grouped.get(route.controllerName) ?? [];
-      group.push(route);
-      grouped.set(route.controllerName, group);
+      const groupKey = route.group || route.controllerName;
+      const groupLabel = route.groupLabel || route.controllerName;
+      const bucket = grouped.get(groupKey) ?? { label: groupLabel, entries: [] };
+      bucket.entries.push(route);
+      grouped.set(groupKey, bucket);
     }
 
+    const sortedGroups = [...grouped.entries()].sort((a, b) => {
+      const orderDiff = groupSortIndex(a[0]) - groupSortIndex(b[0]);
+      if (orderDiff !== 0) {
+        return orderDiff;
+      }
+      return a[1].label.localeCompare(b[1].label, 'zh-CN');
+    });
+
     const nodes: DataNode[] = [];
-    for (const [controllerName, entries] of grouped.entries()) {
+    for (const [groupKey, bucket] of sortedGroups) {
       nodes.push({
-        key: controllerName,
-        title: controllerName,
+        key: groupKey,
+        title: `${bucket.label} (${bucket.entries.length})`,
         selectable: false,
-        children: entries.map((entry) => ({
+        children: bucket.entries.map((entry) => ({
           key: `${entry.method}:${entry.path}`,
           title: (
             <Space size={4}>
