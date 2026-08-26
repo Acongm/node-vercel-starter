@@ -133,10 +133,7 @@ export class AiV1Service {
     yield {
       type: 'meta',
       provider: ai.provider,
-      model:
-        ai.provider === 'mock'
-          ? 'mock-local'
-          : options.settings?.defaultModel || ai.model,
+      model: ai.provider === 'mock' ? 'mock-local' : ai.model,
       conversationId: dto.conversationId,
       enableThinking: Boolean(dto.enableThinking),
       requestId: options.requestId,

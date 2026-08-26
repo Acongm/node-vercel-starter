@@ -1,3 +1,10 @@
+import { AppConfig } from '../../config/app-config';
+
+export type AiProviderRuntimeConfig = AppConfig['ai'] & {
+  maxTokensDefault: number;
+  thinkingMaxTokens: number;
+};
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;

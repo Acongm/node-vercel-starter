@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AiProviderRuntimeConfig } from '../../adapters/ai/ai-client.interface';
 import type { ServiceCaller } from '../../common/caller-identity';
 import { APP_CONFIG } from '../../common/tokens';
 import type { AppConfig } from '../../config/app-config';
@@ -133,14 +134,16 @@ export class PlatformRuntimeConfigService {
     return this.getAdminView();
   }
 
-  async getAiConfig(): Promise<AppConfig['ai']> {
-    const resolved = await this.resolve();
+  async getAiConfig(): Promise<AiProviderRuntimeConfig> {
+    const resolved = await this.resolve(true);
     const body = this.toConfigBody(resolved.document);
     return {
       provider: body.chat.provider,
       baseUrl: body.chat.baseUrl,
       model: body.chat.model,
       apiKey: resolved.secrets.get('llm.api_key') || this.appConfig.ai.apiKey,
+      maxTokensDefault: body.chat.maxTokensDefault,
+      thinkingMaxTokens: body.chat.thinkingMaxTokens,
       webSearchApiKey:
         body.webSearch.enabled
           ? resolved.secrets.get('web_search.api_key') ||
@@ -150,12 +153,12 @@ export class PlatformRuntimeConfigService {
   }
 
   async getPortalSummariesUrl(): Promise<string> {
-    const resolved = await this.resolve();
+    const resolved = await this.resolve(true);
     return resolved.document.knowledgeBase.summariesUrl;
   }
 
   async getServiceCallers(): Promise<ServiceCaller[]> {
-    const resolved = await this.resolve();
+    const resolved = await this.resolve(true);
     const callers: ServiceCaller[] = [];
     for (const caller of resolved.document.callers.serviceCallers) {
       const key =
@@ -171,23 +174,23 @@ export class PlatformRuntimeConfigService {
   }
 
   async getAllowedCallSources(): Promise<string[]> {
-    const resolved = await this.resolve();
+    const resolved = await this.resolve(true);
     const sources = resolved.document.callers.allowedCallSources;
     return sources.length ? sources : this.appConfig.allowedCallSources;
   }
 
   async isOpenApiEnabled(): Promise<boolean> {
-    const resolved = await this.resolve();
+    const resolved = await this.resolve(true);
     return resolved.document.openApi.enabled;
   }
 
   async isOpenApiCompletionsEnabled(): Promise<boolean> {
-    const resolved = await this.resolve();
+    const resolved = await this.resolve(true);
     return resolved.document.openApi.enabled && resolved.document.openApi.completionsPathEnabled;
   }
 
   async getDefaultModel(): Promise<string> {
-    const resolved = await this.resolve();
+    const resolved = await this.resolve(true);
     return resolved.document.chat.model;
   }
 

@@ -1,5 +1,14 @@
 import { OpenAiCompatibleClient } from '../src/adapters/ai/openai-compatible.client';
 
+const baseAiConfig = {
+  provider: 'custom' as const,
+  apiKey: 'as-xxx',
+  baseUrl: 'https://api.deepseek.com',
+  model: 'deepseek-v4-pro',
+  maxTokensDefault: 1024,
+  thinkingMaxTokens: 4096,
+};
+
 describe('OpenAiCompatibleClient', () => {
   const originalFetch = global.fetch;
 
@@ -30,12 +39,7 @@ describe('OpenAiCompatibleClient', () => {
       } as Response;
     });
 
-    const client = new OpenAiCompatibleClient({
-      provider: 'custom',
-      apiKey: 'as-xxx',
-      baseUrl: 'https://api.deepseek.com',
-      model: 'deepseek-v4-pro',
-    });
+    const client = new OpenAiCompatibleClient(baseAiConfig);
 
     const response = await client.createChatCompletion({
       model: 'deepseek-v4-pro',
@@ -77,12 +81,7 @@ describe('OpenAiCompatibleClient', () => {
       } as Response;
     });
 
-    const client = new OpenAiCompatibleClient({
-      provider: 'custom',
-      apiKey: 'as-xxx',
-      baseUrl: 'https://api.deepseek.com',
-      model: 'deepseek-v4-pro',
-    });
+    const client = new OpenAiCompatibleClient(baseAiConfig);
 
     await expect(
       client.createChatCompletion({
@@ -117,12 +116,7 @@ describe('OpenAiCompatibleClient', () => {
       );
     });
 
-    const client = new OpenAiCompatibleClient({
-      provider: 'custom',
-      apiKey: 'as-xxx',
-      baseUrl: 'https://api.deepseek.com',
-      model: 'deepseek-v4-pro',
-    });
+    const client = new OpenAiCompatibleClient(baseAiConfig);
     const events = [];
     for await (const event of client.streamChat({
       messages: [{ role: 'user', content: 'hello' }],
@@ -170,9 +164,7 @@ describe('OpenAiCompatibleClient', () => {
     });
 
     const client = new OpenAiCompatibleClient({
-      provider: 'custom',
-      apiKey: 'as-xxx',
-      baseUrl: 'https://api.deepseek.com',
+      ...baseAiConfig,
       model: 'deepseek-v4-flash',
     });
     const events = [];
@@ -213,9 +205,7 @@ describe('OpenAiCompatibleClient', () => {
     });
 
     const client = new OpenAiCompatibleClient({
-      provider: 'custom',
-      apiKey: 'as-xxx',
-      baseUrl: 'https://api.deepseek.com',
+      ...baseAiConfig,
       model: 'deepseek-v4-flash',
     });
     for await (const _event of client.streamChat({
@@ -260,9 +250,7 @@ describe('OpenAiCompatibleClient', () => {
     });
 
     const client = new OpenAiCompatibleClient({
-      provider: 'custom',
-      apiKey: 'as-xxx',
-      baseUrl: 'https://api.deepseek.com',
+      ...baseAiConfig,
       model: 'deepseek-reasoner',
     });
     const events = [];
@@ -297,12 +285,7 @@ describe('OpenAiCompatibleClient', () => {
       ),
     );
 
-    const client = new OpenAiCompatibleClient({
-      provider: 'custom',
-      apiKey: 'as-xxx',
-      baseUrl: 'https://api.deepseek.com',
-      model: 'deepseek-v4-pro',
-    });
+    const client = new OpenAiCompatibleClient(baseAiConfig);
     const events = [];
     for await (const event of client.streamChat({ prompt: 'hello' })) {
       events.push(event);

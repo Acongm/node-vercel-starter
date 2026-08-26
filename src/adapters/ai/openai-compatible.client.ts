@@ -1,9 +1,9 @@
 import { HttpException } from '@nestjs/common';
-import { AppConfig } from '../../config/app-config';
 import {
   AiChatInput,
   AiChatResult,
   AiClient,
+  AiProviderRuntimeConfig,
   AiStreamEvent,
   OpenAiChatCompletionRequest,
   OpenAiChatCompletionResponse,
@@ -14,8 +14,6 @@ import { parseSummaryResponse } from './summary.parser';
 import { SUMMARY_SYSTEM_PROMPT } from './summary.prompt';
 
 const MAX_SUMMARY_CONTENT_LENGTH = 3000;
-const DEFAULT_CHAT_MAX_TOKENS = 1024;
-const THINKING_CHAT_MAX_TOKENS = 4096;
 const MAX_CHAT_MAX_TOKENS = 8192;
 
 function messagesFor(input: AiChatInput) {
@@ -24,12 +22,17 @@ function messagesFor(input: AiChatInput) {
     : [{ role: 'user' as const, content: input.prompt || '' }];
 }
 
-function resolveMaxTokens(input: AiChatInput): number {
+function resolveMaxTokens(input: AiChatInput, config: AiProviderRuntimeConfig): number {
   const fallback = input.enableThinking
-    ? THINKING_CHAT_MAX_TOKENS
-    : DEFAULT_CHAT_MAX_TOKENS;
+    ? config.thinkingMaxTokens
+    : config.maxTokensDefault;
   const requested = input.maxTokens ?? fallback;
-  return Math.min(Math.max(1, Math.floor(requested)), MAX_CHAT_MAX_TOKENS);
+  const ceiling = Math.max(
+    config.maxTokensDefault,
+    config.thinkingMaxTokens,
+    MAX_CHAT_MAX_TOKENS,
+  );
+  return Math.min(Math.max(1, Math.floor(requested)), ceiling);
 }
 
 function thinkingPayload(enableThinking?: boolean) {
@@ -43,7 +46,7 @@ function streamText(value: unknown): string {
 }
 
 export class OpenAiCompatibleClient implements AiClient {
-  constructor(private readonly config: AppConfig['ai']) {}
+  constructor(private readonly config: AiProviderRuntimeConfig) {}
 
   async chat(input: AiChatInput): Promise<AiChatResult> {
     if (!this.config.apiKey) {
@@ -53,7 +56,7 @@ export class OpenAiCompatibleClient implements AiClient {
     const json = (await this.createChatCompletion({
       model: this.config.model,
       messages: messagesFor(input),
-      max_tokens: resolveMaxTokens(input),
+      max_tokens: resolveMaxTokens(input, this.config),
       ...thinkingPayload(input.enableThinking),
     })) as {
       choices?: Array<{
@@ -107,7 +110,7 @@ export class OpenAiCompatibleClient implements AiClient {
         messages: messagesFor(input),
         stream: true,
         stream_options: { include_usage: true },
-        max_tokens: resolveMaxTokens(input),
+        max_tokens: resolveMaxTokens(input, this.config),
         ...thinkingPayload(input.enableThinking),
       }),
       signal: input.signal,
