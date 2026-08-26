@@ -5,11 +5,20 @@ import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { extractAccessToken } from './bearer-token';
 
+type RequestWithSupabaseClient = Request & {
+  supabaseRlsClient?: SupabaseClient;
+};
+
 @Injectable()
 export class SupabaseRequestClientService {
   constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 
   create(request: Request): SupabaseClient {
+    const scoped = request as RequestWithSupabaseClient;
+    if (scoped.supabaseRlsClient) {
+      return scoped.supabaseRlsClient;
+    }
+
     const token = extractAccessToken(request);
     if (!token) {
       throw new UnauthorizedException({
@@ -26,7 +35,7 @@ export class SupabaseRequestClientService {
       );
     }
 
-    return createClient(url, key, {
+    const client = createClient(url, key, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -38,5 +47,7 @@ export class SupabaseRequestClientService {
         },
       },
     });
+    scoped.supabaseRlsClient = client;
+    return client;
   }
 }
