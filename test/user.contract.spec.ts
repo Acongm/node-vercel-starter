@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import { UserService } from '../src/modules/user/user.service';
@@ -111,8 +113,22 @@ describe('UserService contract', () => {
     });
     const service = new UserService({ create: () => mocks.client } as never);
 
-    await service.updateProfile(request, userPrincipal, {
-      displayName: '  Only Name  ',
+    await expect(
+      service.updateProfile(request, userPrincipal, {
+        displayName: '  Only Name  ',
+      }),
+    ).resolves.toEqual({
+      profile: {
+        id: 'user-1',
+        display_name: 'Only Name',
+        avatar_url: 'https://example.com/existing.png',
+        preferences: { language: 'zh-CN' },
+      },
+      userInfo: expect.objectContaining({
+        id: 'user-1',
+        displayName: 'Only Name',
+        source: 'profile',
+      }),
     });
 
     expect(mocks.update).toHaveBeenCalledWith({ display_name: 'Only Name' });
@@ -193,5 +209,20 @@ describe('UserService contract', () => {
     await expect(service.me(request, invalid)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
+  });
+
+  it('keeps the Nest+Supabase HTTP job on the wrapped profile PATCH contract', () => {
+    const source = readFileSync(
+      join(__dirname, 'integration/nest-supabase-api.mjs'),
+      'utf8',
+    );
+    const patchSection = source.split(
+      'Verifying request-scoped profile RLS through Nest',
+    )[1];
+
+    expect(patchSection).toBeDefined();
+    expect(patchSection).toMatch(/result\.body\.profile\?\.id/);
+    expect(patchSection).toMatch(/result\.body\.userInfo\?\.displayName/);
+    expect(patchSection).not.toMatch(/assert\.equal\(\s*result\.body\.id,\s*userAId/);
   });
 });

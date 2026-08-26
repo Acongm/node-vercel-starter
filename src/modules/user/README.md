@@ -19,7 +19,7 @@ Send `Authorization: Bearer <supabase_access_token>`. Local `/api/auth/login` JW
 GET   /api/user/info      # getUserInfo — UI display snapshot
 GET   /api/user/me        # same payload as /info
 GET   /api/user/profile   # { profile, userInfo }
-PATCH /api/user/profile   # { displayName, avatarUrl, preferences }
+PATCH /api/user/profile   # body: { displayName, avatarUrl, preferences }; returns { profile, userInfo }
 GET   /api/user/settings  # { schemaVersion, defaults, overrides, effective }
 PATCH /api/user/settings  # { language, theme, defaultModel, defaultPrompt, skills }
 ```

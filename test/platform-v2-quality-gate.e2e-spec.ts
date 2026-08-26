@@ -294,7 +294,18 @@ describe('Platform v2 quality gate (#37 API path)', () => {
         }),
         getSettings: jest.fn().mockResolvedValue(userSnapshot.settings),
         updateSettings: jest.fn(),
-        updateProfile: jest.fn(),
+        updateProfile: jest.fn().mockImplementation(async (_request, _principal, dto) => ({
+          profile: {
+            id: userId,
+            display_name: dto.displayName ?? null,
+            preferences: dto.preferences ?? {},
+          },
+          userInfo: {
+            ...userSnapshot.userInfo,
+            displayName: dto.displayName ?? userSnapshot.userInfo.displayName,
+            source: 'profile' as const,
+          },
+        })),
       })
       .overrideProvider(ChatRepository)
       .useValue(createInMemoryChatRepository(store))
@@ -347,6 +358,28 @@ describe('Platform v2 quality gate (#37 API path)', () => {
       .expect(200);
 
     expect(profile.body.userInfo.displayName).toBe('Quality User');
+  });
+
+  it('returns wrapped profile and userInfo from PATCH /api/user/profile', async () => {
+    const token = await bearerToken();
+
+    const patched = await request(app.getHttpServer())
+      .patch('/api/user/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ displayName: 'Patched User', preferences: { theme: 'dark' } })
+      .expect(200);
+
+    expect(patched.body.id).toBeUndefined();
+    expect(patched.body.profile).toMatchObject({
+      id: userId,
+      display_name: 'Patched User',
+      preferences: { theme: 'dark' },
+    });
+    expect(patched.body.userInfo).toMatchObject({
+      id: userId,
+      displayName: 'Patched User',
+      source: 'profile',
+    });
   });
 
   it('creates a chat, returns tail-first history, and pages older messages with before', async () => {

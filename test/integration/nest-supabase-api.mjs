@@ -103,15 +103,29 @@ assert.equal(result.body.profile, null);
 
 console.log('Verifying request-scoped profile RLS through Nest...');
 
+// PATCH /api/user/profile returns { profile, userInfo }, not a flat profiles row.
+function expectProfilePatch(result, { id, displayName, preferences }) {
+  assert.equal(result.body.profile?.id, id);
+  assert.equal(result.body.profile?.display_name, displayName);
+  if (preferences !== undefined) {
+    assert.deepEqual(result.body.profile?.preferences, preferences);
+  }
+  assert.equal(result.body.userInfo?.id, id);
+  assert.equal(result.body.userInfo?.displayName, displayName);
+  assert.equal(Object.hasOwn(result.body, 'id'), false);
+}
+
 result = await request('/api/user/profile', {
   method: 'PATCH',
   token: userAToken,
   body: { displayName: 'Nest User A', preferences: { theme: 'dark' } },
 });
 expectStatus(result, 200, 'user A profile patch');
-assert.equal(result.body.id, userAId);
-assert.equal(result.body.display_name, 'Nest User A');
-assert.deepEqual(result.body.preferences, { theme: 'dark' });
+expectProfilePatch(result, {
+  id: userAId,
+  displayName: 'Nest User A',
+  preferences: { theme: 'dark' },
+});
 
 result = await request('/api/user/profile', {
   method: 'PATCH',
@@ -119,7 +133,10 @@ result = await request('/api/user/profile', {
   body: { displayName: 'Nest Anonymous B' },
 });
 expectStatus(result, 200, 'anonymous B profile patch');
-assert.equal(result.body.id, userBId);
+expectProfilePatch(result, {
+  id: userBId,
+  displayName: 'Nest Anonymous B',
+});
 
 result = await request('/api/user/me', { token: userAToken });
 expectStatus(result, 200, 'user A profile reload');

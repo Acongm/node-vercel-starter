@@ -134,10 +134,19 @@ describe('UserService', () => {
     });
     const service = new UserService({ create: () => mocks.client } as never);
 
-    await service.updateProfile(request(), principal, {
-      displayName: '  Updated  ',
-      avatarUrl: 'https://example.com/a.png',
-      preferences: { language: 'zh-CN' },
+    await expect(
+      service.updateProfile(request(), principal, {
+        displayName: '  Updated  ',
+        avatarUrl: 'https://example.com/a.png',
+        preferences: { language: 'zh-CN' },
+      }),
+    ).resolves.toEqual({
+      profile: { id: 'user-1', display_name: 'Updated' },
+      userInfo: expect.objectContaining({
+        id: 'user-1',
+        displayName: 'Updated',
+        source: 'profile',
+      }),
     });
 
     expect(mocks.update).toHaveBeenCalledWith({
