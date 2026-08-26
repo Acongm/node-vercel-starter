@@ -20,19 +20,25 @@ export async function searchWithTavily(
   apiKey: string,
   maxResults = 5,
 ): Promise<TavilySearchResult> {
-  const response = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      max_results: maxResults,
-      include_answer: true,
-      search_depth: 'basic',
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: maxResults,
+        include_answer: true,
+        search_depth: 'basic',
+      }),
+      signal: AbortSignal.timeout(4_000),
+    });
+  } catch {
+    return { sources: [] };
+  }
 
   if (!response.ok) {
     return { sources: [] };

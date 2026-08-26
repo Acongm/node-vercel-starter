@@ -155,6 +155,57 @@ describe('AiV1Service', () => {
     expect(capturedMessages[0].content).toContain('Shenzhen weather');
   });
 
+  it('does not call Tavily when the AI provider is mock', async () => {
+    global.fetch = jest.fn(async () => {
+      throw new Error('Tavily must not be called in mock mode');
+    });
+    const runtimeConfig = {
+      getWebSearchApiKey: jest.fn(async () => {
+        await new Promise(() => undefined);
+        return 'tavily-key';
+      }),
+      getAiConfig: jest.fn(async () => {
+        await new Promise(() => undefined);
+        return { provider: 'mock', model: 'mock-local' };
+      }),
+    };
+    const service = new AiV1Service(
+      {
+        chat: async () => ({ provider: 'mock', model: 'mock-local', message: 'ok' }),
+        async *streamChat() {
+          yield { type: 'delta', content: 'ok' };
+          yield { type: 'done' };
+        },
+        generateSummary: async () => ({
+          summary: '',
+          keyPoints: [],
+          keywords: [],
+          techStack: [],
+          difficulty: '',
+          contentType: '',
+        }),
+        createChatCompletion: async () => ({}),
+      },
+      { ai: { provider: 'mock', model: 'mock-local' } } as AppConfig,
+      DEFAULT_SITE_CONFIG,
+      chatLogWriter,
+      rateLimit,
+      jwtAuth,
+      runtimeConfig as never,
+    );
+
+    const events: Array<{ type: string }> = [];
+    for await (const event of service.stream({ prompt: 'hello quality gate' })) {
+      events.push(event);
+    }
+
+    expect(events.some((event) => event.type === 'delta')).toBe(true);
+    expect(events.some((event) => event.type === 'done')).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(runtimeConfig.getWebSearchApiKey).not.toHaveBeenCalled();
+    expect(runtimeConfig.getAiConfig).not.toHaveBeenCalled();
+  });
+
   it('does not re-resolve identity when a verified principal is already provided', async () => {
     const service = new AiV1Service(
       {

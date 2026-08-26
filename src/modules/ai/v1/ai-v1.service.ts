@@ -130,9 +130,12 @@ export class AiV1Service {
   ): AsyncGenerator<AiV1StreamEvent> {
     const prepared = this.withResolvedFlags(dto);
     const { messages, sources } = await this.prepare(prepared, options.settings);
-    const ai = this.runtimeConfig
-      ? await this.runtimeConfig.getAiConfig()
-      : this.appConfig.ai;
+    const ai =
+      this.appConfig.ai.provider === 'mock'
+        ? this.appConfig.ai
+        : this.runtimeConfig
+          ? await this.runtimeConfig.getAiConfig()
+          : this.appConfig.ai;
     yield {
       type: 'meta',
       provider: ai.provider,
@@ -224,6 +227,9 @@ export class AiV1Service {
     dto: ChatV1Dto,
     messages: ChatMessage[],
   ): Promise<Awaited<ReturnType<typeof searchWithTavily>>> {
+    if (this.appConfig.ai.provider === 'mock') {
+      return { sources: [] };
+    }
     const apiKey = await this.resolveWebSearchApiKey(Boolean(dto.enableWebSearch));
     if (!dto.enableWebSearch || !apiKey) {
       return { sources: [] };

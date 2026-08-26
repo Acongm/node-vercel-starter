@@ -16,6 +16,7 @@ import type {
   ChatRunRecord,
 } from '../src/modules/chat/chat.types';
 import { SupabaseAuthService } from '../src/modules/auth/supabase-auth.service';
+import { PlatformRuntimeConfigService } from '../src/modules/platform-config/platform-runtime-config.service';
 import { UserService } from '../src/modules/user/user.service';
 import { configureApp } from '../src/runtime/configure-app';
 
@@ -297,6 +298,14 @@ describe('Platform v2 quality gate (#37 API path)', () => {
       })
       .overrideProvider(ChatRepository)
       .useValue(createInMemoryChatRepository(store))
+      .overrideProvider(PlatformRuntimeConfigService)
+      .useValue({
+        getAiConfig: async () => ({
+          provider: 'mock',
+          model: 'mock-local',
+        }),
+        getWebSearchApiKey: async () => undefined,
+      })
       .compile();
 
     app = moduleRef.createNestApplication();

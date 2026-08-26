@@ -31,7 +31,7 @@ const required = [
   '20260825143200_api_request_logs_stats_v2.sql',
   '20260825150000_api_request_logs_stats_path_sort.sql',
   '20260825153000_api_request_logs_stats_sort_order.sql',
-  '20260825153000_platform_runtime_config.sql',
+  '20260825153100_platform_runtime_config.sql',
 ] as const;
 
 const stale = [
@@ -53,6 +53,11 @@ const stale = [
 describe('Supabase migration history ordering', () => {
   it('contains the reproducible prerequisite, live-version migrations and drift repair', () => {
     for (const name of required) expect(files).toContain(name);
+  });
+
+  it('keeps every migration version prefix unique so supabase start can apply them', () => {
+    const versions = files.map((name) => name.slice(0, 14));
+    expect(new Set(versions).size).toBe(versions.length);
   });
 
   it('removes stale aliases that could replay already-applied SQL', () => {

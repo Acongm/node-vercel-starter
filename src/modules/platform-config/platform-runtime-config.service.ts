@@ -30,6 +30,21 @@ import {
 
 const CONFIG_ROW_ID = 'default';
 const CACHE_TTL_MS = 30_000;
+const RESOLVE_TIMEOUT_MS = 1_500;
+
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('platform-config-timeout')), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 type ResolvedRuntime = {
   document: PlatformRuntimeConfigDocument;
@@ -225,16 +240,34 @@ export class PlatformRuntimeConfigService {
     }
 
     const client = this.supabaseAdmin.getClient();
-    const { data, error } = await client
-      .from('platform_runtime_config')
-      .select('schema_version, config, updated_at')
-      .eq('id', CONFIG_ROW_ID)
-      .maybeSingle();
-
-    if (error) {
-      throw new ServiceUnavailableException(
-        `Failed to load platform runtime config: ${error.message}`,
+    let data: {
+      schema_version?: number;
+      config?: unknown;
+      updated_at?: string;
+    } | null = null;
+    try {
+      const result = await withTimeout(
+        client
+          .from('platform_runtime_config')
+          .select('schema_version, config, updated_at')
+          .eq('id', CONFIG_ROW_ID)
+          .maybeSingle(),
+        RESOLVE_TIMEOUT_MS,
       );
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      data = result.data;
+    } catch {
+      const resolved: ResolvedRuntime = {
+        document: envDefaults,
+        secrets: envSecrets,
+        source: 'environment',
+        updatedAt: null,
+      };
+      this.cache = resolved;
+      this.cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+      return resolved;
     }
 
     const fallbackBody = defaultPlatformRuntimeConfigBody(this.appConfig);
