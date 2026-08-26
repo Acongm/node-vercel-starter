@@ -165,6 +165,7 @@ export default function DataIndexPage() {
         <Tabs
           activeKey={activeKey || tables[0]?.key}
           onChange={handleTabChange}
+          destroyInactiveTabPane
           items={tables.map((table) => ({
             key: table.key,
             label: table.label,

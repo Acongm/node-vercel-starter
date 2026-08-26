@@ -10,6 +10,7 @@ import type {
 } from './ai-client.interface';
 import { MockAiClient } from './mock-ai.client';
 import { OpenAiCompatibleClient } from './openai-compatible.client';
+import type { AiProviderRuntimeConfig } from './ai-client.interface';
 import type { PlatformRuntimeConfigService } from '../../modules/platform-config/platform-runtime-config.service';
 
 export class DynamicAiClient implements AiClient {

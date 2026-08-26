@@ -75,7 +75,7 @@ export default function LlmConfigPage() {
       const next = await updatePlatformConfig(buildPlatformConfigPatch(values));
       setView(next);
       form.setFieldsValue(toPlatformConfigFormValues(next));
-      message.success('平台配置已保存');
+      message.success('平台配置已保存，Chat 将立即使用新配置');
     } catch (err) {
       const text = formSubmitErrorMessage(err);
       if (text) {

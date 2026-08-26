@@ -454,6 +454,7 @@ export default function RequestLogsPage() {
   const [paused, setPaused] = useState(false);
   const [selected, setSelected] = useState<RequestLogRow | null>(null);
   const maxIdRef = useRef(0);
+  const skipStatsRefreshRef = useRef(true);
 
   const mergeRows = useCallback((incoming: RequestLogRow[], incremental: boolean) => {
     setRows((prev) => {
@@ -542,9 +543,14 @@ export default function RequestLogsPage() {
 
   useEffect(() => {
     retryLoad();
-  }, [retryLoad]);
+    // Initial load only — avoid full-page loading when stats sort/filter changes.
+  }, []);
 
   useEffect(() => {
+    if (skipStatsRefreshRef.current) {
+      skipStatsRefreshRef.current = false;
+      return;
+    }
     loadStats(statsWindow, excludeStream, pathSort, pathSortOrder).catch((err: Error) => {
       setPageState({ kind: 'error', message: err.message });
     });

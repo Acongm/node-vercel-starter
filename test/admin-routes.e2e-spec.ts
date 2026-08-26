@@ -74,6 +74,10 @@ describe('Admin routes (e2e)', () => {
         entry.method === 'GET' && entry.path === '/api/health',
     );
     expect(healthRoute).toBeDefined();
+    expect(healthRoute).toMatchObject({
+      group: 'health',
+      groupLabel: expect.stringContaining('健康检查'),
+    });
 
     const adminRoutesRoute = response.body.items.find(
       (entry: { method: string; path: string }) =>
