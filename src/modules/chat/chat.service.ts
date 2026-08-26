@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { appLogger } from '../../common/app-logger';
+import { inferWebSearchIntent } from '../../common/chat-web-search-intent';
 import { RequestWithId } from '../../common/request-id.middleware';
 import { AiV1Service } from '../ai/v1/ai-v1.service';
 import { ChatV1Dto } from '../ai/v1/chat-v1.dto';
@@ -502,8 +503,9 @@ export class ChatService {
     return {
       messages: history,
       historyMode: 'long',
-      enableThinking: dto.enableThinking,
-      enableWebSearch: dto.enableWebSearch,
+      enableThinking: dto.enableThinking !== false,
+      enableWebSearch:
+        Boolean(dto.enableWebSearch) || inferWebSearchIntent(dto.content),
       maxTokens: dto.maxTokens,
       conversationId: chat.id,
       context: {
