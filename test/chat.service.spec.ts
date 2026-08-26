@@ -180,7 +180,7 @@ describe('ChatService', () => {
         role: 'assistant',
         parentMessageId: 'msg-user',
         parts: [
-          { type: 'reasoning', text: 'reason ' },
+          { type: 'reasoning', text: 'reason' },
           { type: 'text', text: 'hello world' },
           { type: 'source', source: { title: 'Source', url: 'https://example.com' } },
         ],

@@ -12,6 +12,12 @@ import {
 } from './ai-client.interface';
 import { parseSummaryResponse } from './summary.parser';
 import { SUMMARY_SYSTEM_PROMPT } from './summary.prompt';
+import {
+  createThinkSplitState,
+  flushThinkSplit,
+  reasoningFromDelta,
+  splitThinkDelta,
+} from './think-text';
 
 const MAX_SUMMARY_CONTENT_LENGTH = 3000;
 const MAX_CHAT_MAX_TOKENS = 8192;
@@ -38,6 +44,7 @@ function resolveMaxTokens(input: AiChatInput, config: AiProviderRuntimeConfig): 
 function thinkingPayload(enableThinking?: boolean) {
   return {
     thinking: { type: enableThinking ? 'enabled' : 'disabled' },
+    enable_thinking: Boolean(enableThinking),
   };
 }
 
@@ -131,6 +138,7 @@ export class OpenAiCompatibleClient implements AiClient {
     const decoder = new TextDecoder();
     let buffer = '';
     let doneEmitted = false;
+    const thinkState = createThinkSplitState();
 
     const parseFrame = (frame: string): AiStreamEvent[] => {
       const data = frame
@@ -150,6 +158,8 @@ export class OpenAiCompatibleClient implements AiClient {
             content?: string;
             reasoning_content?: string;
             reasoning?: string;
+            thinking?: string;
+            thought?: string;
           };
         }>;
         usage?: {
@@ -170,9 +180,10 @@ export class OpenAiCompatibleClient implements AiClient {
 
       const events: AiStreamEvent[] = [];
       const delta = payload.choices?.[0]?.delta;
+      const tagged = splitThinkDelta(streamText(delta?.content), thinkState);
       const thinking =
-        streamText(delta?.reasoning_content) || streamText(delta?.reasoning);
-      const content = streamText(delta?.content);
+        reasoningFromDelta(delta ?? {}) || tagged.thinking;
+      const content = tagged.text;
       if (thinking) events.push({ type: 'thinking', content: thinking });
       if (content) events.push({ type: 'delta', content });
       if (payload.usage) {
@@ -203,6 +214,13 @@ export class OpenAiCompatibleClient implements AiClient {
       }
       if (buffer.trim()) {
         for (const event of parseFrame(buffer)) yield event;
+      }
+      const leftover = flushThinkSplit(thinkState);
+      if (leftover.thinking) {
+        yield { type: 'thinking', content: leftover.thinking };
+      }
+      if (leftover.text) {
+        yield { type: 'delta', content: leftover.text };
       }
       if (!doneEmitted) yield { type: 'done' };
     } catch (error) {

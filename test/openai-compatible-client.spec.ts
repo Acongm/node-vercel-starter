@@ -176,6 +176,7 @@ describe('OpenAiCompatibleClient', () => {
 
     expect(requestBody).toMatchObject({
       thinking: { type: 'disabled' },
+      enable_thinking: false,
       max_tokens: 1024,
     });
     expect(events).toEqual([
@@ -217,8 +218,49 @@ describe('OpenAiCompatibleClient', () => {
 
     expect(requestBody).toMatchObject({
       thinking: { type: 'enabled' },
+      enable_thinking: true,
       max_tokens: 4096,
     });
+  });
+
+  it('emits thinking events from think tags inside content deltas', async () => {
+    const encoder = new TextEncoder();
+    global.fetch = jest.fn(async () => {
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                'data: {"choices":[{"delta":{"content":"<think>先查天气"}}]}\n\n',
+              ),
+            );
+            controller.enqueue(
+              encoder.encode(
+                'data: {"choices":[{"delta":{"content":"</think>深圳多云"}}]}\n\n',
+              ),
+            );
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const client = new OpenAiCompatibleClient(baseAiConfig);
+    const events = [];
+    for await (const event of client.streamChat({
+      prompt: '今天深圳什么天气',
+      enableThinking: true,
+    })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      { type: 'thinking', content: '先查天气' },
+      { type: 'delta', content: '深圳多云' },
+      { type: 'done' },
+    ]);
   });
 
   it('emits thinking events from reasoning_content deltas', async () => {

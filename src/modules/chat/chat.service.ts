@@ -8,6 +8,7 @@ import {
 import { Request } from 'express';
 import { appLogger } from '../../common/app-logger';
 import { inferWebSearchIntent } from '../../common/chat-web-search-intent';
+import { extractThinkFromText } from '../../adapters/ai/think-text';
 import { RequestWithId } from '../../common/request-id.middleware';
 import { AiV1Service } from '../ai/v1/ai-v1.service';
 import { ChatV1Dto } from '../ai/v1/chat-v1.dto';
@@ -465,9 +466,12 @@ export class ChatService {
     assistantText: string,
     sources: { title: string; url: string }[],
   ): ChatMessagePart[] {
+    const extracted = extractThinkFromText(assistantText);
+    const thinking = reasoning.trim() || extracted.thinking.trim();
+    const text = extracted.text || assistantText;
     const parts: ChatMessagePart[] = [];
-    if (reasoning.trim()) parts.push({ type: 'reasoning', text: reasoning });
-    if (assistantText.trim()) parts.push({ type: 'text', text: assistantText });
+    if (thinking) parts.push({ type: 'reasoning', text: thinking });
+    if (text.trim()) parts.push({ type: 'text', text });
     for (const source of sources) parts.push({ type: 'source', source });
     return parts;
   }
