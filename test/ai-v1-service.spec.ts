@@ -96,6 +96,65 @@ describe('AiV1Service', () => {
     ]);
   });
 
+  it('enables web search by default when the client omits the flag', async () => {
+    let capturedMessages: Array<{ role: string; content: string }> = [];
+    const client: AiClient = {
+      chat: async (input) => {
+        capturedMessages = input.messages || [];
+        return { provider: 'custom', model: 'model', message: 'answer' };
+      },
+      async *streamChat(): AsyncIterable<AiStreamEvent> {
+        yield { type: 'done' };
+      },
+      generateSummary: async () => ({
+        summary: '',
+        keyPoints: [],
+        keywords: [],
+        techStack: [],
+        difficulty: '',
+        contentType: '',
+      }),
+      createChatCompletion: async () => ({}),
+    };
+    global.fetch = jest.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            answer: 'Shenzhen is warm today.',
+            results: [
+              {
+                title: 'Shenzhen weather',
+                url: 'https://weather.example/shenzhen',
+                content: 'High 32C, mostly sunny.',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
+    const service = new AiV1Service(
+      client,
+      {
+        ai: {
+          provider: 'custom',
+          model: 'model',
+          baseUrl: 'https://example.test',
+          webSearchApiKey: 'tavily-key',
+        },
+      } as AppConfig,
+      DEFAULT_SITE_CONFIG,
+      chatLogWriter,
+      rateLimit,
+      jwtAuth,
+    );
+
+    await service.chat({ prompt: '今天深圳什么天气' }, createMockRequest());
+
+    expect(global.fetch).toHaveBeenCalled();
+    expect(capturedMessages[0].content).toContain('【联网检索结果】');
+    expect(capturedMessages[0].content).toContain('Shenzhen weather');
+  });
+
   it('does not re-resolve identity when a verified principal is already provided', async () => {
     const service = new AiV1Service(
       {

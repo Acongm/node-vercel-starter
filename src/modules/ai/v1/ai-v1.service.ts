@@ -22,6 +22,7 @@ import { ChatLogWriterService } from '../../chat-logs/chat-log-writer.service';
 import { PlatformRuntimeConfigService } from '../../platform-config/platform-runtime-config.service';
 import { RequestWithCaller } from '../ai-caller.guard';
 import { ChatRateLimitService } from '../chat-rate-limit.service';
+import { resolveEnableWebSearch } from '../../../common/chat-web-search-intent';
 import { ChatV1Dto } from './chat-v1.dto';
 import {
   prepareChatV1Messages,
@@ -82,12 +83,13 @@ export class AiV1Service {
       (options.skipRateLimit
         ? await this.jwtAuth.resolvePrincipal(req)
         : await this.enforceRateLimit(req));
-    const { messages, sources } = await this.prepare(dto);
+    const prepared = this.withResolvedFlags(dto);
+    const { messages, sources } = await this.prepare(prepared);
     const result = await this.aiClient.chat({
       messages,
-      context: dto.context,
-      enableWebSearch: dto.enableWebSearch,
-      enableThinking: dto.enableThinking,
+      context: prepared.context,
+      enableWebSearch: prepared.enableWebSearch,
+      enableThinking: prepared.enableThinking,
       maxTokens: dto.maxTokens,
     });
     const response = {
@@ -126,7 +128,8 @@ export class AiV1Service {
       requestId?: string;
     } = {},
   ): AsyncGenerator<AiV1StreamEvent> {
-    const { messages, sources } = await this.prepare(dto, options.settings);
+    const prepared = this.withResolvedFlags(dto);
+    const { messages, sources } = await this.prepare(prepared, options.settings);
     const ai = this.runtimeConfig
       ? await this.runtimeConfig.getAiConfig()
       : this.appConfig.ai;
@@ -134,16 +137,16 @@ export class AiV1Service {
       type: 'meta',
       provider: ai.provider,
       model: ai.provider === 'mock' ? 'mock-local' : ai.model,
-      conversationId: dto.conversationId,
-      enableThinking: Boolean(dto.enableThinking),
+      conversationId: prepared.conversationId,
+      enableThinking: Boolean(prepared.enableThinking),
       requestId: options.requestId,
     };
     if (sources.length) yield { type: 'sources', sources };
     yield* this.aiClient.streamChat({
       messages,
-      context: dto.context,
-      enableWebSearch: dto.enableWebSearch,
-      enableThinking: dto.enableThinking,
+      context: prepared.context,
+      enableWebSearch: prepared.enableWebSearch,
+      enableThinking: prepared.enableThinking,
       maxTokens: dto.maxTokens,
       signal: options.signal,
     });
@@ -181,6 +184,19 @@ export class AiV1Service {
     }
 
     return verified;
+  }
+
+  private withResolvedFlags(dto: ChatV1Dto): ChatV1Dto {
+    const prompt =
+      dto.prompt ||
+      [...(dto.messages ?? [])]
+        .reverse()
+        .find((message) => message.role === 'user')?.content;
+    return {
+      ...dto,
+      enableWebSearch: resolveEnableWebSearch(dto.enableWebSearch, prompt),
+      enableThinking: true,
+    };
   }
 
   private async prepare(dto: ChatV1Dto, settings?: ChatSettingsInjection) {

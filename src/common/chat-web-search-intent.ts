@@ -8,6 +8,15 @@ const TIMEFUL_RE = /今天|今日|现在|实时|最新|刚才|刚刚|昨天|明�
 
 const QUESTION_RE = /[？?吗呢]|什么|多少|几度|如何|怎么|哪/u;
 
+/** Live search is on by default. An explicit `false` still searches when the prompt is realtime. */
+export function resolveEnableWebSearch(
+  requested?: boolean,
+  prompt?: string,
+): boolean {
+  if (requested !== false) return true;
+  return inferWebSearchIntent(prompt);
+}
+
 /** Infer whether a user prompt needs live web search. */
 export function inferWebSearchIntent(prompt: string | undefined): boolean {
   const value = String(prompt || '').trim();

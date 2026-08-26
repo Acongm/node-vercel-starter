@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { DataStore } from '../../adapters/data-store/data-store.interface';
+import { resolveEnableWebSearch } from '../../common/chat-web-search-intent';
 import { extractChatRequestMeta } from '../../common/chat-request-meta';
 import { CHAT_MESSAGE_STORE, CHAT_THREAD_STORE } from '../../common/tokens';
 import { AiV1Service } from '../ai/v1/ai-v1.service';
@@ -269,8 +270,8 @@ export class ChatThreadsService {
     return {
       messages: history,
       historyMode: 'long',
-      enableThinking: dto.enableThinking,
-      enableWebSearch: dto.enableWebSearch,
+      enableThinking: dto.enableThinking !== false,
+      enableWebSearch: resolveEnableWebSearch(dto.enableWebSearch, dto.content),
       maxTokens: dto.maxTokens,
       conversationId: thread.conversationId || thread.id,
       context: {
