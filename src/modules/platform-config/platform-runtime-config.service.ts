@@ -144,12 +144,22 @@ export class PlatformRuntimeConfigService {
       apiKey: resolved.secrets.get('llm.api_key') || this.appConfig.ai.apiKey,
       maxTokensDefault: body.chat.maxTokensDefault,
       thinkingMaxTokens: body.chat.thinkingMaxTokens,
-      webSearchApiKey:
-        body.webSearch.enabled
-          ? resolved.secrets.get('web_search.api_key') ||
-            this.appConfig.ai.webSearchApiKey
-          : undefined,
+      webSearchApiKey: await this.getWebSearchApiKey(),
     };
+  }
+
+  /** Resolve Tavily key; `force` bypasses admin disable when the user requested web search. */
+  async getWebSearchApiKey(options?: {
+    force?: boolean;
+  }): Promise<string | undefined> {
+    const resolved = await this.resolve(true);
+    const body = this.toConfigBody(resolved.document);
+    const key =
+      resolved.secrets.get('web_search.api_key')?.trim() ||
+      this.appConfig.ai.webSearchApiKey?.trim();
+    if (!key) return undefined;
+    if (options?.force || body.webSearch.enabled) return key;
+    return undefined;
   }
 
   async getPortalSummariesUrl(): Promise<string> {

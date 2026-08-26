@@ -51,7 +51,14 @@ describe('AiV1Service', () => {
       async () =>
         new Response(
           JSON.stringify({
-            results: [{ title: 'React docs', url: 'https://react.dev' }],
+            answer: 'Shenzhen is warm today.',
+            results: [
+              {
+                title: 'Shenzhen weather',
+                url: 'https://weather.example/shenzhen',
+                content: 'High 32C, mostly sunny.',
+              },
+            ],
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         ),
@@ -78,11 +85,14 @@ describe('AiV1Service', () => {
       createMockRequest(),
     );
 
-    expect(capturedMessages[0].content).toContain(
-      'React docs - https://react.dev',
-    );
+    expect(capturedMessages[0].content).toContain('Shenzhen is warm today.');
+    expect(capturedMessages[0].content).toContain('Shenzhen weather');
     expect(result.sources).toEqual([
-      { title: 'React docs', url: 'https://react.dev' },
+      {
+        title: 'Shenzhen weather',
+        url: 'https://weather.example/shenzhen',
+        snippet: 'High 32C, mostly sunny.',
+      },
     ]);
   });
 

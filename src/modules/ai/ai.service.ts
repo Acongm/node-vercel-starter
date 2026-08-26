@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Request } from 'express';
-import { searchWithTavily } from '../../adapters/web-search/tavily.client';
+import { searchWithTavily, formatWebSearchContext } from '../../adapters/web-search/tavily.client';
 import { AI_CLIENT, APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import {
@@ -42,13 +42,13 @@ export class AiService {
     }
 
     const messages = this.buildChatMessages(dto);
-    const sources = dto.enableWebSearch
+    const searchResult = dto.enableWebSearch
       ? await this.searchWeb(messages)
-      : undefined;
+      : null;
 
     const enrichedMessages =
-      sources && sources.length > 0 && messages
-        ? this.injectSearchContext(messages, sources)
+      dto.enableWebSearch && messages
+        ? this.injectSearchContext(messages, searchResult ?? { sources: [] })
         : messages;
 
     const result = await this.aiClient.chat({
@@ -62,7 +62,9 @@ export class AiService {
       provider: result.provider,
       model: result.model,
       message: result.message,
-      sources: sources?.length ? sources : result.sources,
+      sources: searchResult?.sources?.length
+        ? searchResult.sources
+        : result.sources,
       requestId: requestIdOf(req),
     };
 
@@ -184,9 +186,9 @@ export class AiService {
   }
 
   private async searchWeb(messages: ChatMessage[] | undefined) {
-    const apiKey = (await this.runtimeConfig.getAiConfig()).webSearchApiKey;
+    const apiKey = await this.runtimeConfig.getWebSearchApiKey({ force: true });
     if (!apiKey || !messages?.length) {
-      return [];
+      return { sources: [] };
     }
 
     const lastUserMessage = [...messages]
@@ -194,7 +196,7 @@ export class AiService {
       .find((message) => message.role === 'user');
 
     if (!lastUserMessage?.content?.trim()) {
-      return [];
+      return { sources: [] };
     }
 
     return searchWithTavily(lastUserMessage.content, apiKey);
@@ -202,14 +204,9 @@ export class AiService {
 
   private injectSearchContext(
     messages: ChatMessage[],
-    sources: Array<{ title: string; url: string }>,
+    searchResult: Awaited<ReturnType<typeof searchWithTavily>>,
   ): ChatMessage[] {
-    const searchBlock = [
-      '【联网检索结果】',
-      ...sources.map(
-        (source, index) => `${index + 1}. ${source.title} - ${source.url}`,
-      ),
-    ].join('\n');
+    const searchBlock = formatWebSearchContext(searchResult);
 
     const cloned = [...messages];
     const systemIndex = cloned.findIndex((message) => message.role === 'system');

@@ -21,6 +21,7 @@ export interface ChatContext {
 export interface ChatSource {
   title: string;
   url: string;
+  snippet?: string;
 }
 
 export interface AiChatInput {

@@ -11,7 +11,7 @@ import {
   ChatMessage,
   ChatSource,
 } from '../../../adapters/ai/ai-client.interface';
-import { searchWithTavily } from '../../../adapters/web-search/tavily.client';
+import { searchWithTavily, formatWebSearchContext } from '../../../adapters/web-search/tavily.client';
 import { extractChatRequestMeta } from '../../../common/chat-request-meta';
 import { AI_CLIENT, APP_CONFIG, SITE_CONFIG } from '../../../common/tokens';
 import { AppConfig } from '../../../config/app-config';
@@ -188,13 +188,17 @@ export class AiV1Service {
     if (!messages.some((message) => message.role === 'user')) {
       throw new BadRequestException('Provide prompt or messages.');
     }
-    const sources = await this.search(dto, messages);
-    if (sources.length) {
+    const searchResult = await this.search(dto, messages);
+    const sources = searchResult.sources;
+    if (dto.enableWebSearch) {
       messages[0] = {
         ...messages[0],
-        content: `${messages[0].content}\n\n【联网检索结果】\n${sources
-          .map((source, index) => `${index + 1}. ${source.title} - ${source.url}`)
-          .join('\n')}`,
+        content: `${messages[0].content}\n\n${formatWebSearchContext(searchResult)}`,
+      };
+    } else if (sources.length) {
+      messages[0] = {
+        ...messages[0],
+        content: `${messages[0].content}\n\n${formatWebSearchContext(searchResult)}`,
       };
     }
     return { messages, sources };
@@ -203,15 +207,28 @@ export class AiV1Service {
   private async search(
     dto: ChatV1Dto,
     messages: ChatMessage[],
-  ): Promise<ChatSource[]> {
-    const apiKey = this.runtimeConfig
-      ? (await this.runtimeConfig.getAiConfig()).webSearchApiKey
-      : this.appConfig.ai.webSearchApiKey;
-    if (!dto.enableWebSearch || !apiKey) return [];
+  ): Promise<Awaited<ReturnType<typeof searchWithTavily>>> {
+    const apiKey = await this.resolveWebSearchApiKey(Boolean(dto.enableWebSearch));
+    if (!dto.enableWebSearch || !apiKey) {
+      return { sources: [] };
+    }
     const query = [...messages]
       .reverse()
       .find((message) => message.role === 'user')
       ?.content.trim();
-    return query ? searchWithTavily(query, apiKey) : [];
+    return query ? searchWithTavily(query, apiKey) : { sources: [] };
+  }
+
+  private async resolveWebSearchApiKey(
+    requested: boolean,
+  ): Promise<string | undefined> {
+    const envKey = this.appConfig.ai.webSearchApiKey?.trim();
+    if (!this.runtimeConfig) {
+      return envKey;
+    }
+    const key = await this.runtimeConfig.getWebSearchApiKey(
+      requested ? { force: true } : undefined,
+    );
+    return key || (requested ? envKey : undefined);
   }
 }

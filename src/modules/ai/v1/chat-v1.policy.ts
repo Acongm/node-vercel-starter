@@ -34,13 +34,33 @@ function safeSlice(value: string, maxLength: number): string {
 
 function buildSystemPrompt(dto: ChatV1Dto): string {
   const context = dto.context;
+
+  if (dto.enableWebSearch) {
+    const lines = [
+      '你是 Acongm 智能助手。用户已明确要求联网检索，系统会在下方注入【联网检索结果】。',
+      '你必须优先依据【联网检索结果】中的摘要与网页片段回答，并给出引用来源。',
+      '禁止声称「无法联网」「只能阅读文档」或拒绝回答——联网能力已启用。',
+      '若检索结果不足以回答，可结合常识补充，并说明实时数据可能不完全准确。',
+      context?.title ? `对话主题：${normalize(context.title)}` : '',
+      context?.moduleKey ? `模块：${normalize(context.moduleKey)}` : '',
+    ].filter(Boolean);
+
+    const content = safeSlice(
+      normalize(context?.content),
+      DOCUMENT_CONTENT_CHAR_BUDGET,
+    );
+    if (content) {
+      lines.push(`附加参考文档（次要）：\n${content}`);
+    }
+
+    return safeSlice(lines.join('\n'), SYSTEM_PROMPT_CHAR_BUDGET);
+  }
+
   const scope = context?.scope === 'module' ? '本模块' : '当前文章';
   const lines = [
     '你是技术知识库的 AI 阅读助手。回答准确、简洁，并明确区分文档内容与外部信息。',
     `回答范围：${scope}。`,
-    dto.enableWebSearch
-      ? '用户要求联网检索；结合检索来源回答并给出引用。'
-      : '除非上下文明确提供，否则不要声称已联网检索。',
+    '除非上下文明确提供，否则不要声称已联网检索。',
     dto.enableThinking
       ? '可以先进行内部推理，再给出最终回答；对外回答保持简洁。'
       : '',

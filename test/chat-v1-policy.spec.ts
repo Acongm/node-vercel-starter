@@ -58,8 +58,9 @@ describe('AI chat v1 message policy', () => {
     });
     const system = result[0].content;
 
-    expect(system).toContain('本模块');
+    expect(system).toContain('Acongm 智能助手');
     expect(system).toContain('联网检索');
+    expect(system).toContain('禁止声称');
     expect(system).toContain('React 16');
     expect(system.length).toBeLessThanOrEqual(SYSTEM_PROMPT_CHAR_BUDGET);
     expect(system).not.toMatch(/[\uD800-\uDBFF]$/);
