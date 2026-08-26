@@ -18,6 +18,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAdminRoutes } from '@/services/api';
 import { apiFetch } from '@/services/http';
 import type { AdminRouteEntry, ApiResult } from '@/types';
+import { groupAdminRoutes } from '@/utils/route-groups';
+import { preventNativeSubmit } from '@/utils/table-query';
 
 const { TextArea } = Input;
 const HISTORY_KEY = 'admin-debug-history';
@@ -173,41 +175,35 @@ export default function DebugPage() {
   const pathParamNames = useMemo(() => parsePathParams(path), [path]);
 
   const treeData = useMemo(() => {
+    const keyword = routeSearch.trim().toLowerCase();
     const filtered = routes.filter((route) => {
-      if (!routeSearch.trim()) {
+      if (!keyword) {
         return true;
       }
-      return route.path.toLowerCase().includes(routeSearch.trim().toLowerCase());
+      return (
+        route.path.toLowerCase().includes(keyword) ||
+        (route.groupLabel ?? '').toLowerCase().includes(keyword) ||
+        route.method.toLowerCase().includes(keyword)
+      );
     });
 
-    const grouped = new Map<string, AdminRouteEntry[]>();
-    for (const route of filtered) {
-      const group = grouped.get(route.controllerName) ?? [];
-      group.push(route);
-      grouped.set(route.controllerName, group);
-    }
-
-    const nodes: DataNode[] = [];
-    for (const [controllerName, entries] of grouped.entries()) {
-      nodes.push({
-        key: controllerName,
-        title: controllerName,
-        selectable: false,
-        children: entries.map((entry) => ({
-          key: `${entry.method}:${entry.path}`,
-          title: (
-            <Space size={4}>
-              <Typography.Text code style={{ fontSize: 11 }}>
-                {entry.method}
-              </Typography.Text>
-              <span>{entry.path}</span>
-            </Space>
-          ),
-          isLeaf: true,
-        })),
-      });
-    }
-    return nodes;
+    return groupAdminRoutes(filtered).map((group) => ({
+      key: group.key,
+      title: `${group.title}（${group.children.length}）`,
+      selectable: false,
+      children: group.children.map((entry) => ({
+        key: entry.key,
+        title: (
+          <Space size={4}>
+            <Typography.Text code style={{ fontSize: 11 }}>
+              {entry.method}
+            </Typography.Text>
+            <span>{entry.path}</span>
+          </Space>
+        ),
+        isLeaf: true,
+      })),
+    })) as DataNode[];
   }, [routes, routeSearch]);
 
   const selectRoute = useCallback((route: AdminRouteEntry) => {
@@ -287,9 +283,10 @@ export default function DebugPage() {
         <Col xs={24} lg={8}>
           <Card title="路由清单" size="small">
             <Input.Search
-              placeholder="按 path 过滤"
+              placeholder="按分组 / path / method 过滤"
               allowClear
               onChange={(event) => setRouteSearch(event.target.value)}
+              onPressEnter={preventNativeSubmit}
               style={{ marginBottom: 12 }}
             />
             <div style={{ maxHeight: 520, overflow: 'auto' }}>

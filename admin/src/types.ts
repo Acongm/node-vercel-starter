@@ -76,6 +76,8 @@ export type AdminRouteEntry = {
   path: string;
   controllerName: string;
   handlerName: string;
+  group?: string;
+  groupLabel?: string;
 };
 
 export type AdminRoutesResponse = {

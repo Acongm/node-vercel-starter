@@ -1,6 +1,6 @@
 import { ProCard } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { ProTable } from '@ant-design/pro-components';
+import AdminProTable from '@/components/AdminProTable';
 import { Empty, Segmented } from 'antd';
 import { useEffect, useState } from 'react';
 import { fetchKbUsage } from '@/services/api';
@@ -72,7 +72,7 @@ export default function UsageTab() {
           {coverage.length === 0 ? (
             <Empty description="暂无 kb_chunks 入库数据（流水线尚未写入 Supabase）" />
           ) : (
-            <ProTable<KbCoverageItem>
+            <AdminProTable<KbCoverageItem>
               rowKey="path"
               columns={coverageColumns}
               search={false}
@@ -87,7 +87,7 @@ export default function UsageTab() {
 
         <ProCard split="vertical">
           <ProCard title="对话中使用的知识页" colSpan="50%">
-            <ProTable<KbCountAggregate>
+            <AdminProTable<KbCountAggregate>
               rowKey="key"
               columns={chatPageColumns}
               search={false}
@@ -100,7 +100,7 @@ export default function UsageTab() {
           </ProCard>
 
           <ProCard title="外部引用 Top" colSpan="50%">
-            <ProTable<KbCountAggregate>
+            <AdminProTable<KbCountAggregate>
               rowKey="key"
               columns={citationColumns}
               search={false}

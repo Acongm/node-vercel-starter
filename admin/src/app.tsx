@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import { fetchSession } from '@/services/api';
 import { apiFetch } from '@/services/http';
 import { redirectToLogin } from '@/utils/auth';
+import { preventNativeNavigation } from '@/utils/table-query';
 
 export async function getInitialState(): Promise<{
   session?: Awaited<ReturnType<typeof fetchSession>>;
@@ -26,4 +28,7 @@ export const layout = () => ({
   logout: () => {
     import('@/utils/auth').then(({ redirectToLogout }) => redirectToLogout());
   },
+  childrenRender: (children: ReactNode) => (
+    <div onSubmitCapture={preventNativeNavigation}>{children}</div>
+  ),
 });

@@ -1,10 +1,13 @@
-import { PageContainer, ProTable } from '@ant-design/pro-components';
+import { PageContainer } from '@ant-design/pro-components';
 import type { ProColumns } from '@ant-design/pro-components';
-import { Alert, Drawer, Input, Tabs, Tag, Typography } from 'antd';
+import { Alert, Drawer, Tabs, Tag } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { history, useParams } from '@umijs/max';
+import { history, useLocation } from '@umijs/max';
+import AdminProTable from '@/components/AdminProTable';
+import FilterSearch from '@/components/FilterSearch';
 import { fetchAdminTableRows, fetchAdminTables } from '@/services/api';
 import type { AdminTableDefinition } from '@/types';
+import { buildDataTablePath, parseDataTableKey } from '@/utils/table-query';
 
 const MAX_DATA_COLUMNS = 8;
 const COLUMN_WIDTH = 160;
@@ -70,13 +73,13 @@ function TablePanel({ tableKey }: { tableKey: string }) {
 
   return (
     <>
-      <Input.Search
+      <FilterSearch
         placeholder="模糊搜索"
         allowClear
         onSearch={setSearch}
         style={{ maxWidth: 360, marginBottom: 16 }}
       />
-      <ProTable<Record<string, unknown>>
+      <AdminProTable<Record<string, unknown>>
         rowKey={(row) => String(row.id || row.client_id || row.user_id || JSON.stringify(row))}
         search={false}
         params={{ search }}
@@ -85,7 +88,7 @@ function TablePanel({ tableKey }: { tableKey: string }) {
           const response = await fetchAdminTableRows(tableKey, {
             page: params.current,
             pageSize: params.pageSize,
-            search: params.search || undefined,
+            search: typeof params.search === 'string' ? params.search : undefined,
           });
           setColumns(buildColumns(response.items));
           return {
@@ -122,33 +125,36 @@ function TablePanel({ tableKey }: { tableKey: string }) {
 }
 
 export default function DataIndexPage() {
-  const { tableKey: routeTableKey } = useParams<{ tableKey?: string }>();
+  const location = useLocation();
   const [tables, setTables] = useState<AdminTableDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeKey, setActiveKey] = useState<string>('');
 
   useEffect(() => {
     fetchAdminTables()
-      .then((items) => {
-        setTables(items);
-        if (routeTableKey && items.some((item) => item.key === routeTableKey)) {
-          setActiveKey(routeTableKey);
-        } else if (items.length > 0) {
-          setActiveKey(items[0].key);
-        }
-      })
+      .then(setTables)
       .finally(() => setLoading(false));
-  }, [routeTableKey]);
+  }, []);
 
   useEffect(() => {
-    if (routeTableKey && routeTableKey !== activeKey && tables.some((t) => t.key === routeTableKey)) {
-      setActiveKey(routeTableKey);
+    if (tables.length === 0) {
+      return;
     }
-  }, [routeTableKey, activeKey, tables]);
+    const selected = parseDataTableKey(location.search);
+    if (selected && tables.some((item) => item.key === selected)) {
+      if (selected !== activeKey) {
+        setActiveKey(selected);
+      }
+      return;
+    }
+    if (!activeKey) {
+      setActiveKey(tables[0].key);
+    }
+  }, [location.search, tables, activeKey]);
 
   const handleTabChange = (key: string) => {
     setActiveKey(key);
-    history.replace(`/data/${key}`);
+    history.replace(buildDataTablePath(key));
   };
 
   return (

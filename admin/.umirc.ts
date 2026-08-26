@@ -61,11 +61,6 @@ export default defineConfig({
       icon: 'DatabaseOutlined',
       component: './Data',
     },
-    {
-      path: '/data/:tableKey',
-      component: './Data',
-      hideInMenu: true,
-    },
   ],
   base: '/fe',
   outputPath: '../public/fe',

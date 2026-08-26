@@ -1,11 +1,13 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Input, Select, Space, Tag } from 'antd';
+import { Alert, Button, Select, Space, Tag } from 'antd';
 import { useEffect, useState } from 'react';
+import AdminProTable from '@/components/AdminProTable';
+import FilterSearch from '@/components/FilterSearch';
 import JsonDrawer from '@/components/JsonDrawer';
 import { fetchKbFailures, fetchKbJobs } from '@/services/api';
 import type { SyncFailureRow, SyncJobRow } from '@/types';
 import { formatDateTime, formatDurationMs, statusTagColor } from '@/utils/format';
+import { stringParam } from '@/utils/table-query';
 
 function sourceTag(source?: SyncJobRow['source']) {
   if (source === 'portal-static') {
@@ -116,13 +118,13 @@ export default function JobsTab() {
 
       {showFailures ? (
         <>
-          <Input.Search
+          <FilterSearch
             placeholder="搜索失败路径"
             allowClear
             onSearch={setFailurePath}
             style={{ maxWidth: 360, marginBottom: 16 }}
           />
-          <ProTable<SyncFailureRow>
+          <AdminProTable<SyncFailureRow>
             rowKey="id"
             columns={failureColumns}
             search={false}
@@ -133,7 +135,7 @@ export default function JobsTab() {
               const response = await fetchKbFailures({
                 page: params.current,
                 pageSize: params.pageSize,
-                path: params.failurePath || undefined,
+                path: stringParam(params.failurePath),
               });
               return {
                 data: response.items.filter((item) => !item.resolved_at),
@@ -175,7 +177,7 @@ export default function JobsTab() {
         />
       </Space>
 
-      <ProTable<SyncJobRow>
+      <AdminProTable<SyncJobRow>
         rowKey="id"
         columns={jobColumns}
         search={false}
@@ -184,8 +186,8 @@ export default function JobsTab() {
           const response = await fetchKbJobs({
             page: params.current,
             pageSize: params.pageSize,
-            status: params.statusFilter,
-            jobType: params.jobTypeFilter,
+            status: stringParam(params.statusFilter),
+            jobType: stringParam(params.jobTypeFilter),
           });
           return {
             data: response.items,

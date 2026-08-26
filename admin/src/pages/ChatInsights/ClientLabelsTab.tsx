@@ -1,8 +1,8 @@
-import type { ProColumns } from '@ant-design/pro-components';
-import { ProTable } from '@ant-design/pro-components';
+import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { Button, Form, Input, Modal, Popconfirm, message } from 'antd';
 import { useMemo, useRef, useState } from 'react';
-import type { ActionType } from '@ant-design/pro-components';
+import AdminProTable from '@/components/AdminProTable';
+import FilterSearch from '@/components/FilterSearch';
 import {
   createClientLabel,
   deleteClientLabel,
@@ -117,13 +117,13 @@ export default function ClientLabelsTab() {
 
   return (
     <>
-      <Input.Search
+      <FilterSearch
         placeholder="搜索 label / clientId"
         allowClear
         onSearch={setFilter}
         style={{ maxWidth: 360, marginBottom: 16 }}
       />
-      <ProTable<ClientLabelRecord>
+      <AdminProTable<ClientLabelRecord>
         actionRef={actionRef}
         rowKey="id"
         columns={tableColumns}
@@ -162,7 +162,7 @@ export default function ClientLabelsTab() {
         onOk={handleSubmit}
         destroyOnClose
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" onFinish={() => void handleSubmit()}>
           <Form.Item
             name="clientId"
             label="Client ID"

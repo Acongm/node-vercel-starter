@@ -1,3 +1,4 @@
+import { formatApiError } from '@/utils/api-error';
 import { apiFetch } from '@/services/http';
 import type {
   AdminOverview,
@@ -402,7 +403,7 @@ export async function updatePlatformConfig(
     body: JSON.stringify(patch),
   });
   if (!result.ok) {
-    throw new Error(`Platform config update failed: HTTP ${result.status}`);
+    throw new Error(formatApiError(result, '平台配置保存失败'));
   }
   return result.body as PlatformRuntimeConfigView;
 }

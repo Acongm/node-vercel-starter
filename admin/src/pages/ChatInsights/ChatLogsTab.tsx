@@ -1,7 +1,7 @@
 import { Collapse, Drawer, Typography } from 'antd';
 import type { ProColumns } from '@ant-design/pro-components';
-import { ProTable } from '@ant-design/pro-components';
 import { useState } from 'react';
+import AdminProTable from '@/components/AdminProTable';
 import UserCell from '@/components/UserCell';
 import { fetchAdminChatLogs } from '@/services/api';
 import type { AdminChatLogItem } from '@/types';
@@ -176,7 +176,7 @@ export default function ChatLogsTab() {
 
   return (
     <>
-      <ProTable<AdminChatLogItem>
+      <AdminProTable<AdminChatLogItem>
         rowKey="id"
         columns={columns}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}

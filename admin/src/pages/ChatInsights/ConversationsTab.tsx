@@ -1,12 +1,13 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { ProTable } from '@ant-design/pro-components';
-import { Input } from 'antd';
 import { useState } from 'react';
+import AdminProTable from '@/components/AdminProTable';
 import ConversationDrawer from '@/components/ConversationDrawer';
+import FilterSearch from '@/components/FilterSearch';
 import UserCell from '@/components/UserCell';
 import { fetchConversations } from '@/services/api';
 import type { ConversationListItem } from '@/types';
 import { formatDateTime } from '@/utils/format';
+import { stringParam } from '@/utils/table-query';
 
 const columns: ProColumns<ConversationListItem>[] = [
   {
@@ -60,13 +61,13 @@ export default function ConversationsTab() {
 
   return (
     <>
-      <Input.Search
+      <FilterSearch
         placeholder="标题/页面 搜索"
         allowClear
         onSearch={setSearch}
         style={{ maxWidth: 360, marginBottom: 16 }}
       />
-      <ProTable<ConversationListItem>
+      <AdminProTable<ConversationListItem>
         rowKey="id"
         columns={columns}
         search={false}
@@ -75,7 +76,7 @@ export default function ConversationsTab() {
           const response = await fetchConversations({
             page: params.current,
             pageSize: params.pageSize,
-            search: params.search,
+            search: stringParam(params.search),
           });
           return {
             data: response.items,

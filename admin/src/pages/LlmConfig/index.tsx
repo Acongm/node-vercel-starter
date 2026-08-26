@@ -18,110 +18,13 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { fetchPlatformConfig, updatePlatformConfig } from '@/services/api';
 import type { PlatformRuntimeConfigView } from '@/types';
-
-type FormValues = {
-  chatProvider: 'mock' | 'openai' | 'custom';
-  chatBaseUrl: string;
-  chatModel: string;
-  maxTokensDefault: number;
-  thinkingMaxTokens: number;
-  summariesUrl: string;
-  portalServiceId: string;
-  openApiEnabled: boolean;
-  openApiCompletionsEnabled: boolean;
-  webSearchEnabled: boolean;
-  allowedCallSources: string;
-  serviceCallerIds: string;
-  llmApiKey: string;
-  webSearchApiKey: string;
-  portalServiceKey: string;
-  serviceCallerKeys: string;
-};
-
-function toFormValues(view: PlatformRuntimeConfigView): FormValues {
-  return {
-    chatProvider: view.config.chat.provider,
-    chatBaseUrl: view.config.chat.baseUrl,
-    chatModel: view.config.chat.model,
-    maxTokensDefault: view.config.chat.maxTokensDefault,
-    thinkingMaxTokens: view.config.chat.thinkingMaxTokens,
-    summariesUrl: view.config.knowledgeBase.summariesUrl,
-    portalServiceId: view.config.knowledgeBase.portalServiceId,
-    openApiEnabled: view.config.openApi.enabled,
-    openApiCompletionsEnabled: view.config.openApi.completionsPathEnabled,
-    webSearchEnabled: view.config.webSearch.enabled,
-    allowedCallSources: view.config.callers.allowedCallSources.join(','),
-    serviceCallerIds: view.config.callers.serviceCallers.map((c) => c.id).join(','),
-    llmApiKey: '',
-    webSearchApiKey: '',
-    portalServiceKey: '',
-    serviceCallerKeys: '',
-  };
-}
-
-function buildPatch(values: FormValues): Parameters<typeof updatePlatformConfig>[0] {
-  const serviceIds = values.serviceCallerIds
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  const patch: Parameters<typeof updatePlatformConfig>[0] = {
-    config: {
-      chat: {
-        provider: values.chatProvider,
-        baseUrl: values.chatBaseUrl.trim(),
-        model: values.chatModel.trim(),
-        maxTokensDefault: values.maxTokensDefault,
-        thinkingMaxTokens: values.thinkingMaxTokens,
-      },
-      knowledgeBase: {
-        summariesUrl: values.summariesUrl.trim(),
-        portalServiceId: values.portalServiceId.trim(),
-      },
-      openApi: {
-        enabled: values.openApiEnabled,
-        completionsPathEnabled: values.openApiCompletionsEnabled,
-      },
-      webSearch: {
-        enabled: values.webSearchEnabled,
-      },
-      callers: {
-        allowedCallSources: values.allowedCallSources
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
-        serviceCallers: serviceIds.map((id) => ({ id })),
-      },
-    },
-    secrets: {},
-    serviceCallerKeys: [],
-  };
-
-  if (values.llmApiKey.trim()) {
-    patch.secrets!['llm.api_key'] = values.llmApiKey.trim();
-  }
-  if (values.webSearchApiKey.trim()) {
-    patch.secrets!['web_search.api_key'] = values.webSearchApiKey.trim();
-  }
-  if (values.portalServiceKey.trim()) {
-    patch.secrets!['kb.portal_service_key'] = values.portalServiceKey.trim();
-  }
-
-  const keyLines = values.serviceCallerKeys
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  for (const line of keyLines) {
-    const sep = line.indexOf(':');
-    if (sep <= 0) continue;
-    const id = line.slice(0, sep).trim();
-    const key = line.slice(sep + 1).trim();
-    if (!id || !key) continue;
-    patch.serviceCallerKeys!.push({ id, key });
-  }
-
-  return patch;
-}
+import {
+  buildPlatformConfigPatch,
+  formSubmitErrorMessage,
+  toPlatformConfigFormValues,
+  type PlatformConfigFormValues,
+} from '@/utils/platform-config-form';
+import { preventNativeNavigation } from '@/utils/table-query';
 
 function SecretHint({
   configured,
@@ -142,7 +45,7 @@ function SecretHint({
 }
 
 export default function LlmConfigPage() {
-  const [form] = Form.useForm<FormValues>();
+  const [form] = Form.useForm<PlatformConfigFormValues>();
   const [view, setView] = useState<PlatformRuntimeConfigView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -154,7 +57,7 @@ export default function LlmConfigPage() {
     try {
       const next = await fetchPlatformConfig();
       setView(next);
-      form.setFieldsValue(toFormValues(next));
+      form.setFieldsValue(toPlatformConfigFormValues(next));
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
     } finally {
@@ -166,17 +69,17 @@ export default function LlmConfigPage() {
     void load();
   }, [load]);
 
-  const onSave = async () => {
+  const onSave = async (values: PlatformConfigFormValues) => {
+    setSaving(true);
     try {
-      const values = await form.validateFields();
-      setSaving(true);
-      const next = await updatePlatformConfig(buildPatch(values));
+      const next = await updatePlatformConfig(buildPlatformConfigPatch(values));
       setView(next);
-      form.setFieldsValue(toFormValues(next));
+      form.setFieldsValue(toPlatformConfigFormValues(next));
       message.success('平台配置已保存');
     } catch (err) {
-      if (err instanceof Error && err.message) {
-        message.error(err.message);
+      const text = formSubmitErrorMessage(err);
+      if (text) {
+        message.error(text);
       }
     } finally {
       setSaving(false);
@@ -191,7 +94,14 @@ export default function LlmConfigPage() {
         <Button key="reload" onClick={() => void load()} disabled={loading}>
           刷新
         </Button>,
-        <Button key="save" type="primary" loading={saving} onClick={() => void onSave()}>
+        <Button
+          key="save"
+          type="primary"
+          htmlType="submit"
+          form="platform-config-form"
+          loading={saving}
+          disabled={loading}
+        >
           保存
         </Button>,
       ]}
@@ -210,7 +120,17 @@ export default function LlmConfigPage() {
         />
       ) : null}
 
-      <Form form={form} layout="vertical" disabled={loading}>
+      <Form
+        id="platform-config-form"
+        form={form}
+        layout="vertical"
+        disabled={loading}
+        onFinish={(values) => {
+          void onSave(values);
+        }}
+        onFinishFailed={() => message.error('请检查必填项')}
+        onSubmitCapture={preventNativeNavigation}
+      >
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={12}>
             <Card title="Chat LLM" size="small">

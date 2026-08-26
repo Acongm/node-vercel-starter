@@ -50,19 +50,30 @@ export function defaultPlatformRuntimeConfigDocument(
 
 export function mergePlatformRuntimeConfigBody(
   base: PlatformRuntimeConfigBody,
-  patch: Partial<PlatformRuntimeConfigBody> | undefined,
+  patch: Partial<PlatformRuntimeConfigBody> | Record<string, unknown> | undefined,
 ): PlatformRuntimeConfigBody {
   if (!patch) return base;
+  const chat = asObject('chat' in patch ? patch.chat : undefined);
+  const knowledgeBase = asObject(
+    'knowledgeBase' in patch ? patch.knowledgeBase : undefined,
+  );
+  const openApi = asObject('openApi' in patch ? patch.openApi : undefined);
+  const webSearch = asObject('webSearch' in patch ? patch.webSearch : undefined);
+  const callers = asObject('callers' in patch ? patch.callers : undefined);
   return {
-    chat: { ...base.chat, ...(patch.chat ?? {}) },
-    knowledgeBase: { ...base.knowledgeBase, ...(patch.knowledgeBase ?? {}) },
-    openApi: { ...base.openApi, ...(patch.openApi ?? {}) },
-    webSearch: { ...base.webSearch, ...(patch.webSearch ?? {}) },
+    chat: { ...base.chat, ...chat },
+    knowledgeBase: { ...base.knowledgeBase, ...knowledgeBase },
+    openApi: { ...base.openApi, ...openApi },
+    webSearch: { ...base.webSearch, ...webSearch },
     callers: {
-      allowedCallSources:
-        patch.callers?.allowedCallSources ?? base.callers.allowedCallSources,
-      serviceCallers:
-        patch.callers?.serviceCallers ?? base.callers.serviceCallers,
+      allowedCallSources: asStringList(
+        callers.allowedCallSources,
+        base.callers.allowedCallSources,
+      ),
+      serviceCallers: asServiceCallers(
+        callers.serviceCallers,
+        base.callers.serviceCallers,
+      ),
     },
   };
 }

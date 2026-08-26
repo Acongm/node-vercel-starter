@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
 import { AdminAccessGuard } from '../auth/admin-access.guard';
-import type { PlatformRuntimeConfigPatch } from './platform-runtime-config.types';
+import { UpdatePlatformRuntimeConfigDto } from './dto/update-platform-runtime-config.dto';
 import { PlatformRuntimeConfigService } from './platform-runtime-config.service';
 
 @Controller('api/admin/platform-config')
@@ -14,7 +14,7 @@ export class PlatformConfigAdminController {
   }
 
   @Put()
-  updateConfig(@Body() body: PlatformRuntimeConfigPatch) {
+  updateConfig(@Body() body: UpdatePlatformRuntimeConfigDto) {
     return this.platformConfig.updateAdminPatch(body);
   }
 }

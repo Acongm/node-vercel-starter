@@ -1,10 +1,12 @@
-import { Collapse, Drawer, Input, Spin, Tag, Typography } from 'antd';
+import { Collapse, Drawer, Spin, Tag, Typography } from 'antd';
 import type { ProColumns } from '@ant-design/pro-components';
-import { ProTable } from '@ant-design/pro-components';
 import { useEffect, useState } from 'react';
+import AdminProTable from '@/components/AdminProTable';
+import FilterSearch from '@/components/FilterSearch';
 import { fetchKbAnalysis, fetchKbChunks } from '@/services/api';
 import type { KbAnalysisRow, KbChunkRow } from '@/types';
 import { formatDateTime, parseKeywords } from '@/utils/format';
+import { stringParam } from '@/utils/table-query';
 
 function sourceTag(source?: KbAnalysisRow['source']) {
   if (source === 'portal-static') {
@@ -177,7 +179,7 @@ export default function AnalysisTab() {
 
   return (
     <>
-      <Input.Search
+      <FilterSearch
         placeholder="搜索路径或标题"
         allowClear
         onSearch={setSearch}
@@ -186,7 +188,7 @@ export default function AnalysisTab() {
       {listSource ? (
         <div style={{ marginBottom: 12 }}>{sourceTag(listSource)}</div>
       ) : null}
-      <ProTable<KbAnalysisRow>
+      <AdminProTable<KbAnalysisRow>
         rowKey="id"
         columns={columns}
         search={false}
@@ -195,7 +197,7 @@ export default function AnalysisTab() {
           const response = await fetchKbAnalysis({
             page: params.current,
             pageSize: params.pageSize,
-            search: params.search,
+            search: stringParam(params.search),
           });
           setListSource(response.source ?? response.items[0]?.source);
           return {

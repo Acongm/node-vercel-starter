@@ -67,6 +67,12 @@ export type PlatformRuntimeConfigPatch = {
   serviceCallerKeys?: Array<{ id: string; key: string | null }>;
 };
 
+export type PlatformRuntimeConfigPatchInput = {
+  config?: Partial<PlatformRuntimeConfigBody> | Record<string, unknown>;
+  secrets?: Record<string, string | null>;
+  serviceCallerKeys?: Array<{ id: string; key?: string | null }>;
+};
+
 export function serviceCallerSecretName(id: string): string {
   return `service_caller:${id.trim()}`;
 }

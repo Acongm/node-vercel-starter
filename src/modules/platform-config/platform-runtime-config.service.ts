@@ -21,7 +21,7 @@ import {
   type PlatformRuntimeConfigAdminView,
   type PlatformRuntimeConfigBody,
   type PlatformRuntimeConfigDocument,
-  type PlatformRuntimeConfigPatch,
+  type PlatformRuntimeConfigPatchInput,
   type PlatformSecretName,
   isPlatformSecretName,
   serviceCallerSecretName,
@@ -84,7 +84,7 @@ export class PlatformRuntimeConfigService {
     };
   }
 
-  async updateAdminPatch(patch: PlatformRuntimeConfigPatch): Promise<PlatformRuntimeConfigAdminView> {
+  async updateAdminPatch(patch: PlatformRuntimeConfigPatchInput): Promise<PlatformRuntimeConfigAdminView> {
     if (!this.supabaseAdmin.isConfigured()) {
       throw new ServiceUnavailableException(
         'Supabase is required to persist platform runtime config.',

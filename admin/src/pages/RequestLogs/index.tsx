@@ -1,5 +1,6 @@
 import type { ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProCard, ProTable } from '@ant-design/pro-components';
+import { PageContainer, ProCard } from '@ant-design/pro-components';
+import AdminProTable from '@/components/AdminProTable';
 import { Alert, Button, Col, Drawer, Input, Row, Segmented, Select, Space, Spin, Statistic, Switch, Tag } from 'antd';
 import type { SortOrder } from 'antd/es/table/interface';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -373,7 +374,7 @@ function RequestLogApmSummary({
       </Row>
 
       <ProCard title="按分组（Auth / Chat 重点）" bordered>
-        <ProTable<RequestLogRouteGroupStat>
+        <AdminProTable<RequestLogRouteGroupStat>
           rowKey="route_group"
           columns={routeGroupColumns}
           search={false}
@@ -385,7 +386,7 @@ function RequestLogApmSummary({
       </ProCard>
 
       <ProCard title="接口排行" bordered>
-        <ProTable<RequestLogPathStat>
+        <AdminProTable<RequestLogPathStat>
           rowKey={(row) => `${row.method}:${row.path}`}
           columns={pathStatColumns}
           search={false}
@@ -410,7 +411,7 @@ function RequestLogApmSummary({
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <ProCard title="按调用方" bordered>
-            <ProTable<RequestLogCallerKindStat>
+            <AdminProTable<RequestLogCallerKindStat>
               rowKey="caller_kind"
               columns={callerKindColumns}
               search={false}
@@ -423,7 +424,7 @@ function RequestLogApmSummary({
         </Col>
         <Col xs={24} lg={12}>
           <ProCard title="按来源" bordered>
-            <ProTable<RequestLogCallSourceStat>
+            <AdminProTable<RequestLogCallSourceStat>
               rowKey="call_source"
               columns={callSourceColumns}
               search={false}
@@ -696,7 +697,7 @@ export default function RequestLogsPage() {
           />
         </Space>
 
-        <ProTable<RequestLogRow>
+        <AdminProTable<RequestLogRow>
           rowKey="id"
           columns={logColumns}
           search={false}

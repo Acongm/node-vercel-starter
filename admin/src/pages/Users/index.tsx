@@ -1,11 +1,14 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
-import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { Alert, Button, Input, Modal, Radio, Space, Tabs, Tag, Tooltip, Typography, message } from 'antd';
+import { PageContainer } from '@ant-design/pro-components';
+import { Alert, Button, Modal, Radio, Space, Tabs, Tag, Tooltip, Typography, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import AdminProTable from '@/components/AdminProTable';
+import FilterSearch from '@/components/FilterSearch';
 import UserCell from '@/components/UserCell';
 import { fetchPlatformUsers, purgeGhostUsers } from '@/services/api';
 import type { PlatformUserItem } from '@/types';
 import { formatDateTime, idPrefix, roleTagColor } from '@/utils/format';
+import { stringParam } from '@/utils/table-query';
 
 type AnonymousActivity = 'active' | 'ghost' | 'all';
 
@@ -104,13 +107,13 @@ function LoginUsersTab() {
 
   return (
     <>
-      <Input.Search
+      <FilterSearch
         placeholder="搜索邮箱"
         allowClear
         onSearch={setSearch}
         style={{ maxWidth: 360, marginBottom: 16 }}
       />
-      <ProTable<PlatformUserItem>
+      <AdminProTable<PlatformUserItem>
         rowKey="id"
         columns={columns}
         search={false}
@@ -120,7 +123,7 @@ function LoginUsersTab() {
             page: params.current,
             pageSize: params.pageSize,
             anonymous: 'false',
-            q: params.search || undefined,
+            q: stringParam(params.search),
           });
           if (!response.enabled) {
             return { data: [], total: 0, success: true };
@@ -267,7 +270,7 @@ function AnonymousUsersTab() {
             { label: '全部', value: 'all' },
           ]}
         />
-        <Input.Search
+        <FilterSearch
           placeholder="搜索 Client ID / Auth UID"
           allowClear
           onSearch={setSearch}
@@ -284,7 +287,7 @@ function AnonymousUsersTab() {
         message="匿名身份按 GA Client ID 识别，不再把每次打开页面都当成新用户。"
         description="浏览只写 acongm_cid cookie；第一次发消息才创建匿名 auth 用户。幽灵账号 = 超过 15 分钟且从未产生对话。"
       />
-      <ProTable<PlatformUserItem>
+      <AdminProTable<PlatformUserItem>
         rowKey="id"
         columns={columns}
         search={false}
@@ -295,7 +298,7 @@ function AnonymousUsersTab() {
             pageSize: params.pageSize,
             anonymous: 'true',
             activity,
-            q: params.search || undefined,
+            q: stringParam(params.search),
           });
           if (!response.enabled) {
             return { data: [], total: 0, success: true };
