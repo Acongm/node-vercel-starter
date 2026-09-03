@@ -1,155 +1,136 @@
 # Platform Issue Status（统一跟踪）
 
-> 最后更新：2026-08-18  
-> 本文档是各仓 GitHub Issues 的**单一真相源**；当 CI token 无法写 Issue 时，以本文为准，并手动同步到 GitHub。
+> 最后更新：2026-09-03  
+> 对照仓库：`auth` / `chat` / `portal` / `node-vercel-starter` 的 `origin/main`。  
+> 本文档是各仓 GitHub Issues 的**单一真相源**；GitHub 正文应以本文与 `docs/issue-bodies/` 为准。
 
-## 方向修正（2026-08-13）
+## 方向
 
-线上登录后不显示用户名、对话卡住、会话列表不确定是否保存，**根因不是前端菜单/滚动优化**，而是：
+KB / DocHub / Stage 3–6 / Portal shadcn Avatar 换皮 **不抢主线**。
 
-1. `https://api.acongm.com/` 调试台没有 `/api/user` 与 `/api/chats`，无法验证核心接口。
-2. Chat/Portal 缺 `/api/user` BFF，`getUserInfo` 同源 404。
-3. Chat composer 在 identity/history 未完成时会一直 disabled。
+当前唯一执行入口仍是 **`#37` Final Quality Gate**。源码与 mock / live JWT 门已经齐；还没关是因为生产 cookie / 真人 OAuth / 真 LLM send，以及 issue 原文里的 capability `it.todo`、Stryker threshold。
 
-**正确执行顺序**：先完成用户中心 + Chat 会话 API，在调试台和单测验证 → 再给前端接 BFF → 最后才做 UI 打磨。KB / DocHub / Stage 3–6 **不抢主线**。
+## 执行主线（2026-09-03）
 
-## 执行主线（当前 P0 顺序）
-
-| 优先级 | 方向 | 主 Issue | 状态 |
-|--------|------|----------|------|
-| P0 | 用户中心 API + 调试台 | `#56` | **main** — GET profile + console + `TOKEN_EXPIRED` |
-| P0 | Chat 会话 API + 调试台 | `#57` | **main** — tail-first + console Chats v2 |
-| P0 | Chat/Portal `/api/user` BFF | `chat#41` / `portal#130` / `auth#52` | **main** — BFF + Portal 非阻塞 embed + `/account#settings` |
-| P0 | 非阻塞 Chat 启动 / 首屏 history | `chat#40` | **main** — tail-first + 失败不清空 transcript |
-| P0 | auth-client 唯一源 | `auth#51` | **main** — status machine + scoped signOut |
-| P0 | Send critical path / TTFT | `#59` | **main** — principal once + `chat.first_token` + cache ≤ JWT exp |
-| P0 | 结构化日志 | `#58` / `#60` | Phase 1 ✅ |
-| P0 | Final Quality Gate | `#37` | **OPEN / 下一件** — API + mock + live JWT chrome ✅；缺生产 cookie / OAuth |
-| P1 | 完整 Settings 产品表 | `#61` | **Phase 4** — Auth `/account` 可写 model/prompt；Chat send 已注入 cached effective |
-| P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 |
+| 优先级 | 方向 | 主 Issue | 代码状态 | GitHub |
+|--------|------|----------|----------|--------|
+| P0 | Final Quality Gate | `#37` | API mock gate + Chat/Portal mock Playwright + Chat live JWT chrome + live API script ✅ | **OPEN** — 缺生产 cookie / `auth#48` 真人 OAuth / 真 LLM send / Stryker / capability todos |
+| P0 | 匿名 → OAuth 同 uid | `auth#48` | `linkIdentity()` + 合同测试 + 冲突重试 ✅ | **OPEN** — 缺一次真人 callback 证明 `auth.uid()` 不变 |
+| P0 | Auth/User API | `#56` | `/me` `/profile` `/settings` + JWKS + `TOKEN_EXPIRED` ✅ | OPEN（API 层完成，跨仓 logout/cache 仍写在 DoD） |
+| P0 | Chat API | `#57` | tail-first + durable run/stream + settings 注入 ✅ | OPEN（consumer 证明归 `#37`） |
+| P0 | Send critical path | `#59` | principal 复用 + `chat.first_token` + touch 不阻塞 ✅ | OPEN — `CHAT_MODEL_CONTEXT_LIMIT` 仍是 500 |
+| P0 | 非阻塞 Chat 启动 | `chat#40` | 始终挂载 + tail-first + 失败不清空 + mock e2e ✅ | OPEN — 生产 cookie 归 `#37` |
+| P0 | Account Profile | `auth#28` | `/account` + BFF + settings ✅ | OPEN — Auth 仓 **没有** Playwright smoke |
+| P1 | Settings 产品表 | `#61` | `user_settings` migration + GET/PATCH + cache + Chat send 注入 ✅ | OPEN — 无 DELETE；skills 仍在 preferences；匿名策略未单测 |
+| P0 | 结构化日志 | `#58` / `#60` | requestId + JSON `appLogger` Phase 1 ✅ | OPEN — **没有 Pino / redaction / logs 模块** |
+| P2 | DocHub Stage 4 | `dochub#9` | 不抢主线 | OPEN |
 
 ---
 
-## 已关闭 / 应关闭
+## 已关闭（GitHub 已 completed）
 
-| Issue | 仓库 | 关闭理由 | main 证据 |
-|-------|------|----------|-----------|
-| **#52** getUserInfo 登录态展示 | auth | AC 全部满足 | `210b0d8` + chat `d7cf211` + portal `39d1142` |
-| **#127** Portal Embedded Chat v2 | portal | #128 已合入，contract 已绿 | `a367246` / `39d1142` |
+| Issue | 仓库 | 关闭时间 | 说明 |
+|-------|------|----------|------|
+| `#52` getUserInfo 登录态 | auth | 2026-08-19 | auth-client + Chat/Portal 消费 |
+| `#51` Auth Client 收口 | auth | 2026-08-19 | status machine + scoped signOut |
+| `#41` 用户菜单 + getUserInfo | chat | 2026-08-19 | AuthAccountMenu + `/account#settings` |
+| `#127` Embedded Chat Drawer | portal | 2026-08-19 | 与 #128 重复 |
+| `#130` 顶栏 getUserInfo | portal | 2026-08-19 | AuthAccountButton + settings |
+| `#43` Consumer Migration | API | 2026-08-19 | Chat/Portal/Auth 已切新 contract |
+| `#42` / `#33` / `#34` | API | 2026-08-08 | Stage 1.0–1.2 |
 
-### #52 验收清单（已完成）
+PR 已合、不是跟踪 Issue：`chat#36`、`portal#128`、`auth#47`。
 
-- [x] `getUserInfo` / `useUserInfo` / `UserInfoView` 从 auth-client 导出
-- [x] 登录后展示 profile 优先的 displayName/avatar
-- [x] 匿名态 login CTA
-- [x] 401 时回退，不抛未处理异常
-- [x] chat/portal auth-client 已同步
-
-### #127 验收清单（已完成）
-
-- [x] Supabase anonymous + `/api/chats` BFF
-- [x] lazy create + durable history
-- [x] 无 legacy stream fallback
-- [x] CI contract gate
+过期未合 PR：[`node-vercel-starter#63`](https://github.com/Acongm/node-vercel-starter/pull/63)（2026-08-13 后无更新）。main 已吸收其中的 settings / principal-once / first-token；**Pino / redaction / context=120 仍只在该 PR**。
 
 ---
 
-## 进行中（Phase 1 完成 → Phase 2）
+## `#37` Final Quality Gate（对照 main，纠正 2026-08-18 文档）
 
-### `Acongm/chat#41` 用户菜单与 getUserInfo
+| AC | 状态 | 证据 / 纠正 |
+|----|------|-------------|
+| API mock quality-gate | ✅ | `test/platform-v2-quality-gate.e2e-spec.ts` |
+| Chat mock Playwright | ✅ | `chat` `e2e/quality-gate-smoke.spec.ts` |
+| Portal mock Playwright | ✅ | `portal` `e2e/quality-gate-smoke.spec.ts` |
+| Auth mock Playwright | ❌ | **auth 仓没有** `e2e/`（旧文档写错） |
+| Chat live JWT chrome | ✅ | `chat` `pnpm test:e2e:live`（注入 session，不是生产 cookie） |
+| Portal live JWT | ❌ | **portal 仓没有** `test:e2e:live`（旧文档写错） |
+| 线上 `/api/user` `/api/chats` token 冒烟 | ✅ | `scripts/live-quality-gate.mjs`（无 stream/send） |
+| 生产 `user_settings` | ✅（2026-08-19 生产评论） | 表 + RLS 已在 `ejprvntpxlyydkzsjqnv` |
+| 生产 migration-history | ✅（2026-08-19 生产评论） | 已补 `20260606000000_create_comments` |
+| Manual Linking / anonymous users | ✅ 配置 | Dashboard 已开；**真人同 uid 仍缺** → `auth#48` |
+| Site URL / Redirect allow-list | ✅ 配置 | `https://auth.acongm.com` |
+| Capability `it.todo` 清零 | ❌ | `test/assistant-ui-capabilities.todo.spec.ts` 仍有 8 条 |
+| Stryker mutation threshold | ❌ | 仅有 `.github/scripts/chat-mutation-smoke.mjs` |
+| 生产 cookie / OAuth browser | ❌ | 需 `*.acongm.com` |
+| 生产真 LLM Send/Retry/Reload/Edit/Cancel | ❌ | mock / chrome 不能代替 |
 
-| AC | 状态 |
-|----|------|
-| 侧栏 displayName/avatar 来自 `/api/user/info` | ✅ main `d7cf211` |
-| 匿名/登录 CTA | ✅ |
-| 用户菜单（账号/设置/退出） | ✅ AuthAccountMenu |
-| Settings 入口（theme + auth account） | ✅ theme 本地；model/prompt 走 Auth `/account#settings` |
-| 不阻塞 #40 | ✅ |
+**不要做**：KB / DocHub / Stage 3–6 / Portal shadcn Avatar 换皮。
 
-### `Acongm/portal#130` 顶栏账号态
+---
 
-| AC | 状态 |
-|----|------|
-| 顶栏 userInfo displayName/avatar | ✅ main `39d1142` |
-| 未登录/loading/匿名 | ✅ |
-| 账号/设置菜单（auth 跳转） | ✅ AuthAccountMenu + `/account#settings`（`portal` `490c773`）；shadcn Avatar 仍可选 |
-| 与 Chat/Auth 语义一致 | ✅ 三态对齐 + auth error retry |
-| 嵌入 Chat 非阻塞 | ✅ FAB 始终挂载；composer 仅准备期/恢复失败禁用；tail-first history |
+## 源码已在 main、GitHub 仍 OPEN（更新正文，不关）
 
-### `Acongm/auth#28` Account Profile
+这些 Issue 的**实现 AC 已满足**，DoD 还挂着生产证明或父 Epic 范围，所以保持 OPEN，只改 checkbox / 状态段。
 
-| AC | 状态 |
-|----|------|
-| `/account` + BFF + profile PATCH | ✅ |
-| auth-client `getUserMe` / `updateUserProfile` | ✅ `210b0d8` |
-| settings language/theme | ✅ `updateUserSettings` |
-| browser smoke | ⏳ → #37 |
+| Issue | 已在 main | 还不能关的原因 |
+|-------|-----------|----------------|
+| `auth#48` | `linkOAuthIdentity` / `protectAnonymousEmailSignup` / 合同测试 | 真人 OAuth 同 uid；`anonymous-identity-upgrade.test.mjs` 仍有 `test.todo` |
+| `auth#28` | Account + BFF + settings | 无 Auth Playwright；browser smoke → `#37` |
+| `auth#29` | `oauth-setup.md` + `isAllowedReturnTo` | 生产回跳回归 |
+| `chat#40` | 非阻塞 shell + tail-first + mock e2e | 生产 cookie → `#37` |
+| `chat#26` | v2 history / 失败不清空 / mock e2e | 生产 5-round stream；P1 context chip 未做 |
+| `#56` | User API + JWKS + settings | 服务端 logout / 跨仓 cache DoD |
+| `#57` | Chat v2 durable + tail-first | consumer / `#37` |
+| `#59` | principal once + `chat.first_token` | context 上限 500；无 verifier-once 集成测试 |
+| `#61` | `user_settings` + GET/PATCH + send 注入 | DELETE、skills 列、匿名策略单测 |
 
-### `Acongm/node-vercel-starter#43` Consumer Migration
+---
 
-| 阶段 | 状态 |
+## 仍有代码缺口（保持 OPEN，正文标明缺口）
+
+| Issue | 缺口 |
+|-------|------|
+| `#58` / `#60` | 无 Pino；无 redaction；ChatLogs 仍写消息正文；无 `docs/operational-logs.md` |
+| `#35` | legacy `chat-threads` / JWT / SSE 仍在；等 `#37` 后才能 destructive |
+| `#47` | Vercel Free 日限额 — 仓库设置/文档，不是代码 |
+| `#48`（API CI） | workflow 仍写死 migration 路径 |
+| `#49` | 无 CONTRIBUTING / agent 推送策略 |
+| `auth#25` `#26` `#27` | 生产 GitHub / Google / Email SMTP |
+| `portal#116` | Stage 0 生产连续可用，依赖上面几条 |
+
+---
+
+## Epic（等 `#37` / Stage 0，只更新快照）
+
+| Epic | 快照 |
 |------|------|
-| Chat #36 / Portal #128 / Auth profile | ✅ 源码已合入 |
-| getUserInfo 全端消费 | ✅ 2026-08-13 |
-| Live OAuth same-UID E2E | ⏳ |
-| Browser smoke（Chat/Portal/Account） | ⏳ → #37 |
-
-**建议**：源码迁移完成后可将 #43 标为 `completed`，live proof  sole 跟踪 #37。
-
-### `Acongm/node-vercel-starter#56` Auth/User 模块
-
-| 能力 | 状态 |
-|------|------|
-| `/me` `/info` `userInfo` | ✅ |
-| profile PATCH + semantics | ✅ |
-| settings GET/PATCH (preferences) | ✅ Phase 1 |
-| PATCH 返回 refreshed `userInfo` | ✅ `5fad8cd` |
-| 独立 settings 表 / cache / model prompt | ✅ UserService 读写 `user_settings` + uid/schemaVersion cache；缺行回退 preferences |
-
-### `Acongm/node-vercel-starter#37` Final Quality Gate（当前唯一 P0）
-
-| AC | 状态 | 阻塞 |
-|----|------|------|
-| API path：user + chats quality-gate | ✅ `platform-v2-quality-gate.e2e-spec.ts` | — |
-| Chat Playwright mock smoke（composer / send / reload / edit / cancel / persist） | ✅ `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
-| Portal Playwright mock smoke（登录 chrome / FAB / send / restore / reload+edit） | ✅ `portal` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
-| Auth Playwright mock smoke（登录 chrome / Account 资料+偏好） | ✅ `auth` `e2e/quality-gate-smoke.spec.ts` | 仍是 mock，不是生产 JWT |
-| Keycloak 式 `/api/auth/session` + cookie userinfo | 🔄 Bearer live ✅；cookie 仍待生产 browser | `scripts/live-quality-gate.mjs` 已证 session + userInfo |
-| 线上 `/api/user` `/api/chats` 有 token 冒烟 | ✅ `scripts/live-quality-gate.mjs` | Management token 铸造临时用户 JWT，跑完删除 |
-| 生产 `user_settings` migration | ⏳ | 同上 + `#61` |
-| 生产 migration-history 修复 | ⏳ | Supabase 项目权限 |
-| Manual Linking + 匿名→OAuth 同 uid | ⏳ | `auth#48` + Dashboard |
-| Browser：Account 显示用户名 / settings | 🔄 mock ✅；live JWT ✅ | `auth` `pnpm test:e2e:live` 真实邮箱登录；缺生产 cookie |
-| Browser：Chat Send / Retry / Reload / Edit / Cancel | 🔄 mock ✅；live JWT chrome ✅ | `chat` `pnpm test:e2e:live` 注入 session；缺生产 cookie / 真 LLM send |
-| Browser：Portal 顶栏登录态 + Drawer 会话持久化 | 🔄 mock ✅；live JWT chrome ✅ | `portal` `pnpm test:e2e:live` 顶栏账号；缺生产 cookie |
-| Chat / Account 用户自定义 Agent（系统提示词 + skills） | ✅ | `PATCH /api/user/settings` 的 `skills`；Chat 侧栏 / Auth `#settings` 可编辑；send 注入为用户偏好，不并入 system policy |
-
-**不要做**：KB / DocHub / Stage 3–6 / Portal shadcn Avatar 换皮（不阻塞）。
+| `portal#1` | 总控；Stage 0 未关，Stage 1.3 代码已在 main |
+| `portal#117` | 1.3 ✅；1.4 `#37` / 1.5 `#35` 未关 |
+| `portal#129` | chrome + 非阻塞 embed + mock e2e ✅；生产 / live JWT / registry 未关 |
+| `chat#1` | v2 consumer ✅；legacy `/api/chat/threads` BFF 仍在 |
+| `chat#39` | `#40`/`#41` 已交付；P1 rename/search 未做 |
+| `auth#16` | auth-client Supabase-only ✅；Stage 0 生产未关 |
+| `auth#50` | session + account ✅；Security 页 / registry 未做 |
+| `#32` / `#55` | `#42–#43` 已关；`#37` `#35` `#58` 未关 |
 
 ---
 
-## Epic 子项快照
+## 明确不做（不抢主线）
 
-| Epic | Issue | 备注 |
-|------|-------|------|
-| Portal Stage 1 | `portal#117` | 1.3 代码完成；剩 #37 |
-| Chat 产品 | `chat#39` | 依赖 #40 |
-| Auth 产品 | `auth#50` | 依赖 #51 |
-| API Stage 1 | `node-vercel-starter#32` | 等待 #37 gate |
-| Program | `portal#1` | 见上表 P0 顺序 |
+- DocHub：`dochub#1–#9`，`nvs#16–#19`，`portal#5`
+- KB：`nvs#7–#15` `#20`，`chat#5`，`portal#4`
+- Stage 2：`portal#118`
+- Stage 5–6：`nvs#21` `#38` `#40` `#41`，`portal#7` `#10–#12` `#119` `#121` `#122`，`auth#42`，`chat#33`
+
+`Acongm/agents` 当前 0 个开放 Issue。
 
 ---
 
-## 手动同步 GitHub（有写权限时执行）
+## 同步 GitHub
+
+正文文件在 `docs/issue-bodies/`。有写权限时：
 
 ```bash
-# 关闭已完成
-gh issue close 52 --repo Acongm/auth -c "getUserInfo 全端已合入 main，见 node-vercel-starter/docs/platform-issue-status.md" -r completed
-gh issue close 127 --repo Acongm/portal -c "PR #128 已合入，见 platform-issue-status.md" -r completed
-
-# 更新进行中 issue 正文（使用本仓库 docs 内各仓 AC 表）
-gh issue edit 41 --repo Acongm/chat --body-file ...
-gh issue edit 130 --repo Acongm/portal --body-file ...
+bash scripts/gh-sync-issue-status.sh
 ```
-
-Issue 正文模板已生成于 agent 会话 `/tmp/issue-chat-41.md`、`/tmp/issue-portal-130.md`。
