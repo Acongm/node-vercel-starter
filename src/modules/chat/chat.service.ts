@@ -17,6 +17,7 @@ import { AuthPrincipal } from '../auth/roles';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
 import { UserService } from '../user/user.service';
 import { ChatContractError } from './chat.errors';
+import { CHAT_MODEL_CONTEXT_LIMIT } from './chat.limits';
 import { ChatRepository } from './chat.repository';
 import {
   ChatMessagePart,
@@ -32,8 +33,8 @@ import {
   UpdateChatDto,
 } from './dto/chat.dto';
 
-/** Bounded model-context window; persisted history pagination is a separate API. */
-export const CHAT_MODEL_CONTEXT_LIMIT = 500;
+export { CHAT_V2_CAPABILITIES } from './chat.capabilities';
+export { CHAT_MODEL_CONTEXT_LIMIT };
 
 @Injectable()
 export class ChatService {

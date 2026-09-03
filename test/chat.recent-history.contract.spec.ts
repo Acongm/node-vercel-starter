@@ -1,3 +1,4 @@
+import { CHAT_MODEL_CONTEXT_LIMIT } from '../src/modules/chat/chat.limits';
 import { ChatRepository } from '../src/modules/chat/chat.repository';
 
 const request = { header: () => 'Bearer token' } as never;
@@ -18,7 +19,7 @@ describe('ChatRepository recent model history', () => {
     } as never);
 
     await expect(
-      repository.listRecentMessages(request, 'chat-1', 500),
+      repository.listRecentMessages(request, 'chat-1', CHAT_MODEL_CONTEXT_LIMIT),
     ).rejects.toThrow('Failed to list recent chat messages: history failed');
   });
 });

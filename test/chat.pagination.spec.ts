@@ -4,6 +4,7 @@ import {
   encodeChatCursor,
   normalizePageLimit,
 } from '../src/modules/chat/chat-pagination';
+import { CHAT_MODEL_CONTEXT_LIMIT } from '../src/modules/chat/chat.limits';
 import { ChatRepository } from '../src/modules/chat/chat.repository';
 
 const request = { header: () => 'Bearer token' } as never;
@@ -129,7 +130,7 @@ describe('ChatRepository stable cursor pagination', () => {
     expect(limit).toHaveBeenCalledWith(3);
   });
 
-  it('bounds model-history candidates to 500 and reverses the descending DB window', async () => {
+  it('bounds model-history candidates to the context limit and reverses the descending DB window', async () => {
     const newestFirst = [
       { id: id3, created_at: '2026-08-08T00:00:03.000Z' },
       { id: id2, created_at: '2026-08-08T00:00:02.000Z' },
@@ -152,6 +153,7 @@ describe('ChatRepository stable cursor pagination', () => {
     );
     expect(orderCreated).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(orderId).toHaveBeenCalledWith('id', { ascending: false });
-    expect(limit).toHaveBeenCalledWith(500);
+    expect(limit).toHaveBeenCalledWith(CHAT_MODEL_CONTEXT_LIMIT);
+    expect(CHAT_MODEL_CONTEXT_LIMIT).toBe(120);
   });
 });

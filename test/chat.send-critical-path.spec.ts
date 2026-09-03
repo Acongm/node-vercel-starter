@@ -1,4 +1,4 @@
-import { ChatService } from '../src/modules/chat/chat.service';
+import { CHAT_MODEL_CONTEXT_LIMIT, ChatService } from '../src/modules/chat/chat.service';
 import { appLogger } from '../src/common/app-logger';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import type { ChatMessageRecord, ChatRunRecord } from '../src/modules/chat/chat.types';
@@ -207,7 +207,7 @@ describe('Chat v2 send critical path (#59)', () => {
     );
     const limit = repo.listRecentMessages.mock.calls[0][2] as number;
     expect(limit).toBeGreaterThan(0);
-    expect(limit).toBeLessThanOrEqual(500);
+    expect(limit).toBe(CHAT_MODEL_CONTEXT_LIMIT);
   });
 
   it('injects cached effective settings once and does not fetch settings again during the stream', async () => {

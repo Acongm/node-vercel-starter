@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { SupabaseClient, createClient, User } from '@supabase/supabase-js';
+import { appLogger } from '../../common/app-logger';
 import { APP_CONFIG } from '../../common/tokens';
 import { AppConfig } from '../../config/app-config';
 import { isAdminEmail } from './admin-emails';
@@ -61,6 +62,7 @@ export class SupabaseAuthService {
     const localPrincipal = await this.verifySignedAccessToken(token);
     if (localPrincipal) {
       this.rememberToken(cacheKey, localPrincipal, token);
+      this.logVerifyResult(localPrincipal);
       return localPrincipal;
     }
 
@@ -68,7 +70,21 @@ export class SupabaseAuthService {
     const { data, error } = await client.auth.getUser(token);
     const principal = error || !data.user ? null : this.toPrincipal(data.user);
     this.rememberToken(cacheKey, principal, token);
+    this.logVerifyResult(principal);
     return principal;
+  }
+
+  private logVerifyResult(principal: AuthPrincipal | null): void {
+    if (!principal) {
+      appLogger.warn({ event: 'auth.verify.fail' });
+      return;
+    }
+    appLogger.info({
+      event: 'auth.verify.ok',
+      userId: principal.userId,
+      role: principal.role,
+      tier: principal.tier,
+    });
   }
 
   private async verifySignedAccessToken(

@@ -331,6 +331,47 @@ describe('SupabaseAuthService', () => {
     });
     expect(getUser).toHaveBeenCalledWith('opaque-or-hs256');
   });
+
+  it('logs auth.verify.ok without the access token on a cache miss', async () => {
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    mockGetUser({
+      data: {
+        user: {
+          id: 'user-log',
+          email: 'log@example.com',
+          app_metadata: {},
+          user_metadata: {},
+        },
+      },
+      error: null,
+    });
+
+    await new SupabaseAuthService(config()).verifyAccessToken('access-token-secret');
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0][0]));
+    expect(payload).toMatchObject({
+      event: 'auth.verify.ok',
+      userId: 'user-log',
+      role: 'viewer',
+      tier: 'user',
+    });
+    expect(JSON.stringify(payload)).not.toContain('access-token-secret');
+    logSpy.mockRestore();
+  });
+
+  it('logs auth.verify.fail when verification returns no principal', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockGetUser({ data: { user: null }, error: { message: 'bad token' } });
+
+    await expect(
+      new SupabaseAuthService(config()).verifyAccessToken('bad-token-secret'),
+    ).resolves.toBeNull();
+
+    const payload = JSON.parse(String(warnSpy.mock.calls[0][0]));
+    expect(payload.event).toBe('auth.verify.fail');
+    expect(JSON.stringify(payload)).not.toContain('bad-token-secret');
+    warnSpy.mockRestore();
+  });
 });
 
 type TestJwk = {

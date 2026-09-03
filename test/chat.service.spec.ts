@@ -1,5 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
-import { ChatService } from '../src/modules/chat/chat.service';
+import { CHAT_MODEL_CONTEXT_LIMIT, ChatService } from '../src/modules/chat/chat.service';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import type { ChatMessageRecord, ChatRunRecord } from '../src/modules/chat/chat.types';
 
@@ -151,7 +151,11 @@ describe('ChatService', () => {
       ),
     );
 
-    expect(listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 500);
+    expect(listRecentMessages).toHaveBeenCalledWith(
+      request,
+      'chat-1',
+      CHAT_MODEL_CONTEXT_LIMIT,
+    );
     expect(events.map((event: any) => event.type)).toEqual([
       'user-persisted',
       'meta',
