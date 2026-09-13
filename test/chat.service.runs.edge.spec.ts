@@ -254,6 +254,184 @@ describe('ChatService durable run edge contracts', () => {
     },
   );
 
+  it('replays done status even when assistant row is missing', async () => {
+    const stored = message({
+      id: 'user-message',
+      role: 'user',
+      client_message_id: 'ui-user-1',
+      parts: [{ type: 'text', text: 'hello' }],
+    });
+    const repo = repository({
+      listRecentMessages: jest.fn().mockResolvedValue([stored]),
+      findMessageByClientId: jest.fn().mockResolvedValue(stored),
+      findMessageByReference: jest.fn().mockResolvedValue(null),
+      createRun: jest.fn().mockResolvedValue({
+        run: run({
+          status: 'complete',
+          user_message_id: stored.id,
+          assistant_message_id: 'missing-assistant',
+        }),
+        created: false,
+      }),
+    });
+    const result = await collect(
+      service(repo, async function* () {
+        throw new Error('provider should not run');
+      }).streamMessage(
+        'chat-1',
+        { content: 'hello', clientMessageId: 'ui-user-1', runId },
+        request,
+        principal,
+      ),
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.events.map((event: any) => event.type)).toEqual([
+      'user-persisted',
+      'done',
+    ]);
+  });
+
+  it('rejects replay of in-progress run and does not call provider', async () => {
+    const stored = message({
+      id: 'user-message',
+      role: 'user',
+      client_message_id: 'ui-user-1',
+      parts: [{ type: 'text', text: 'hello' }],
+    });
+    const repo = repository({
+      listRecentMessages: jest.fn().mockResolvedValue([stored]),
+      findMessageByClientId: jest.fn().mockResolvedValue(stored),
+      createRun: jest.fn().mockResolvedValue({
+        run: run({ status: 'running', user_message_id: stored.id }),
+        created: false,
+      }),
+    });
+    const ai = {
+      enforceRateLimit: jest.fn().mockResolvedValue(undefined),
+      stream: jest.fn(),
+    };
+    const chat = new ChatService(
+      repo as never,
+      ai as never,
+      { logFromRequest: jest.fn() } as never,
+    );
+
+    const result = await collect(
+      chat.streamMessage(
+        'chat-1',
+        { content: 'hello', clientMessageId: 'ui-user-1', runId },
+        request,
+        principal,
+      ),
+    );
+
+    expect(result.error).toBeInstanceOf(ConflictException);
+    expect(ai.stream).not.toHaveBeenCalled();
+  });
+
+  it('ignores non-string reasoning parts when replaying completed run', async () => {
+    const storedUser = message({
+      id: 'user-message',
+      role: 'user',
+      client_message_id: 'ui-user-1',
+      parts: [{ type: 'text', text: 'hello' }],
+    });
+    const storedAssistant = message({
+      id: 'assistant-message',
+      role: 'assistant',
+      client_message_id: 'ui-assistant-1',
+      parent_message_id: storedUser.id,
+      parts: [
+        { type: 'reasoning', text: 123 as never },
+        { type: 'text', text: 'visible answer' },
+      ],
+    });
+    const repo = repository({
+      listRecentMessages: jest.fn().mockResolvedValue([storedUser, storedAssistant]),
+      findMessageByClientId: jest.fn().mockResolvedValue(storedUser),
+      findMessageByReference: jest.fn().mockResolvedValue(storedAssistant),
+      createRun: jest.fn().mockResolvedValue({
+        run: run({
+          status: 'complete',
+          user_message_id: storedUser.id,
+          assistant_message_id: storedAssistant.id,
+        }),
+        created: false,
+      }),
+    });
+    const result = await collect(
+      service(repo, async function* () {
+        throw new Error('provider should not run');
+      }).streamMessage(
+        'chat-1',
+        { content: 'hello', clientMessageId: 'ui-user-1', runId },
+        request,
+        principal,
+      ),
+    );
+
+    expect(result.events.map((event: any) => event.type)).toEqual([
+      'user-persisted',
+      'delta',
+      'persisted',
+      'done',
+    ]);
+  });
+
+  it('replays persisted reasoning, text, and sources for completed run', async () => {
+    const storedUser = message({
+      id: 'user-message',
+      role: 'user',
+      client_message_id: 'ui-user-1',
+      parts: [{ type: 'text', text: 'hello' }],
+    });
+    const storedAssistant = message({
+      id: 'assistant-message',
+      role: 'assistant',
+      client_message_id: 'ui-assistant-1',
+      parent_message_id: storedUser.id,
+      parts: [
+        { type: 'reasoning', text: 'hidden reasoning' },
+        { type: 'text', text: 'visible answer' },
+        { type: 'source', source: { title: 'Doc', url: 'https://example.com' } },
+      ],
+    });
+    const repo = repository({
+      listRecentMessages: jest.fn().mockResolvedValue([storedUser, storedAssistant]),
+      findMessageByClientId: jest.fn().mockResolvedValue(storedUser),
+      findMessageByReference: jest.fn().mockResolvedValue(storedAssistant),
+      createRun: jest.fn().mockResolvedValue({
+        run: run({
+          status: 'complete',
+          user_message_id: storedUser.id,
+          assistant_message_id: storedAssistant.id,
+        }),
+        created: false,
+      }),
+    });
+    const result = await collect(
+      service(repo, async function* () {
+        throw new Error('provider should not run');
+      }).streamMessage(
+        'chat-1',
+        { content: 'hello', clientMessageId: 'ui-user-1', runId },
+        request,
+        principal,
+      ),
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.events.map((event: any) => event.type)).toEqual([
+      'user-persisted',
+      'thinking',
+      'sources',
+      'delta',
+      'persisted',
+      'done',
+    ]);
+  });
+
   it('replays persisted sources and client assistant id for completed run', async () => {
     const storedUser = message({
       id: 'user-message',

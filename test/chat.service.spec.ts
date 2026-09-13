@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { CHAT_MODEL_CONTEXT_LIMIT, ChatService } from '../src/modules/chat/chat.service';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import type { ChatMessageRecord, ChatRunRecord } from '../src/modules/chat/chat.types';
@@ -210,6 +210,86 @@ describe('ChatService', () => {
         { role: 'user', content: 'new question' },
       ],
       context: { pagePath: '/docs/a', moduleKey: 'docs' },
+    });
+  });
+
+  it('rejects client message id reuse when persisted content differs', async () => {
+    const existing = message('msg-user', 'user', null, [{ type: 'text', text: 'stored' }]);
+    existing.client_message_id = 'ui-user-1';
+    const repository = {
+      get: jest.fn().mockResolvedValue({
+        id: 'chat-1',
+        title: 'Existing',
+        page_path: null,
+        module_key: null,
+      }),
+      listRecentMessages: jest.fn().mockResolvedValue([]),
+      findMessageByClientId: jest.fn().mockResolvedValue(existing),
+      findMessageByReference: jest.fn().mockResolvedValue(null),
+      createMessage: jest.fn(),
+      createRun: jest.fn(),
+      updateRun: jest.fn(),
+      touch: jest.fn(),
+      update: jest.fn(),
+    };
+    const service = new ChatService(
+      repository as never,
+      { enforceRateLimit: jest.fn(), stream: jest.fn() } as never,
+      { logFromRequest: jest.fn() } as never,
+    );
+
+    const result = await collectResult(
+      service.streamMessage(
+        'chat-1',
+        { content: 'different', clientMessageId: 'ui-user-1' },
+        request,
+        principal,
+      ),
+    );
+
+    expect(result.error).toBeInstanceOf(ConflictException);
+    expect(repository.createRun).not.toHaveBeenCalled();
+  });
+
+  it('treats a stream that ends before done as incomplete', async () => {
+    const repository = {
+      get: jest.fn().mockResolvedValue({
+        id: 'chat-1',
+        title: 'Existing',
+        page_path: null,
+        module_key: null,
+      }),
+      listRecentMessages: jest.fn().mockResolvedValue([]),
+      findMessageByClientId: jest.fn().mockResolvedValue(null),
+      findMessageByReference: jest.fn().mockResolvedValue(null),
+      createMessage: jest.fn().mockResolvedValue(
+        message('msg-user', 'user', null, [{ type: 'text', text: 'hello' }]),
+      ),
+      createRun: jest.fn().mockResolvedValue({
+        run: runningRun('msg-user'),
+        created: true,
+      }),
+      updateRun: jest.fn().mockResolvedValue({}),
+      touch: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn(),
+    };
+    async function* modelStream() {
+      yield { type: 'meta', provider: 'mock', model: 'mock' };
+      yield { type: 'delta', content: 'partial' };
+    }
+    const service = new ChatService(
+      repository as never,
+      { enforceRateLimit: jest.fn(), stream: jest.fn(() => modelStream()) } as never,
+      { logFromRequest: jest.fn() } as never,
+    );
+
+    const result = await collectResult(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+
+    expect(result.error).toMatchObject({
+      code: 'CHAT_STREAM_INCOMPLETE',
+      message: 'Model stream ended before completion.',
     });
   });
 

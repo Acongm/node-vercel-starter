@@ -76,6 +76,32 @@ describe('ChatService CRUD', () => {
     expect(repository.delete).toHaveBeenCalledWith(request, 'chat-1');
   });
 
+  it('passes asc after cursor when loading chat detail', async () => {
+    const repository = {
+      get: jest.fn().mockResolvedValue({ id: 'chat-1' }),
+      listMessages: jest.fn().mockResolvedValue({
+        messages: [{ id: 'm1' }],
+        nextCursor: null,
+      }),
+    };
+    const service = new ChatService(repository as never, {} as never, {} as never);
+
+    await expect(
+      service.get(request, 'chat-1', { order: 'asc', after: 'message-cursor' }),
+    ).resolves.toEqual({
+      chat: { id: 'chat-1' },
+      messages: [{ id: 'm1' }],
+      nextCursor: null,
+    });
+
+    expect(repository.listMessages).toHaveBeenCalledWith(request, 'chat-1', {
+      limit: 100,
+      order: 'asc',
+      before: undefined,
+      after: 'message-cursor',
+    });
+  });
+
   it('rejects combining after and before cursors on message history', async () => {
     const service = new ChatService({} as never, {} as never, {} as never);
 
