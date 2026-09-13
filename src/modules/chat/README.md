@@ -23,7 +23,8 @@ POST   /api/chats/:id/messages/stream
 Send path (`POST /api/chats/:id/messages/stream`):
 
 - Guard verifies the Supabase access token once; `ChatService` reuses `request.auth`.
-- Model context is a bounded recent window (`CHAT_MODEL_CONTEXT_LIMIT`), separate from history pagination.
+- Model context is a bounded recent window (`CHAT_MODEL_CONTEXT_LIMIT` = 120), separate from history pagination.
+- Durable assistant-ui flags live in `chat.capabilities.ts`. `historyUpdate`, `historyDelete`, and `resume` stay explicitly false.
 - Effective user settings come from the `UserService` cache (`uid + schemaVersion`); send does not add a second remote settings fetch after a cache hit. `defaultPrompt` and enabled `skills` are separate user-preference messages and never merge into the server system policy.
 - Structured log `chat.first_token` records duration from request start to first thinking/delta.
 

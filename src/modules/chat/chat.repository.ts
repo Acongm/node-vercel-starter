@@ -6,6 +6,7 @@ import {
   encodeChatCursor,
   normalizePageLimit,
 } from './chat-pagination';
+import { CHAT_MODEL_CONTEXT_LIMIT } from './chat.limits';
 import { CreateChatDto, UpdateChatDto } from './dto/chat.dto';
 import {
   ChatMessagePart,
@@ -252,10 +253,10 @@ export class ChatRepository {
   async listRecentMessages(
     request: Request,
     chatId: string,
-    limit = 500,
+    limit = CHAT_MODEL_CONTEXT_LIMIT,
   ): Promise<ChatMessageRecord[]> {
     const client = this.supabaseClients.create(request);
-    const safeLimit = Math.max(1, Math.min(limit, 500));
+    const safeLimit = Math.max(1, Math.min(limit, CHAT_MODEL_CONTEXT_LIMIT));
     const { data, error } = await client
       .from('messages')
       .select(MESSAGE_SELECT)

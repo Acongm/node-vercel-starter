@@ -1,4 +1,4 @@
-import { ChatService } from '../src/modules/chat/chat.service';
+import { CHAT_MODEL_CONTEXT_LIMIT, CHAT_V2_CAPABILITIES, ChatService } from '../src/modules/chat/chat.service';
 import { appLogger } from '../src/common/app-logger';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import type { ChatMessageRecord, ChatRunRecord } from '../src/modules/chat/chat.types';
@@ -91,6 +91,13 @@ function repository() {
 }
 
 describe('Chat v2 send critical path (#59)', () => {
+  it('re-exports chat capabilities for controller wiring', () => {
+    expect(CHAT_V2_CAPABILITIES).toMatchObject({
+      cursorPagination: true,
+      durableSend: true,
+    });
+  });
+
   beforeEach(() => {
     jest.spyOn(appLogger, 'info').mockImplementation(() => undefined);
     jest.spyOn(appLogger, 'error').mockImplementation(() => undefined);
@@ -207,7 +214,7 @@ describe('Chat v2 send critical path (#59)', () => {
     );
     const limit = repo.listRecentMessages.mock.calls[0][2] as number;
     expect(limit).toBeGreaterThan(0);
-    expect(limit).toBeLessThanOrEqual(500);
+    expect(limit).toBe(CHAT_MODEL_CONTEXT_LIMIT);
   });
 
   it('injects cached effective settings once and does not fetch settings again during the stream', async () => {
@@ -340,6 +347,194 @@ describe('Chat v2 send critical path (#59)', () => {
     expect(repo.createMessage).toHaveBeenCalledWith(
       request,
       expect.objectContaining({ parentMessageId: 'parent-1' }),
+    );
+  });
+
+  it('merges ancestor lineage when edit parent falls outside the bounded recent window', async () => {
+    const recentWindow = [
+      message('recent-0', 'user', null, 'recent-0'),
+      message('recent-1', 'assistant', 'recent-0', 'recent-1'),
+      message('recent-2', 'user', 'recent-1', 'recent-2'),
+    ];
+    const oldUser = message('old-user', 'user', null, 'root question');
+    const oldAssistant = message('old-assistant', 'assistant', 'old-user', 'old answer');
+    const findMessageByReference = jest.fn(
+      async (_request: unknown, _chatId: string, reference: string) => {
+        if (reference === 'old-assistant') return oldAssistant;
+        if (reference === 'old-user') return oldUser;
+        return null;
+      },
+    );
+    const stream = jest.fn(async function* () {
+      yield { type: 'delta', content: 'answer' };
+      yield { type: 'done' };
+    });
+    const repo = repository();
+    repo.listRecentMessages = jest.fn().mockResolvedValue(recentWindow);
+    repo.findMessageByReference = findMessageByReference;
+    repo.createMessage = jest
+      .fn()
+      .mockResolvedValueOnce(
+        message('user-message', 'user', 'old-assistant', 'regenerate'),
+      )
+      .mockResolvedValueOnce(
+        message('assistant-message', 'assistant', 'user-message', 'answer'),
+      );
+    const service = new ChatService(
+      repo as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream,
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    await collect(
+      service.streamMessage(
+        'chat-1',
+        { content: 'regenerate', parentMessageId: 'old-assistant' },
+        request,
+        principal,
+      ),
+    );
+
+    expect(findMessageByReference).toHaveBeenCalled();
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          { role: 'user', content: 'root question' },
+          { role: 'assistant', content: 'old answer' },
+          { role: 'user', content: 'regenerate' },
+        ],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('stops lineage merge when an ancestor reference is missing', async () => {
+    const recentWindow = [message('recent-0', 'user', null, 'recent-0')];
+    const oldAssistant = message('old-assistant', 'assistant', 'missing-user', 'old answer');
+    const findMessageByReference = jest.fn(
+      async (_request: unknown, _chatId: string, reference: string) => {
+        if (reference === 'old-assistant') return oldAssistant;
+        return null;
+      },
+    );
+    const stream = jest.fn(async function* () {
+      yield { type: 'delta', content: 'answer' };
+      yield { type: 'done' };
+    });
+    const repo = repository();
+    repo.listRecentMessages = jest.fn().mockResolvedValue(recentWindow);
+    repo.findMessageByReference = findMessageByReference;
+    repo.createMessage = jest
+      .fn()
+      .mockResolvedValueOnce(
+        message('user-message', 'user', 'old-assistant', 'regenerate'),
+      )
+      .mockResolvedValueOnce(
+        message('assistant-message', 'assistant', 'user-message', 'answer'),
+      );
+    const service = new ChatService(
+      repo as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream,
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    await collect(
+      service.streamMessage(
+        'chat-1',
+        { content: 'regenerate', parentMessageId: 'old-assistant' },
+        request,
+        principal,
+      ),
+    );
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          { role: 'assistant', content: 'old answer' },
+          { role: 'user', content: 'regenerate' },
+        ],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('omits blank prompts and disabled skills from injected settings', async () => {
+    const getSettings = jest.fn().mockResolvedValue({
+      schemaVersion: 1,
+      effective: {
+        language: 'zh-CN',
+        theme: 'system',
+        chat: {
+          defaultModel: 'gpt-4.1-mini',
+          defaultPrompt: '   ',
+          skills: [
+            {
+              id: 'disabled',
+              name: ' ',
+              content: '',
+              enabled: false,
+            },
+          ],
+        },
+      },
+    });
+    const stream = jest.fn(async function* () {
+      yield { type: 'delta', content: 'answer' };
+      yield { type: 'done' };
+    });
+    const service = new ChatService(
+      repository() as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream,
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+      { getSettings } as never,
+    );
+
+    await collect(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        settings: {
+          defaultModel: 'gpt-4.1-mini',
+        },
+      }),
+    );
+  });
+
+  it('skips settings lookup when user service is not configured', async () => {
+    const stream = jest.fn(async function* () {
+      yield { type: 'delta', content: 'answer' };
+      yield { type: 'done' };
+    });
+    const service = new ChatService(
+      repository() as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream,
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    await collect(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({
+        settings: expect.anything(),
+      }),
     );
   });
 

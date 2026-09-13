@@ -9,6 +9,7 @@ import {
   encodeChatCursor,
   normalizePageLimit,
 } from '../src/modules/chat/chat-pagination';
+import { CHAT_MODEL_CONTEXT_LIMIT } from '../src/modules/chat/chat.limits';
 import { ChatRepository } from '../src/modules/chat/chat.repository';
 import type {
   ChatMessageRecord,
@@ -117,7 +118,11 @@ function createInMemoryChatRepository(store: MemoryStore): ChatRepository {
     return { messages: rows, nextCursor: null };
   };
 
-  repository.listRecentMessages = async (_request, chatId, limit = 500) => {
+  repository.listRecentMessages = async (
+    _request,
+    chatId,
+    limit = CHAT_MODEL_CONTEXT_LIMIT,
+  ) => {
     return listMessagesTailFirst(store, chatId, { limit }).messages;
   };
 

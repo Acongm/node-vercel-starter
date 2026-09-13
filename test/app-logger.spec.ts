@@ -1,4 +1,4 @@
-import { appLogger } from '../src/common/app-logger';
+import { LOG_REDACT_CENSOR, appLogger } from '../src/common/app-logger';
 
 describe('appLogger', () => {
   let logSpy: jest.SpyInstance;
@@ -36,5 +36,32 @@ describe('appLogger', () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledTimes(1);
     expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it('redacts tokens, cookies, and passwords in operational logs', () => {
+    appLogger.info({
+      event: 'secret.event',
+      authorization: 'Bearer super-secret',
+      access_token: 'tok-1',
+      refresh_token: 'tok-2',
+      password: 'hunter2',
+      cookie: 'sb-auth=abc',
+      headers: {
+        authorization: 'Bearer nested-secret',
+        cookie: 'session=abc',
+      },
+    });
+
+    const payload = JSON.parse(String(logSpy.mock.calls[0][0]));
+    expect(payload.authorization).toBe(LOG_REDACT_CENSOR);
+    expect(payload.access_token).toBe(LOG_REDACT_CENSOR);
+    expect(payload.refresh_token).toBe(LOG_REDACT_CENSOR);
+    expect(payload.password).toBe(LOG_REDACT_CENSOR);
+    expect(payload.cookie).toBe(LOG_REDACT_CENSOR);
+    expect(payload.headers).toEqual({
+      authorization: LOG_REDACT_CENSOR,
+      cookie: LOG_REDACT_CENSOR,
+    });
+    expect(JSON.stringify(payload)).not.toMatch(/super-secret|tok-1|hunter2/);
   });
 });

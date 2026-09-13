@@ -1,6 +1,6 @@
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { AuthPrincipal } from '../src/modules/auth/roles';
-import { ChatService } from '../src/modules/chat/chat.service';
+import { CHAT_MODEL_CONTEXT_LIMIT, ChatService } from '../src/modules/chat/chat.service';
 import type {
   ChatMessageRecord,
   ChatRunRecord,
@@ -612,7 +612,11 @@ describe('ChatService UI contract', () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(repository.listRecentMessages).toHaveBeenCalledWith(request, 'chat-1', 500);
+    expect(repository.listRecentMessages).toHaveBeenCalledWith(
+      request,
+      'chat-1',
+      CHAT_MODEL_CONTEXT_LIMIT,
+    );
     expect(receivedDto.messages).toHaveLength(100);
     expect(receivedDto.messages[0]).toEqual({
       role: 'assistant',

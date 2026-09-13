@@ -17,6 +17,7 @@ import { AuthPrincipal } from '../auth/roles';
 import { ChatLogWriterService } from '../chat-logs/chat-log-writer.service';
 import { UserService } from '../user/user.service';
 import { ChatContractError } from './chat.errors';
+import { CHAT_MODEL_CONTEXT_LIMIT } from './chat.limits';
 import { ChatRepository } from './chat.repository';
 import {
   ChatMessagePart,
@@ -32,8 +33,8 @@ import {
   UpdateChatDto,
 } from './dto/chat.dto';
 
-/** Bounded model-context window; persisted history pagination is a separate API. */
-export const CHAT_MODEL_CONTEXT_LIMIT = 500;
+export { CHAT_V2_CAPABILITIES } from './chat.capabilities';
+export { CHAT_MODEL_CONTEXT_LIMIT };
 
 @Injectable()
 export class ChatService {
@@ -146,7 +147,12 @@ export class ChatService {
     }
 
     const branchMessages = selectMessageBranch(
-      this.withCurrentMessage(priorMessages, userMessage),
+      await this.mergeModelContextWithLineage(
+        request,
+        id,
+        this.withCurrentMessage(priorMessages, userMessage),
+        userMessage,
+      ),
       userMessage.id,
     );
     const chatDto = this.toChatDto(chat, branchMessages, dto);
@@ -483,6 +489,33 @@ export class ChatService {
     return messages.some((message) => message.id === current.id)
       ? messages
       : [...messages, current];
+  }
+
+  private async mergeModelContextWithLineage(
+    request: Request,
+    chatId: string,
+    messages: ChatMessageRecord[],
+    headMessage: ChatMessageRecord,
+  ): Promise<ChatMessageRecord[]> {
+    const byId = new Map(messages.map((message) => [message.id, message]));
+    const lineage: ChatMessageRecord[] = [];
+    let parentId = headMessage.parent_message_id;
+    let fetched = 0;
+
+    while (parentId && !byId.has(parentId) && fetched < CHAT_MODEL_CONTEXT_LIMIT) {
+      const ancestor = await this.repository.findMessageByReference(
+        request,
+        chatId,
+        parentId,
+      );
+      if (!ancestor) break;
+      lineage.push(ancestor);
+      byId.set(ancestor.id, ancestor);
+      parentId = ancestor.parent_message_id;
+      fetched += 1;
+    }
+
+    return lineage.length ? [...messages, ...lineage.reverse()] : messages;
   }
 
   private toChatDto(
