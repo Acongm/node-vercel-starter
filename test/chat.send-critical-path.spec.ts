@@ -129,7 +129,82 @@ describe('Chat v2 send critical path (#59)', () => {
     expect(enforceRateLimit).toHaveBeenCalledWith(request, principal);
   });
 
-  it('emits chat.first_token when the first model token arrives, without waiting on title work', async () => {
+  it('projects only the selected branch into model history during send', async () => {
+    const messages = [
+      message('u1', 'user', null, 'question'),
+      message('a1', 'assistant', 'u1', 'old answer'),
+      message('a2', 'assistant', 'u1', 'new answer'),
+      message('u2', 'user', 'a2', 'follow up'),
+    ];
+    const stream = jest.fn(async function* () {
+      yield { type: 'delta', content: 'answer' };
+      yield { type: 'done' };
+    });
+    const repo = repository();
+    repo.listRecentMessages = jest.fn().mockResolvedValue(messages);
+    repo.createMessage = jest
+      .fn()
+      .mockResolvedValueOnce(message('user-message', 'user', 'a2', 'follow up'))
+      .mockResolvedValueOnce(
+        message('assistant-message', 'assistant', 'user-message', 'answer'),
+      );
+    const service = new ChatService(
+      repo as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream,
+      } as never,
+      { logFromRequest: jest.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    await collect(
+      service.streamMessage('chat-1', { content: 'follow up' }, request, principal),
+    );
+
+    expect(stream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          { role: 'user', content: 'question' },
+          { role: 'assistant', content: 'new answer' },
+          { role: 'user', content: 'follow up' },
+        ],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('logs chat.persist.error when auxiliary ChatLogs write fails', async () => {
+    const error = jest.spyOn(appLogger, 'error').mockImplementation(() => undefined);
+    const service = new ChatService(
+      repository() as never,
+      {
+        enforceRateLimit: jest.fn().mockResolvedValue(principal),
+        stream: jest.fn(async function* () {
+          yield { type: 'delta', content: 'answer' };
+          yield { type: 'done' };
+        }),
+      } as never,
+      {
+        logFromRequest: jest.fn().mockRejectedValue(new Error('chatlogs down')),
+      } as never,
+    );
+
+    const events = await collect(
+      service.streamMessage('chat-1', { content: 'hello' }, request, principal),
+    );
+
+    expect(events.map((event) => event.type)).toEqual([
+      'user-persisted',
+      'delta',
+      'persisted',
+      'done',
+    ]);
+    expect(
+      error.mock.calls.some(([fields]) => fields.event === 'chat.persist.error'),
+    ).toBe(true);
+  });
+
+  it('includes runId on chat.first_token operational log fields', async () => {
     const info = jest.spyOn(appLogger, 'info').mockImplementation(() => undefined);
     let releaseTitle: () => void = () => undefined;
     const titleGate = new Promise<void>((resolve) => {
@@ -174,7 +249,11 @@ describe('Chat v2 send critical path (#59)', () => {
 
     expect(events.map((event) => event.type)).toContain('delta');
     expect(
-      info.mock.calls.some(([fields]) => fields.event === 'chat.first_token'),
+      info.mock.calls.some(
+        ([fields]) =>
+          fields.event === 'chat.first_token' &&
+          fields.runId === '11111111-1111-4111-8111-111111111111',
+      ),
     ).toBe(true);
     expect(events.map((event) => event.type)).not.toContain('done');
 
