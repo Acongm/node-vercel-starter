@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { appLogger } from '../src/common/app-logger';
 import { AuthPrincipal } from '../src/modules/auth/roles';
 import { ChatContractError } from '../src/modules/chat/chat.errors';
 import { ChatController } from '../src/modules/chat/chat.controller';
@@ -14,6 +15,7 @@ const principal: AuthPrincipal = {
 
 class FakeRequest extends EventEmitter {
   auth = principal;
+  requestId = 'req-controller-1';
 
   header(name: string) {
     return name.toLowerCase() === 'authorization' ? 'Bearer token' : undefined;
@@ -62,6 +64,15 @@ function joinedData(chunks: string[]) {
 }
 
 describe('ChatController contract', () => {
+  beforeEach(() => {
+    jest.spyOn(appLogger, 'info').mockImplementation(() => undefined);
+    jest.spyOn(appLogger, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('delegates paginated REST routes without substituting client-owned identity', async () => {
     const listResult = { chats: [{ id: 'chat-1' }], nextCursor: 'next-chat' };
     const messageResult = {
@@ -288,5 +299,118 @@ describe('ChatController contract', () => {
     expect(eventTypes(response.chunks)).toEqual(['meta']);
     expect(response.ended).toBe(true);
     expect(request.listenerCount('close')).toBe(0);
+  });
+
+  it('emits structured send lifecycle logs with requestId, chatId, userId, and runId', async () => {
+    const info = jest.spyOn(appLogger, 'info').mockImplementation(() => undefined);
+    async function* stream() {
+      yield { type: 'delta', content: 'hello' };
+      yield { type: 'done' };
+    }
+    const controller = new ChatController({
+      streamMessage: jest.fn(() => stream()),
+    } as never);
+    const request = new FakeRequest();
+    const response = new FakeResponse();
+
+    await controller.streamMessage(
+      request as never,
+      'chat-1',
+      {
+        content: 'question',
+        runId: '11111111-1111-4111-8111-111111111111',
+      },
+      response as never,
+    );
+
+    expect(
+      info.mock.calls.some(
+        ([fields]) =>
+          fields.event === 'chat.send.start' &&
+          fields.requestId === 'req-controller-1' &&
+          fields.chatId === 'chat-1' &&
+          fields.userId === 'user-1' &&
+          fields.runId === '11111111-1111-4111-8111-111111111111',
+      ),
+    ).toBe(true);
+    expect(
+      info.mock.calls.some(
+        ([fields]) =>
+          fields.event === 'chat.stream.done' &&
+          fields.requestId === 'req-controller-1' &&
+          fields.runId === '11111111-1111-4111-8111-111111111111' &&
+          typeof fields.durationMs === 'number',
+      ),
+    ).toBe(true);
+  });
+
+  it('logs chat.stream.cancel after a graceful aborted stream completes', async () => {
+    const info = jest.spyOn(appLogger, 'info').mockImplementation(() => undefined);
+    const request = new FakeRequest();
+    let capturedSignal: AbortSignal | undefined;
+
+    async function* stream() {
+      yield { type: 'meta', provider: 'test', model: 'test' };
+      request.emit('close');
+    }
+
+    const controller = new ChatController({
+      streamMessage: jest.fn(
+        (_id, _dto, _request, _principal, signal: AbortSignal) => {
+          capturedSignal = signal;
+          return stream();
+        },
+      ),
+    } as never);
+    const response = new FakeResponse();
+
+    await controller.streamMessage(
+      request as never,
+      'chat-1',
+      { content: 'question', runId: '11111111-1111-4111-8111-111111111111' },
+      response as never,
+    );
+
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(
+      info.mock.calls.some(([fields]) => fields.event === 'chat.stream.cancel'),
+    ).toBe(true);
+    expect(
+      info.mock.calls.some(([fields]) => fields.event === 'chat.stream.done'),
+    ).toBe(false);
+  });
+
+  it('logs chat.stream.cancel instead of chat.stream.error when the client disconnects', async () => {
+    const info = jest.spyOn(appLogger, 'info').mockImplementation(() => undefined);
+    const error = jest.spyOn(appLogger, 'error').mockImplementation(() => undefined);
+    const request = new FakeRequest();
+
+    async function* stream() {
+      yield { type: 'meta', provider: 'test', model: 'test' };
+      request.emit('close');
+      throw new Error('connection closed');
+    }
+
+    const controller = new ChatController({
+      streamMessage: jest.fn((_id, _dto, _request, _principal, signal) => {
+        expect(signal).toBeInstanceOf(AbortSignal);
+        return stream();
+      }),
+    } as never);
+    const response = new FakeResponse();
+
+    await controller.streamMessage(
+      request as never,
+      'chat-1',
+      { content: 'question', runId: '11111111-1111-4111-8111-111111111111' },
+      response as never,
+    );
+
+    expect(
+      info.mock.calls.some(([fields]) => fields.event === 'chat.stream.cancel'),
+    ).toBe(true);
+    expect(error.mock.calls.some(([fields]) => fields.event === 'chat.stream.error')).toBe(
+      false,
+    );
   });
 });

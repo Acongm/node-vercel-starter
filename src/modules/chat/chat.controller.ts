@@ -134,20 +134,42 @@ export class ChatController {
         writeEvent(response, event);
       }
 
-      appLogger.info({
-        event: 'chat.stream.done',
-        requestId,
-        chatId: id,
-        userId,
-        durationMs: Date.now() - startedAt,
-      });
+      if (abortController.signal.aborted) {
+        appLogger.info({
+          event: 'chat.stream.cancel',
+          requestId,
+          chatId: id,
+          userId,
+          runId: dto.runId,
+          durationMs: Date.now() - startedAt,
+        });
+      } else {
+        appLogger.info({
+          event: 'chat.stream.done',
+          requestId,
+          chatId: id,
+          userId,
+          runId: dto.runId,
+          durationMs: Date.now() - startedAt,
+        });
+      }
     } catch (error) {
-      if (!abortController.signal.aborted) {
+      if (abortController.signal.aborted) {
+        appLogger.info({
+          event: 'chat.stream.cancel',
+          requestId,
+          chatId: id,
+          userId,
+          runId: dto.runId,
+          durationMs: Date.now() - startedAt,
+        });
+      } else {
         appLogger.error({
           event: 'chat.stream.error',
           requestId,
           chatId: id,
           userId,
+          runId: dto.runId,
           durationMs: Date.now() - startedAt,
           message: error instanceof Error ? error.message : 'Chat stream failed',
         });

@@ -176,6 +176,7 @@ export class ChatService {
         requestId,
         chatId: id,
         userId,
+        runId: run.id,
         durationMs: Date.now() - startedAt,
       });
     };
@@ -622,7 +623,14 @@ export class ChatService {
         completionTokens: input.completionTokens,
         totalTokens: input.totalTokens,
       });
-    } catch {
+    } catch (error) {
+      appLogger.error({
+        event: 'chat.persist.error',
+        requestId: (request as RequestWithId).requestId,
+        chatId: input.chatDto.conversationId,
+        userId: input.userId,
+        message: error instanceof Error ? error.message : 'Chat log persist failed',
+      });
       // Observability is auxiliary and always best-effort.
     }
   }

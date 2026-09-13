@@ -156,4 +156,32 @@ describe('ChatRepository stable cursor pagination', () => {
     expect(limit).toHaveBeenCalledWith(CHAT_MODEL_CONTEXT_LIMIT);
     expect(CHAT_MODEL_CONTEXT_LIMIT).toBe(120);
   });
+
+  it('requests limit+1 rows for a 50-item history page', async () => {
+    const limit = jest.fn().mockResolvedValue({ data: [], error: null });
+    const orderId = jest.fn().mockReturnValue({ limit });
+    const orderCreated = jest.fn().mockReturnValue({ order: orderId });
+    const eq = jest.fn().mockReturnValue({ order: orderCreated });
+    const select = jest.fn().mockReturnValue({ eq });
+    const repository = repositoryWith({
+      from: jest.fn().mockReturnValue({ select }),
+    });
+
+    await repository.listMessages(request, 'chat-1', { limit: 50 });
+    expect(limit).toHaveBeenCalledWith(51);
+  });
+
+  it('caps oversized history pages at 100 plus lookahead row', async () => {
+    const limit = jest.fn().mockResolvedValue({ data: [], error: null });
+    const orderId = jest.fn().mockReturnValue({ limit });
+    const orderCreated = jest.fn().mockReturnValue({ order: orderId });
+    const eq = jest.fn().mockReturnValue({ order: orderCreated });
+    const select = jest.fn().mockReturnValue({ eq });
+    const repository = repositoryWith({
+      from: jest.fn().mockReturnValue({ select }),
+    });
+
+    await repository.listMessages(request, 'chat-1', { limit: 500 });
+    expect(limit).toHaveBeenCalledWith(101);
+  });
 });
